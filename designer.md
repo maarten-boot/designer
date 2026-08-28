@@ -1,4 +1,4 @@
-# Designer — Specification (revision 7)
+# Designer — Specification (revision 8)
 
 Original: 27 August 2026. Revised: 28 August 2026.
 
@@ -34,11 +34,12 @@ follow from that.
 | Reference | A pointer from one item to another, stored by UUID. |
 | Slot | The use of a Property, or of another Entity, inside one Entity. |
 | Binding | The attachment of a Validator to a Type, Entity or Schema, with its arguments supplied. |
-| Path | A dotted route from an anchor Entity through reference slots to a value slot (§9.2). |
+| Path | A route from an anchor Entity through reference slots to a value slot (§9.2). |
 | Abstract Entity | A modelling-only Entity that never becomes a table. |
 | Concrete Entity | An Entity that materializes as one flattened table. |
-| Context | A modelling namespace controlling *visibility*. Hierarchical, exclusive. |
-| Schema | A named group of Entities, hosting cross-entity rules. Flat, non-exclusive. |
+| Context | A modelling namespace controlling visibility. Hierarchical. |
+| Schema root | A Context that hosts a Schema. |
+| Schema | The concrete Entities of one Context subtree, plus the rules spanning them. |
 
 ---
 
@@ -113,8 +114,7 @@ carries.
 
 Wrapping at midnight would quietly turn 23:00 + 2h into 01:00, which is almost
 never the intent, and the honest fix for anyone wanting that behaviour is to
-model a duration rather than a wall-clock time. Erroring says so at definition
-time.
+model a duration rather than a wall-clock time.
 
 `duration` still arises, from `datetime − datetime` and `date − date` (§5.5).
 
@@ -194,9 +194,9 @@ in the model check. Three binding sites:
   Entity; the path resolves to a BaseType (§9.2).
 
 The check applies to all three and not just the cross-field cases, because a
-Validator is reusable across many Types: a leaf expression that is sound for the
-Type it was written against can be nonsense for the next Type that attaches it.
-The mismatch is a property of the binding, never of the Validator alone.
+Validator is reusable across many Types: a leaf expression sound for the Type it
+was written against can be nonsense for the next Type that attaches it. The
+mismatch is a property of the binding, never of the Validator alone.
 
 **The checker.** Given the expression AST and a map from parameter name to
 BaseType, it infers a type for every node and reports:
@@ -298,10 +298,9 @@ needed by §5.5, comes from the Property's Type chain, or the override's.
 A **reference slot** is described in §8.3.
 
 `[DECIDED]` **Entity validators bind to value slots only.** A reference slot has
-no scalar value to test — it denotes a row in another table — so binding one to a
-predicate parameter has no well-defined meaning at the Entity level. Reference
-slots appear in Schema validators, but only as *navigation*, never as the final
-term of a path (§9.2).
+no scalar value to test — it denotes a row in another table. Reference slots
+appear in Schema validators, but only as *navigation*, never as the final term of
+a path (§9.2).
 
 ---
 
@@ -342,7 +341,7 @@ several concrete Entities. Rules:
 - An abstract Entity may declare `identity` and `indexes`; each concrete
   descendant materializes them on its own table.
 - An abstract Entity with no concrete descendant is a warning, not an error.
-- An abstract Entity may not be a member of a Schema (§9.1).
+- An abstract Entity is never a Schema member (§9.1).
 
 **Materialization is flattened.** Each concrete Entity becomes exactly one table
 containing all of its effective slots as real columns, inherited ones copied in.
@@ -403,6 +402,8 @@ A reference slot has:
 Rules:
 
 - The target must be concrete and must have an identity, declared or inherited.
+- The target must be **visible** from this Entity's Context (§10). It need not be
+  in the same Schema — references cross Schema boundaries freely (§9.2).
 - **To-one only.** See §8.4.
 - Reference cycles are allowed, including self-reference. This is the recursion
   the Type system deliberately does not carry.
@@ -414,70 +415,52 @@ Deferred, at close to zero cost for a relational model:
 
 - **One-to-many** is modelled from the child side, as a to-one reference on the
   child.
-- **Many-to-many** is an explicit join Entity holding two references, which is
-  what the database will contain anyway.
+- **Many-to-many** is an explicit join Entity holding two references.
 
 ---
 
 ## 9. Schema
 
-A **Schema** is a named collection of concrete Entities that belong together,
-plus the rules that span more than one of them.
+A **Schema** is the set of concrete Entities in one Context subtree, plus the
+rules that span more than one of them.
 
 | Field | Notes |
 |---|---|
-| `include_contexts` | Optional list of Context references. Every concrete Entity in those Contexts, or their descendants, is a member (§9.1). |
-| `include_entities` | Explicit list of concrete Entity references. |
 | `validators` | Cross-entity validator bindings (§9.2). |
 
-Effective membership is the union of the two include lists.
+A Schema has no membership list. Its members are derived from the Context it
+belongs to.
 
-### 9.1 Schema is not a Context `[DECIDED]`
+### 9.1 Membership is derived and exclusive `[DECIDED]`
 
-**Membership is non-exclusive**: an Entity may belong to several Schemas, so a
-shared `Customer` can appear in more than one model. This is the decision that
-rules out the tempting shortcut of treating "a Context one level down" as the
-Schema, because the two concepts differ on every axis that matters:
+A Schema belongs to a Context like any other item (§3). That Context is its
+**schema root**, and the Schema's members are every concrete Entity whose own
+Context is the root or a descendant of it.
 
-| | Context | Schema |
-|---|---|---|
-| Shape | Hierarchical | Flat |
-| Membership | Exclusive — one item, one Context | Non-exclusive |
-| Governs | Name resolution and visibility | Belonging, and the reach of cross-entity rules |
-| Applies to | Every kind of item | Concrete Entities only |
+- **At most one Schema per Context.** Two Schemas in one Context would have
+  identical membership.
+- **A schema root's subtree may not contain another schema root.** This is the
+  rule that makes membership genuinely exclusive: without it, an Entity in
+  `billing/invoicing` would belong to both the `billing` Schema and the
+  `invoicing` one. With it, the schema roots partition the Context tree and every
+  concrete Entity belongs to at most one Schema.
+- **Abstract Entities are never members**, since they never materialize and have
+  no rows for a rule to range over. Their concrete descendants are members if
+  their Contexts fall in the subtree.
+- A concrete Entity in no schema root's subtree belongs to no Schema. Legal, and
+  reported as informational — it is the normal state during modelling.
 
-A shared `Customer` lives in exactly one Context but can be a member of four
-Schemas. Collapsing the two would make that impossible.
+Membership is **live**: moving an Entity between Contexts can move it between
+Schemas, or out of all of them. The Context move confirmation says so, and the
+model check catches rules left dangling by the move.
 
-**But the ergonomics of the shortcut are worth keeping**, which is what
-`include_contexts` is for. Point a Schema at a Context and every concrete Entity
-in it becomes a member, with no list to maintain; then add shared Entities from
-elsewhere explicitly. The usual case is one Context, zero explicit additions,
-which is exactly the original idea — without giving up non-exclusivity.
+Because membership now partitions the tree, a Schema is the natural **export
+unit** — one Schema, one database or SQL namespace — with no shared-member case
+to warn about.
 
-Consequences to be aware of:
-
-- Membership derived from a Context is **live**. Adding an Entity to that Context
-  adds it to the Schema; moving one out removes it, which can leave a Schema
-  validator path unresolvable. The model check catches that (§11.2), and the
-  Schema form shows derived members in a distinct style from explicit ones so it
-  is clear which are which.
-- `include_contexts` is recursive: descendants of a named Context are included.
-  This matches how Contexts are normally used, and a Schema wanting only one
-  level can name the leaf.
-- **Abstract Entities are never members**, derived or explicit. A Schema is a set
-  of things that exist; an abstract Entity does not materialize and has no rows
-  for a rule to range over. Its concrete descendants may be members.
-- Every member must be visible from the Schema's own Context (§10).
-- A Schema with fewer than two members is legal but reported as informational.
-
-`[V2]` Member *exclusions*, for the case where a derived Context contains one
-Entity that does not belong. Not needed until it is; the workaround is to list
-members explicitly.
-
-**Export takes a Schema as its argument** rather than a Schema owning its
-entities. When a member is shared with another Schema, export warns rather than
-refuses, since the sharing is deliberate.
+Note what this deliberately gives up: a `Customer` shared by two lines of
+business cannot be a member of both Schemas. It lives in one subtree, and the
+other Schema reaches it by *reference*, not by membership (§9.2).
 
 ### 9.2 Cross-entity validators and anchored paths `[DECIDED]`
 
@@ -491,18 +474,25 @@ So a Schema validator binding carries an **anchor** and **paths**:
 
 | Field | Notes |
 |---|---|
-| `anchor` | A member Entity. The rule is evaluated once per row of it. |
+| `anchor` | An Entity that is a **member of this Schema**. The rule is evaluated once per row of it. |
 | `bindings` | Parameter name → path, or → literal. |
 | `enforcement` | `application` (default) or `database`. See §9.3. |
 
-A **path** is a dotted route rooted at the anchor:
+A **path** is a route rooted at the anchor:
 
 - every segment except the last must be a **reference slot**;
 - the last segment must be a **value slot**;
 - the path's BaseType is that value slot's, feeding §5.5 unchanged;
-- **maximum four segments**, i.e. at most three reference hops before the value.
+- **maximum four segments**, i.e. at most three reference hops before the value;
+- every Entity along the path must be **visible from the Schema's Context**.
 
-So with anchor `OrderLine`:
+**A path may leave the Schema.** Only the anchor must be a member. This rule
+changed when membership became exclusive: with a shared `Customer` necessarily
+living outside most Schemas' subtrees, requiring every hop to be a member would
+make the majority of useful rules illegal. Membership defines what a rule ranges
+*over*; visibility defines what it can *reach*.
+
+With anchor `OrderLine`:
 
 ```
 order.customer.country_code       valid — 2 hops, ends on a value slot
@@ -513,19 +503,13 @@ a.b.c.d.e                         invalid — exceeds four segments
 
 The four-segment cap is a legibility limit as much as a technical one: a rule
 nobody can read is a rule nobody maintains, and each hop is a join in whatever
-eventually enforces the rule. The path editor (§13.5) stops offering reference
-slots at the fourth segment, so the limit is felt as the picker running out of
-options rather than as an error message.
+eventually enforces it. The path editor (§13.5) stops offering reference slots at
+the fourth segment, so the limit is felt as the picker running out of options
+rather than as an error message.
 
 This reuses the existing binding machinery: a binding already maps a parameter to
 a slot, and now maps it to a path of slots. The static checker needs no new
 concepts, only a path resolver.
-
-Additional rules:
-
-- Every Entity along a path must be a member of the Schema.
-- Paths may traverse a reference cycle; a path is finite and written out, and now
-  capped, so there is no recursion to bound.
 
 ### 9.3 Enforceability
 
@@ -539,6 +523,10 @@ the database cannot hold it — but the tool must not imply the database will
 enforce it. Hence the `enforcement` flag. `database` means "generate a trigger on
 export"; `[V2]` since no export exists yet, v1 stores the flag, shows it in the
 form, and the model check notes that nothing generates it.
+
+A path that leaves the Schema makes this sharper: such a rule crosses a database
+boundary as well as a table one, so `database` enforcement may be impossible
+rather than merely unimplemented. The model check flags that combination.
 
 ---
 
@@ -561,8 +549,14 @@ silently invalidate a model when toggled.
 - Shadowing: the nearer name wins. The tool warns when a new item shadows an
   ancestor's name.
 - Moving an item between Contexts is allowed only if every referencing item can
-  still see it at the new location. With `include_contexts` (§9.1), a move can
-  also change Schema membership; the confirmation says so.
+  still see it at the new location. Moving an Entity may also change its Schema
+  membership (§9.1); the confirmation says so.
+
+Note the interaction with §9.1 worth designing around: a shared Entity placed in
+a **common ancestor** Context is visible to every Schema below it and belongs to
+none of them, which is exactly the right home for a `Customer` that several
+Schemas reference. Placing shared Entities high in the tree is the intended
+idiom.
 
 ---
 
@@ -570,28 +564,26 @@ silently invalidate a model when toggled.
 
 References that exist: Type → parent Type, Type → Validator, Property → Type,
 Entity → parent Entity, Entity → Property (via slot), Entity → Entity (via
-reference slot), Entity → Validator, Schema → Context (via `include_contexts`),
-Schema → Entity, Schema → Validator, Validator → Validator, item → Context.
+reference slot), Entity → Validator, Schema → Validator, Schema → Entity (as
+validator anchors and path segments), Validator → Validator, item → Context.
 
 - **Delete is refused** while any item references the target; the tool lists the
-  referencing items. This covers Entities that are extended, referenced, or
-  explicitly held by a Schema. An Entity that is a *derived* member of a Schema
-  is not blocked by that membership alone, but is blocked if a Schema validator
-  path traverses it.
+  referencing items. This covers Entities that are extended, referenced, used as
+  a Schema validator anchor, or traversed by a path. Schema *membership* alone
+  never blocks a delete, since membership is derived rather than stored.
 
 ### 11.1 Recursive Context delete `[DECIDED]`
 
 Deleting a Context deletes its whole subtree — child Contexts and all items
-within them.
+within them, including any Schema rooted there.
 
 The confirmation dialog shows the **JSON subtree about to be removed**, plus a
 count by kind, so the impact is visible in full rather than summarised.
 
 The delete is **refused if anything outside the subtree references anything
-inside it**, and the dialog lists those references instead. Internal references,
-from one item in the subtree to another, are fine — they disappear together. A
-Schema outside the subtree naming the Context in `include_contexts` counts as an
-outside reference.
+inside it**, and the dialog lists those references instead. Internal references
+disappear together. A Schema validator elsewhere whose path traverses an Entity
+in the subtree counts as an outside reference.
 
 ### 11.2 Model check
 
@@ -601,19 +593,25 @@ On demand, and incrementally as items are edited:
 - Type parent cycles, Entity extension cycles, Validator cycles
 - unbound validator parameters
 - **binding type errors and warnings** (§5.5)
+- **nested schema roots** — error (§9.1)
+- more than one Schema in a Context — error
+- Schema validator whose anchor is not a member — error
 - **unresolvable paths**, paths ending on a reference slot, paths exceeding four
-  segments, and paths leaving the Schema's membership — errors (§9.2)
+  segments, paths reaching an Entity not visible from the Schema's Context —
+  errors (§9.2)
+- Schema validator with `enforcement = database` whose path leaves the Schema —
+  warning, likely unenforceable at the database level (§9.3)
 - duplicate names; shadowing warnings
 - Entity validator bound to a reference slot — error (§7.2)
 - reference slots targeting an abstract Entity — error
 - reference slots whose target has no identity — error
 - reference slots whose target has concrete descendants — warning (§8.2)
 - abstract Entities with no concrete descendant — warning
-- `include_contexts` naming a Context with no concrete Entities — warning
 - Schema validator with `enforcement = database` — note, nothing generates it yet
 - slot overrides that widen rather than narrow — error
 - `set_null` on a required slot — error
-- Schemas with fewer than two members, and orphaned items — informational
+- concrete Entities belonging to no Schema, Schemas with fewer than two members,
+  and orphaned items — informational
 
 Entity *reference* cycles are legal and are not reported.
 
@@ -626,14 +624,15 @@ dependency. YAML is an acceptable substitute if hand-editing matters more than
 tooling.
 
 Structure: a flat list per kind, every item keyed by UUID, every reference stored
-as a UUID string. Do not nest — with extension, reference slots and Schema
-membership the model is a graph, not a tree, and nesting forces an arbitrary
-spanning tree plus fixups on load.
+as a UUID string. Do not nest — with extension and reference slots the model is a
+graph, not a tree, and nesting forces an arbitrary spanning tree plus fixups on
+load.
 
 Non-native literals are stored per §4.1. Paths are stored as ordered lists of
 slot UUIDs, not dotted strings, so a slot rename does not break a rule; the
-dotted form is rendered for display only. Derived Schema membership is **not**
-stored — only `include_contexts` is, and membership is recomputed on load.
+dotted form is rendered for display only. **Schema membership is not stored at
+all** — it is recomputed from the Context tree on load, which is what keeps it
+from going stale.
 
 The file carries a **schema version** from the first release.
 
@@ -670,19 +669,31 @@ command stack where every mutation is an object with `do` and `undo`.
   restored. Sash positions must be applied after the window is mapped
   (`after_idle`) or they are silently ignored.
 
-### 13.2 Layout
+### 13.2 Layout `[DECIDED]` — back to five columns
 
 A vertical `ttk.PanedWindow` with two panes:
 
-- **Upper** — a horizontal `ttk.PanedWindow` with six children, left to right:
-  **Context, Schema, Entity, Property, Type, Validator**.
+- **Upper** — a horizontal `ttk.PanedWindow` with five children, left to right:
+  **Context, Entity, Property, Type, Validator**.
 - **Lower** — the editor.
 
-Schema sits beside Context because both are organisational rather than
-structural, and both are the natural first candidates to collapse.
+**There is no Schema column.** With membership derived from the Context subtree
+and at most one Schema per Context, a Schema column would list the same
+information the Context tree already shows. Instead:
+
+- Schema roots are **badged in the Context tree** — an icon or bold label — so
+  the partition is visible at a glance.
+- Selecting a schema-root Context puts a **Schema tab** in the editor beside the
+  Context form, where cross-entity validators are edited.
+- A **Make this Context a schema root** action creates the Schema item; it is
+  disabled when an ancestor or descendant is already one, which is where the
+  §9.1 nesting rule is felt.
+
+The Schema remains a distinct item with its own UUID, name and validators. Only
+its browsing surface merged into the Context column.
 
 `ttk.Treeview` throughout: hierarchical for Context, Type and Entity, flat for
-Schema, Property and Validator. One code path, sortable headings for free.
+Property and Validator. One code path, sortable headings for free.
 
 The **Entity column is an extension tree**, with abstract Entities shown in a
 distinct style — italic, or a separate icon — since they never materialize.
@@ -694,17 +705,16 @@ Each column has a filter entry above its list.
 Auto-collapse and manual control coexist through **pinning**, so the two never
 fight:
 
-- A slim toolbar above the upper pane holds six toggle buttons, one per column.
+- A slim toolbar above the upper pane holds five toggle buttons, one per column.
 - Every column has a **minimum usable width of 10 'm'**, measured at runtime with
   `tkinter.font.Font.measure("m") * 10` on the actual UI font rather than
   hardcoded in pixels, so the rule follows font size and DPI scaling.
 - On resize, the visible columns' minimums are summed; if they exceed the
-  available width, columns are auto-collapsed in a fixed priority order — Schema,
+  available width, columns are auto-collapsed in a fixed priority order —
   Context, Validator, Type, Property, Entity — until they fit. On widening,
   auto-collapsed columns are restored in reverse order.
 - **Toggling a column manually pins it.** A pinned column is never auto-collapsed
-  and never auto-restored; the explicit choice wins over the automatic rule. A
-  **Reset layout** command clears all pins.
+  and never auto-restored. A **Reset layout** command clears all pins.
 - Collapsing calls `PanedWindow.forget(pane)`; restoring calls `insert(index,
   pane)` at the remembered position. `ttk.PanedWindow` has no real collapse, and
   driving a sash to zero leaves a dead draggable strip that fights the next
@@ -712,19 +722,19 @@ fight:
 - Each pane's last width is remembered, so restoring puts the layout back rather
   than redistributing evenly.
 - Resize handling is debounced through `after`, since X11 delivers a stream of
-  `<Configure>` events during a drag and re-laying out on each is visibly janky.
+  `<Configure>` events during a drag.
 
-Note how these two numbers interact: at a default UI font, ten 'm' is roughly
-100–110px, so six columns need around 650px and **all six fit inside the 1024px
-minimum window**. Auto-collapse is therefore not a normal-use feature — it is a
-font-scaling safety net, firing when a high-DPI display or a large accessibility
-font pushes 10 'm' past ~170px. That is the right role for it, but it also means
-the behaviour will rarely be exercised in ordinary testing and needs deliberate
-testing at a large font size.
+Note how the two numbers interact: at a default UI font, ten 'm' is roughly
+100–110px, so five columns need around 550px and **all five fit inside the 1024px
+minimum window** with room to spare. Auto-collapse is therefore not a normal-use
+feature — it is a font-scaling safety net, firing when a high-DPI display or a
+large accessibility font pushes 10 'm' past ~200px. That is the right role for
+it, but the behaviour will rarely be exercised in ordinary testing and needs
+deliberate testing at a large font size.
 
 `[OPEN]` Ten 'm' is tight for a Treeview carrying an entity name, an icon and a
-filter entry above it. Worth measuring once the columns are real; if it proves
-too narrow, raising the minimum also makes auto-collapse meaningful at 1024px.
+filter entry above it. Worth measuring once the columns are real; dropping to
+five columns bought headroom, so raising the minimum is now cheap.
 
 **The Context column is the intended default collapse**, which works only because
 of the breadcrumb below.
@@ -736,7 +746,9 @@ active Context: `root › billing › invoicing`.
 
 It exists because the Context selection filters every other column (§13.7) and
 determines where a new item is created. With the Context column collapsed, the
-breadcrumb is the only indicator of both.
+breadcrumb is the only indicator of both — and now also the only indicator of
+which Schema the active Context sits under, so a schema root in the path carries
+the same badge it has in the tree.
 
 - Each segment is clickable and switches the active Context to that ancestor.
 - The final segment carries a dropdown listing child Contexts and siblings, so
@@ -748,26 +760,35 @@ breadcrumb is the only indicator of both.
 Schema validator bindings need a path picker, not a text field. A cascading
 selector rooted at the anchor offers, at each step, only that Entity's slots:
 reference slots continue the path, value slots end it, and reference slots stop
-being offered once four segments are reached (§9.2). This makes an invalid path
-unconstructible rather than merely reported, which matters because the dotted
-syntax is the one place a user could otherwise type something the model check has
-to reject.
+being offered once four segments are reached (§9.2). Targets outside the Schema
+are offered normally but marked, since crossing the boundary is legal and worth
+seeing.
+
+This makes an invalid path unconstructible rather than merely reported, which
+matters because the dotted syntax is the one place a user could otherwise type
+something the model check has to reject.
 
 ### 13.6 Editor pane `[DECIDED]` — generated form, plus a JSON tab
 
-Below the breadcrumb, a notebook with two tabs.
+Below the breadcrumb, a notebook. Two tabs for most kinds, three for a
+schema-root Context.
 
 **Form tab.** Generated per kind. Common controls: `name`, `description`, and
 read-only `uuid`, `created`, `modified`.
 
 | Kind | Kind-specific editor |
 |---|---|
-| Context | parent selector |
-| Schema | `include_contexts` picker; explicit member list; a combined member view marking derived members distinctly from explicit ones; cross-entity validator list with anchor picker, path editor and `enforcement` flag |
+| Context | parent selector; schema-root badge and the Make/Remove schema root action |
+| Schema (tab on a schema-root Context) | derived member list, read-only; cross-entity validator list with anchor picker, path editor and `enforcement` flag |
 | Entity | `abstract` checkbox; `extends` picker; slot table; validator list; identity; indexes; default order |
 | Property | Type picker |
 | Type | parent picker; validator list with argument bindings |
 | Validator | leaf/composite switch; parameter list; expression `Text`; message |
+
+The Schema tab's member list is **read-only by construction** — there is nothing
+to edit, since membership follows the Context tree. Entities are added to a
+Schema by moving them into its subtree, which the list should say plainly rather
+than leaving the user hunting for an Add button.
 
 Only the expression field is free text. `Text` with `undo=True` and tag-based
 highlighting; tkinter has no code editor widget.
@@ -787,11 +808,9 @@ on disk, with a copy button. `[V2]` Editable once the form editor settles.
 
 ### 13.7 Column linkage `[DECIDED]` — hybrid
 
-- The Context selection **filters** all five other columns.
-- The Schema selection **filters** the Entity column to its members, and through
-  it the Property column. This is the one place filtering rather than
-  highlighting is the default, because "the entities in this schema" is exactly
-  what a Schema is for.
+- The Context selection **filters** all four other columns.
+- Selecting a schema-root Context filters the Entity column to that Schema's
+  members, which is the behaviour the removed Schema column would have provided.
 - Selecting an Entity **highlights** its Properties rather than hiding the rest;
   selecting a Property highlights its Type; selecting a Type highlights its
   Validators.
@@ -823,20 +842,25 @@ model check. The Context path lives in the breadcrumb (§13.4).
   expresses what was meant. Worth pulling into v1 if anything else can be
   dropped.
 - Trigger generation for `enforcement = database` Schema validators (§9.3).
-- Schema member exclusions (§9.1).
 - Per-chain joined-table inheritance for polymorphic references (§8.2).
 - Scalar union types (§8.2).
 - Collections (§8.4).
 - Editable JSON tab (§13.6).
 - SQLAlchemy-backed model store (§12).
-- Export: DDL, SQLAlchemy declarative classes, or Pydantic models, taking a
-  Schema as the unit.
+- Export: DDL, SQLAlchemy declarative classes, or Pydantic models, one Schema at
+  a time.
 - Multi-model library import.
 
 ---
 
 ## 15. Remaining open questions
 
-One, and it is a measurement rather than a decision: whether a 10 'm' minimum
-column width is workable in practice for a Treeview with a filter entry, or
-whether it should be raised (§13.3). Everything else is settled.
+1. Should Schema stop being a separate item and become two fields on Context — a
+   `schema_root` flag and a validator list? It is now edited through the Context,
+   browsed through the Context, and derives its membership from the Context. The
+   argument against is that a Context would then hold both visibility and rules,
+   and the Schema would lose its own name and description. The argument for is
+   one fewer kind, one fewer file section, and no way to express the illegal
+   states the model check now has to catch. (§9.1, §13.2)
+2. Whether a 10 'm' minimum column width is workable for a Treeview with a filter
+   entry, or should be raised. A measurement, not a decision. (§13.3)
