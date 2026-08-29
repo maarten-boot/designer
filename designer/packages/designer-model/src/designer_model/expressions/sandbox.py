@@ -83,12 +83,16 @@ def _span(node: ast.AST, source: str) -> tuple[int, int]:
     starts = [0]
     for line in lines:
         starts.append(starts[-1] + len(line))
-    try:
-        begin = starts[node.lineno - 1] + node.col_offset
-        finish = starts[node.end_lineno - 1] + node.end_col_offset
-    except (AttributeError, IndexError):
+    line = getattr(node, "lineno", None)
+    end_line = getattr(node, "end_lineno", None)
+    column = getattr(node, "col_offset", None)
+    end_column = getattr(node, "end_col_offset", None)
+    if line is None or end_line is None or column is None or end_column is None:
         return (0, len(source))
-    return (begin, finish)
+    try:
+        return (starts[line - 1] + column, starts[end_line - 1] + end_column)
+    except IndexError:
+        return (0, len(source))
 
 
 def scan(tree: ast.AST, source: str) -> list[Violation]:

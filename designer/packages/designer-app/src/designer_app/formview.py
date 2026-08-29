@@ -90,10 +90,27 @@ class FormView(ttk.Frame):
     def show(self, spec: FormSpec) -> None:
         self.clear()
         self._spec = spec
-        ttk.Label(self, text=f"{spec.kind}: {spec.title}", style=TITLE_STYLE).grid(
+        title = f"{spec.kind}: {spec.title}"
+        if spec.read_only:
+            title += "   (read only)"
+        ttk.Label(self, text=title, style=TITLE_STYLE).grid(
             row=0, column=0, columnspan=2, sticky="w", padx=4, pady=(4, 6)
         )
         row = 1
+        if spec.note:
+            ttk.Label(self, text=spec.note, style=NOTE_STYLE, wraplength=520, justify="left").grid(
+                row=row, column=0, columnspan=2, sticky="w", padx=4, pady=(0, 6)
+            )
+            row += 1
+        if spec.actions:
+            buttons = ttk.Frame(self, style=FRAME_STYLE)
+            buttons.grid(row=row, column=0, columnspan=2, sticky="w", padx=4, pady=(0, 8))
+            for action in spec.actions:
+                button = ttk.Button(buttons, text=action.label, command=lambda a=action: self._fire("", a.name))
+                button.pack(side="left", padx=(0, 4))
+                if not action.enabled:
+                    button.state(["disabled"])
+            row += 1
         for entry in spec.fields:
             row = self._render(entry, row)
 

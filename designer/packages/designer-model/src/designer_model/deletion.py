@@ -24,7 +24,7 @@ from .commands import (
     SetSlotField,
 )
 from .diagnostics import Consequence, ConsequenceKind, ItemRef, Kind, Subject
-from .model import Context, Entity, Model, Property, Schema, Type, TypeRef, Validator
+from .model import Context, Entity, Model, Property, Schema, SchemaBinding, Type, TypeRef, Validator
 from .stdlib import operand_uuids
 
 KIND_OF = {
@@ -186,8 +186,8 @@ class _ClearAnchor(Command):
     old: UUID | None = None
     label: str = "clear anchor"
 
-    def _binding(self, model: Model):
-        owner = model.index()[self.owner_uuid]
+    def _binding(self, model: Model) -> SchemaBinding:
+        owner = next(s for s in model.schemas if s.uuid == self.owner_uuid)
         return next(b for b in owner.validators if b.uuid == self.binding_uuid)
 
     def do(self, model: Model) -> None:

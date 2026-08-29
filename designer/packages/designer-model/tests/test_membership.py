@@ -188,3 +188,35 @@ def test_an_unknown_schema_is_refused(session) -> None:
 
     with pytest.raises(KeyError):
         mb.addable(session.model, uuid4())
+
+
+def test_declining_the_cascade_keeps_the_entity_asked_for(session) -> None:
+    """Declining is not cancelling: the named entity joins, and the schema is
+    left unclosed rather than the addition being refused."""
+    model = session.model
+    schema = by_name(model.schemas, "sales_schema")
+    schema.members = ()
+    order_line = uuid_of(model, "entities", "OrderLine")
+    plan = mb.plan_add(model, schema.uuid, order_line).only_named()
+    assert plan.added == (order_line,)
+    assert plan.members_after == (order_line,)
+
+
+def test_declining_an_addition_with_nothing_to_cascade(session) -> None:
+    model = session.model
+    schema = by_name(model.schemas, "sales_schema")
+    schema.members = ()
+    customer = uuid_of(model, "entities", "Customer")
+    plan = mb.plan_add(model, schema.uuid, customer)
+    assert plan.only_named() is plan
+
+
+def test_declining_leaves_the_schema_unclosed(session) -> None:
+    from designer_model import Deriver
+
+    model = session.model
+    schema = by_name(model.schemas, "sales_schema")
+    schema.members = ()
+    order_line = uuid_of(model, "entities", "OrderLine")
+    session.execute(mb.plan_add(model, schema.uuid, order_line).only_named().command())
+    assert Deriver(model).unclosed_references(schema)

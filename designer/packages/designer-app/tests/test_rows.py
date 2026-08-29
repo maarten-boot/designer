@@ -442,3 +442,42 @@ def test_choosing_a_context_makes_it_active_and_clears_the_rest(model) -> None:
 
 def test_an_empty_selection_shows_nothing(model) -> None:
     assert selection.Selection().active_item() is None
+
+
+def test_choosing_a_base_type_clears_the_type_beside_it(model) -> None:
+    money = by_name(model.types, "Money")
+    current = selection.updated(selection.Selection(), "type", money.uuid)
+    current = selection.choose_base_type(current, "decimal")
+    assert current.base_type == "decimal"
+    assert current.type is None
+    assert current.active == "type"
+
+
+def test_choosing_a_type_clears_the_base_type(model) -> None:
+    money = by_name(model.types, "Money")
+    current = selection.choose_base_type(selection.Selection(), "decimal")
+    current = selection.updated(current, "type", money.uuid)
+    assert current.base_type is None
+    assert current.type == money.uuid
+
+
+def test_a_base_type_selection_survives_a_choice_elsewhere(model) -> None:
+    amount = by_name(model.properties, "amount")
+    current = selection.choose_base_type(selection.Selection(), "string")
+    current = selection.updated(current, "property", amount.uuid)
+    assert current.base_type == "string"
+    assert current.active == "property"
+
+
+def test_a_schema_below_the_root_is_not_visible_from_it(model) -> None:
+    """Visibility is ancestors-only, and it applies to schemas as much as to
+    anything else — which is why a test wanting one has to go there first."""
+    root = rows.default_context(model)
+    assert rows.schemas(model, root).labels() == []
+    assert "sales_schema" in rows.schemas(model, ctx(model, "sales")).labels()
+
+
+def test_a_property_below_the_root_is_not_visible_from_it(model) -> None:
+    root = rows.default_context(model)
+    assert "quantity" not in rows.properties(model, root).labels()
+    assert "quantity" in rows.properties(model, ctx(model, "sales")).labels()

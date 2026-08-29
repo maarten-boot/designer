@@ -35,6 +35,14 @@ class Selection:
     property: UUID | None = None
     type: UUID | None = None
     validator: UUID | None = None
+    base_type: str | None = None
+    """A base type chosen in the Type column.
+
+    Base types are global and have no identity in the document — a Type refers
+    to one by name — so they cannot be held in the UUID fields above. They are
+    still selectable: an item you can see and cannot inspect is worse than one
+    you cannot see.
+    """
     active: str | None = None
     """The column chosen most recently.
 
@@ -68,6 +76,9 @@ def updated(current: Selection, column: str, uuid: UUID | None) -> Selection:
     """
     if column == "context":
         return Selection(context=uuid, active="context" if uuid else None)
+    if uuid is not None and column == "type":
+        # choosing a Type displaces a base type in the same column
+        current = replace(current, base_type=None)
     if uuid is None and current.active == column:
         # the active column was cleared; fall back to whichever still holds one
         remaining = replace(current, **{column: None})
@@ -127,6 +138,11 @@ def focus(model: Model, selection: Selection) -> Focus:
         }
 
     return result
+
+
+def choose_base_type(current: Selection, name: str | None) -> Selection:
+    """Rest the selection on a base type, clearing the Type beside it."""
+    return replace(current, type=None, base_type=name, active="type" if name else current.active)
 
 
 def reveal_target(row_ids: list[UUID], focus_result: Focus) -> UUID | None:

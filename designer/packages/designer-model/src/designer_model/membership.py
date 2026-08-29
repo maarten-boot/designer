@@ -47,6 +47,20 @@ class MembershipPlan:
         """
         return self.added[1:] if len(self.added) > 1 else ()
 
+    def only_named(self) -> MembershipPlan:
+        """The same addition without the entities the closure would pull in.
+
+        Declining the cascade means "add the one I asked for" — not "do
+        nothing". The schema is then left unclosed, which the model check
+        reports; refusing the whole add would make the closure compulsory by
+        the back door.
+        """
+        if len(self.added) <= 1:
+            return self
+        keep = self.added[0]
+        before = tuple(m for m in self.members_after if m not in self.added)
+        return MembershipPlan(self.schema, (*before, keep), added=(keep,), blocked=self.blocked)
+
     def command(self, label: str = "change membership") -> SetMembers:
         return SetMembers(self.schema, self.members_after, label=label)
 

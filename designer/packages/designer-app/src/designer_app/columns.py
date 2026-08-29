@@ -206,7 +206,7 @@ class ColumnView(ttk.Frame):
         self._reported = current
         self._on_select(self.title, current)
 
-    def _clicked(self, event: object) -> None:
+    def _clicked(self, event: tk.Event) -> None:
         row = self.tree.identify_row(event.y)
         if row and row == self._reported:
             self._on_select(self.title, row)

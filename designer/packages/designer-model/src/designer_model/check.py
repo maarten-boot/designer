@@ -37,6 +37,7 @@ from .model import (
     AnyTypeRef,
     Binding,
     Entity,
+    Item,
     LiteralArg,
     Model,
     PathArg,
@@ -476,7 +477,7 @@ class Checker:
     # --- naming -------------------------------------------------------------
 
     def _check_names(self) -> Iterator[Diagnostic]:
-        seen: dict[tuple, object] = {}
+        seen: dict[tuple, Item] = {}
         for item in self._all_items():
             at = self._subject(item)
             if not item.name:

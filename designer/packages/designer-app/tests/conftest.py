@@ -77,7 +77,17 @@ def quiet(monkeypatch):
     """
     import designer_app.app as app_module
 
-    calls: dict[str, list] = {"info": [], "error": [], "warning": [], "ask": []}
+    # `answer` is what askyesno returns, and a test may set it before acting.
+    # Fixed at False it silently exercised only the declining half of every
+    # prompt, which is how a test meant to cover the confirming half ended up
+    # asserting the wrong thing.
+    calls: dict[str, object] = {
+        "info": [],
+        "error": [],
+        "warning": [],
+        "ask": [],
+        "answer": False,
+    }
 
     class Boxes:
         @staticmethod
@@ -95,7 +105,7 @@ def quiet(monkeypatch):
         @staticmethod
         def askyesno(title, message=None, **_kw):
             calls["ask"].append((title, message))
-            return False
+            return calls["answer"]
 
         @staticmethod
         def askyesnocancel(title, message=None, **_kw):

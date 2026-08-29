@@ -13,7 +13,7 @@ hand-built per kind, so a new field appears in one place.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from uuid import UUID
+from uuid import NAMESPACE_DNS, UUID, uuid5
 
 from designer_model import Deriver, Model, Report
 from designer_model.codes import definition
@@ -25,6 +25,17 @@ from designer_model.model import BaseTypeRef, Context, Entity, Property, Schema,
 from designer_model.stdlib import Library
 
 from .rows import BASE_PREFIX, context_label, label_of
+
+BASE_TYPE_NOTES = {
+    "integer": "whole numbers",
+    "real": "binary floating point; may hold NaN and infinity, which no backing store accepts",
+    "decimal": "exact, and never mixed with real — that is the one combination that silently destroys exactness",
+    "boolean": "true or false",
+    "string": "text",
+    "datetime": "timezone aware, always UTC",
+    "date": "no time, no zone",
+    "time": "no date, no zone; comparison only",
+}
 
 # How the interface turns a widget value back into something the model holds.
 PLAIN = "plain"  # a string, straight through
@@ -92,6 +103,9 @@ class FormSpec:
     kind: str
     title: str
     fields: list[Field] = field(default_factory=list)
+    actions: tuple[Action, ...] = ()
+    read_only: bool = False
+    note: str = ""
 
     def by_key(self, key: str) -> Field | None:
         return next((f for f in self.fields if f.key == key), None)
@@ -261,6 +275,9 @@ def describe(
     """The form for one item, or None when the uuid names nothing."""
     item = model.index().get(uuid)
     if item is None:
+        built_in = library.get(uuid)
+        if built_in is not None:
+            return _builtin_form(model, built_in, library)
         return None
     notes = findings_by_field(report, uuid)
     spec = FormSpec(uuid, type(item).__name__, label_of(item), _header(model, item, notes))
@@ -274,6 +291,124 @@ def describe(
     }[type(item).__name__]
     spec.fields += builder(model, item, library, context, notes)
     return spec
+
+
+BASE_TYPE_NAMESPACE = uuid5(NAMESPACE_DNS, "basetype.designer")
+
+
+def base_type_uuid(name: str) -> UUID:
+    """An identity for a base type, for the interface only.
+
+    A base type has none in the document — a Type refers to one by name — but a
+    form needs something to be about. Never stored.
+    """
+    return uuid5(BASE_TYPE_NAMESPACE, name)
+
+
+def describe_base_type(model: Model, name: str) -> FormSpec | None:
+    """A base type, read-only.
+
+    The eight are fixed and built in. They have no context, are visible
+    everywhere, and are the roots every Type chain ends at.
+    """
+    if name not in BASE_TYPES:
+        return None
+    deriver = Deriver(model)
+    built_on = sorted(
+        label_of(t) for t in model.types if isinstance(t.parent, BaseTypeRef) and t.parent.base_type == name
+    )
+    reaching = sorted(label_of(t) for t in model.types if deriver.base_type_of(t.parent) == name)
+    return FormSpec(
+        base_type_uuid(name),
+        "Base type",
+        name,
+        [
+            Field("name", "Name", "readonly", name),
+            Field(
+                "origin",
+                "Origin",
+                "readonly",
+                "built in",
+                note="one of the eight fixed types; global, and in no context",
+            ),
+            Field("notes", "Notes", "readonly", BASE_TYPE_NOTES.get(name, "")),
+            Field(
+                "built_on",
+                "Types narrowing it directly",
+                "summary",
+                built_on or ["none"],
+            ),
+            Field(
+                "reaching",
+                "Types reaching it in the end",
+                "summary",
+                reaching or ["none"],
+                note="every chain of types ends at exactly one base type",
+            ),
+        ],
+        read_only=True,
+        note=(
+            "Base types cannot be edited. They are fixed, shared by every model, "
+            "and the roots that every type chain ends at. To restrict one, make a "
+            "Type that narrows it."
+        ),
+    )
+
+
+def _builtin_form(model: Model, item: Validator, library: Library) -> FormSpec:
+    """A built-in validator, read-only.
+
+    Built-ins are global: no context, visible everywhere, and never written to
+    the model file — only references to them are. That is why looking one up in
+    the model finds nothing, and why the form has to say so rather than
+    reporting the item as missing.
+    """
+    shown = (
+        tokens.to_display(item.expression, validator_names(model, library, None)).text
+        if item.is_composite
+        else item.expression
+    )
+    deterministic = library.is_deterministic(item.uuid)
+    return FormSpec(
+        item.uuid,
+        "Validator",
+        item.name,
+        [
+            Field("name", "Name", "readonly", item.name),
+            Field("description", "Description", "readonly", item.description),
+            Field(
+                "origin",
+                "Origin",
+                "readonly",
+                "standard library",
+                note=("shipped with the tool, shared by every model, and identical on every installation"),
+            ),
+            Field("kind", "Kind", "readonly", "composite" if item.is_composite else "leaf"),
+            Field(
+                "parameters",
+                "Parameters",
+                "readonly",
+                ", ".join(item.parameters) or "value (implicit)",
+            ),
+            Field("expression", "Expression", "readonly", shown),
+            Field("message", "Message when it fails", "readonly", item.message),
+            Field(
+                "deterministic",
+                "Deterministic",
+                "readonly",
+                "yes" if deterministic else "no",
+                note=("" if deterministic else "reads the clock, so no check constraint can enforce it"),
+            ),
+            Field("uuid", "Identity", "readonly", str(item.uuid)),
+        ],
+        actions=(Action("fork_builtin", "Copy into this model\u2026"),),
+        read_only=True,
+        note=(
+            "Built-in validators cannot be edited. Copy this one into the model "
+            "to make a version you can change; rules already using the built-in "
+            "keep using it."
+        ),
+    )
 
 
 def _context_form(model, item: Context, library, context, notes) -> list[Field]:

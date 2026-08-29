@@ -30,7 +30,7 @@ from .factory import duplicate, new_item
 from .formview import FRAME_STYLE, PANEL, FormView
 from .layout import CollapseManager
 from .scrolling import ScrollingArea
-from .selection import Selection, focus, reveal_target, tags_for, updated
+from .selection import Selection, choose_base_type, focus, reveal_target, tags_for, updated
 from .state import COLUMNS, TITLES, Settings, config_dir
 
 MIN_WIDTH, MIN_HEIGHT = 1024, 768
@@ -224,7 +224,7 @@ class DesignerApp(tk.Tk):
         data = {
             "context": rowbuild.contexts(model, self.columns["context"].filter_text),
             "schema": rowbuild.schemas(model, context, self.columns["schema"].filter_text),
-            "entity": rowbuild.entities(model, context, self.columns["entity"].filter_text, members=result.members),
+            "entity": rowbuild.entities(model, context, self.columns["entity"].filter_text),
             "property": rowbuild.properties(model, context, self.columns["property"].filter_text),
             "type": rowbuild.types(model, context, self.columns["type"].filter_text),
             "validator": rowbuild.validators(
@@ -242,7 +242,7 @@ class DesignerApp(tk.Tk):
                 column,
                 extra(row_ids),
                 reveal=reveal_target(row_ids, result),
-                select=getattr(self.selection, name, None),
+                select=self._selected_row(name),
             )
             # only one column is what the editor is showing; the rest keep a
             # muted selection so an earlier choice still reads as chosen
@@ -251,6 +251,16 @@ class DesignerApp(tk.Tk):
         self.breadcrumb.show(model, context)
         self._describe_selection()
         self._update_status()
+
+    def _selected_row(self, column: str) -> object:
+        """What the column should show as chosen.
+
+        The Type column may rest on a base type, which has no identity to hold
+        in the selection's uuid fields.
+        """
+        if column == "type" and self.selection.base_type is not None:
+            return f"{rowbuild.BASE_PREFIX}{self.selection.base_type}"
+        return getattr(self.selection, column, None)
 
     def _current_item(self) -> UUID | None:
         """What the editor shows: the column chosen most recently.
@@ -262,6 +272,12 @@ class DesignerApp(tk.Tk):
         return self.selection.active_item()
 
     def _describe_selection(self) -> None:
+        if self.selection.base_type is not None and self.selection.active == "type":
+            spec = forms.describe_base_type(self.session.model, self.selection.base_type)
+            if spec is not None:
+                self.editor.show(spec)
+                self._editor_area.to_top()
+                return
         uuid = self._current_item()
         if uuid is None:
             self.editor.clear("Select an item to edit it.")
@@ -314,6 +330,7 @@ class DesignerApp(tk.Tk):
             "add_member": self._add_member,
             "remove_member": self._remove_member,
             "close_schema": self._close_schema,
+            "fork_builtin": self._fork_builtin,
         }.get(action)
         if handler is not None:
             handler(uuid, row_id)
@@ -364,9 +381,14 @@ class DesignerApp(tk.Tk):
             "Add referenced entities too?",
             f"{self._label(plan.added[0])} references entities that are not members.\n\n"
             "Adding these as well keeps the schema closed:\n\n"
-            + "\n".join(f"  {self._label(u)}" for u in plan.pulled_in),
+            + "\n".join(f"  {self._label(u)}" for u in plan.pulled_in)
+            + f"\n\nAnswering no adds only {self._label(plan.added[0])}, leaving the "
+            "schema unclosed.",
         ):
-            return
+            # declining the cascade means "add the one I asked for", not
+            # "do nothing" — refusing the whole add would make closure
+            # compulsory by the back door
+            plan = plan.only_named()
         if (
             removing
             and plan.dangling
@@ -382,6 +404,29 @@ class DesignerApp(tk.Tk):
             return
         label = "remove member" if removing else "add members"
         self.session.execute(plan.command(label))
+        self.refresh()
+
+    def _fork_builtin(self, uuid: UUID, _row: str | None = None) -> None:
+        """Copy a built-in into the model so it can be edited.
+
+        Rules already bound to the built-in keep pointing at it: the copy is a
+        starting point, not a replacement. It keeps the name, so within this
+        context it takes precedence — which the model check reports, because a
+        name that resolves to two different things is worth knowing about.
+        """
+        built_in = self.library.get(uuid)
+        if built_in is None:
+            return
+        where = self.selection.context
+        if where is None:
+            messagebox.showinfo("Choose a context first", "A copy has to live somewhere.")
+            return
+        copy = duplicate(built_in)
+        copy.name = built_in.name
+        copy.context = where
+        self.session.execute(AddItem(copy, label=f"copy {built_in.name}"))
+        self.selection = updated(self.selection, "validator", copy.uuid)
+        self._show_builtins.set(False)
         self.refresh()
 
     def _new_item(self, title: str) -> None:
@@ -408,8 +453,17 @@ class DesignerApp(tk.Tk):
         # lost because the next click landed elsewhere
         self.editor.commit_pending()
         name = next(key for key, value in TITLES.items() if value == title)
+        if row_id and row_id.startswith(rowbuild.BASE_PREFIX):
+            # a base type is selectable but has no identity in the document;
+            # an item you can see and cannot inspect is worse than one you
+            # cannot see
+            new = choose_base_type(self.selection, row_id[len(rowbuild.BASE_PREFIX) :])
+            if new != self.selection:
+                self.selection = new
+                self.refresh()
+            return
         uuid = None
-        if row_id and not row_id.startswith(rowbuild.BASE_PREFIX):
+        if row_id:
             uuid = UUID(row_id)
         if name == "context" and uuid is None:
             # clearing the context would show every branch at once, including

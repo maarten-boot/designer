@@ -242,14 +242,17 @@ def test_selecting_a_schema_leaves_the_entity_column_whole(app) -> None:
 
 def test_selecting_a_context_then_another_clears_the_stale_selection(app) -> None:
     """A selection made before a context change may name something no longer
-    visible, and a stale selection keeps highlighting things that are gone."""
+    visible, and a stale selection keeps highlighting things that are gone.
+
+    It has to be a *different* context: re-selecting the one already chosen
+    changes nothing in the widget and fires no event.
+    """
+    select_named(app, "context", "sales")
     entities = app.columns["entity"].tree
     entities.selection_set(_all_rows(entities)[0])
     settle(app)
     assert app.selection.entity is not None
-    contexts = app.columns["context"].tree
-    contexts.selection_set(_all_rows(contexts)[0])
-    settle(app)
+    select_named(app, "context", "common")
     assert app.selection.entity is None
 
 
@@ -463,6 +466,7 @@ def test_committing_an_unchanged_value_does_nothing(app) -> None:
 def test_changing_a_choice_sets_a_reference(app) -> None:
     from designer_app.rows import BASE_PREFIX
 
+    select_named(app, "context", "sales")  # where `quantity` lives
     property_column = app.columns["property"]
     row = next(i for i in _all_rows(property_column.tree) if property_column.tree.item(i, "text") == "quantity")
     property_column.tree.selection_set(row)
@@ -650,14 +654,29 @@ def test_the_form_names_the_context_the_item_lives_in(app) -> None:
 
 
 def select_named(app, column: str, label: str):
+    """Select a row by its label, saying why if it is not there.
+
+    Visibility is ancestors-only, so a schema in `sales` cannot be seen from
+    `common` — and the bare StopIteration this used to raise said nothing about
+    that.
+    """
     tree = app.columns[column].tree
-    row = next(i for i in _all_rows(tree) if tree.item(i, "text") == label)
-    tree.selection_set(row)
-    settle(app)
-    return row
+    rows_here = _all_rows(tree)
+    for row in rows_here:
+        if tree.item(row, "text") == label:
+            tree.selection_set(row)
+            settle(app)
+            return row
+    where = app.session.model.index().get(app.selection.context)
+    raise AssertionError(
+        f"no row labelled {label!r} in the {column} column, seen from context "
+        f"{getattr(where, 'name', '(none)')!r}. It holds: "
+        f"{sorted(tree.item(r, 'text') for r in rows_here)}"
+    )
 
 
 def test_the_members_table_is_rendered(app) -> None:
+    select_named(app, "context", "sales")
     select_named(app, "schema", "sales_schema")
     assert "members" in app.editor.tables
     tree = app.editor.tables["members"]
@@ -665,6 +684,8 @@ def test_the_members_table_is_rendered(app) -> None:
 
 
 def test_removing_a_member_updates_the_model(app, quiet) -> None:
+    quiet["answer"] = True  # if removal would leave the schema unclosed, do it anyway
+    select_named(app, "context", "sales")
     schema_uuid = select_named(app, "schema", "sales_schema")
     from uuid import UUID
 
@@ -680,6 +701,7 @@ def test_removing_a_member_updates_the_model(app, quiet) -> None:
 
 
 def test_removing_without_a_selected_row_does_nothing(app) -> None:
+    select_named(app, "context", "sales")
     schema_uuid = select_named(app, "schema", "sales_schema")
     from uuid import UUID
 
@@ -693,12 +715,14 @@ def test_adding_a_member_pulls_in_its_closure_as_one_step(app, quiet) -> None:
 
     from designer_model import membership
 
+    select_named(app, "context", "sales")
     schema_uuid = UUID(select_named(app, "schema", "sales_schema"))
     schema = app.session.model.index()[schema_uuid]
     schema.members = ()
     app.refresh()
     settle(app)
     order_line = next(e for e in app.session.model.entities if e.name == "OrderLine")
+    quiet["answer"] = True  # accept the cascade
     app.apply_membership(membership.plan_add(app.session.model, schema_uuid, order_line.uuid))
     settle(app)
     assert len(schema.members) == 3
@@ -710,6 +734,7 @@ def test_closing_a_schema_is_one_step(app, quiet) -> None:
 
     from designer_model import Deriver
 
+    select_named(app, "context", "sales")
     schema_uuid = UUID(select_named(app, "schema", "sales_schema"))
     schema = app.session.model.index()[schema_uuid]
     customer = next(e for e in app.session.model.entities if e.name == "Customer")
@@ -723,12 +748,16 @@ def test_closing_a_schema_is_one_step(app, quiet) -> None:
 
 
 def test_adding_when_nothing_can_join_explains_why(app, quiet) -> None:
+    """Nothing here should reach a yes/no prompt at all: there is nothing to
+    ask about, only something to explain."""
     from uuid import UUID
 
+    select_named(app, "context", "support")
     schema_uuid = UUID(select_named(app, "schema", "support_schema"))
     app._add_member(schema_uuid)
     settle(app)
     assert quiet["info"], "no explanation was offered"
+    assert not quiet["ask"], "it asked a question instead of explaining"
     assert len(app.session.stack) == 0
 
 
@@ -915,3 +944,155 @@ def test_the_form_fills_the_width(app) -> None:
     canvas = app._editor_area.canvas
     window = canvas.find_all()[0]
     assert canvas.itemcget(window, "width") in ("", str(canvas.winfo_width()))
+
+
+# --- built-in validators -----------------------------------------------------
+
+
+def show_builtins(app):
+    app._show_builtins.set(True)
+    app.refresh()
+    settle(app)
+
+
+def test_selecting_a_built_in_explains_rather_than_reporting_it_missing(app) -> None:
+    """It used to say the item was gone, because built-ins are not in the model
+    — only references to them are."""
+    show_builtins(app)
+    select_named(app, "validator", "max_length")
+    assert app.editor._spec is not None
+    assert app.editor._spec.read_only
+    assert "cannot be edited" in app.editor._spec.note
+
+
+def test_a_built_in_offers_a_copy_button(app) -> None:
+    show_builtins(app)
+    select_named(app, "validator", "max_length")
+    assert [a.name for a in app.editor._spec.actions] == ["fork_builtin"]
+
+
+def test_copying_a_built_in_makes_an_editable_one(app, quiet) -> None:
+    from uuid import UUID
+
+    show_builtins(app)
+    row = select_named(app, "validator", "max_length")
+    before = len(app.session.model.validators)
+    app._fork_builtin(UUID(row))
+    settle(app)
+    assert len(app.session.model.validators) == before + 1
+    copied = app.session.model.index()[app._current_item()]
+    assert copied.name == "max_length"
+    assert copied.context == app.selection.context
+    assert not app.editor._spec.read_only
+
+
+def test_copying_a_built_in_leaves_the_original_alone(app, quiet) -> None:
+    """Rules already bound to the built-in keep pointing at it: the copy is a
+    starting point, not a replacement."""
+    from uuid import UUID
+
+    show_builtins(app)
+    row = select_named(app, "validator", "max_length")
+    app._fork_builtin(UUID(row))
+    settle(app)
+    assert app.library.by_name("max_length").uuid == UUID(row)
+
+
+def test_copying_a_built_in_is_one_undo_step(app, quiet) -> None:
+    from uuid import UUID
+
+    show_builtins(app)
+    row = select_named(app, "validator", "max_length")
+    before = len(app.session.model.validators)
+    app._fork_builtin(UUID(row))
+    settle(app)
+    app.undo()
+    settle(app)
+    assert len(app.session.model.validators) == before
+
+
+# --- base types --------------------------------------------------------------
+
+
+def test_a_base_type_can_be_selected(app) -> None:
+    """It used to be unselectable: the row id was discarded and nothing
+    happened at all."""
+    from designer_app.rows import BASE_PREFIX
+
+    types = app.columns["type"].tree
+    row = next(i for i in _all_rows(types) if i.startswith(BASE_PREFIX))
+    types.selection_set(row)
+    settle(app)
+    assert app.selection.base_type is not None
+    assert app.columns["type"].selected_id == row
+
+
+def test_selecting_a_base_type_explains_it_cannot_be_edited(app) -> None:
+    from designer_app.rows import BASE_PREFIX
+
+    types = app.columns["type"].tree
+    row = next(i for i in _all_rows(types) if types.item(i, "text") == "decimal")
+    assert row.startswith(BASE_PREFIX)
+    types.selection_set(row)
+    settle(app)
+    assert app.editor._spec.kind == "Base type"
+    assert app.editor._spec.read_only
+    assert "cannot be edited" in app.editor._spec.note
+
+
+def test_choosing_a_real_type_after_a_base_type(app) -> None:
+    types = app.columns["type"].tree
+    base = next(i for i in _all_rows(types) if types.item(i, "text") == "decimal")
+    types.selection_set(base)
+    settle(app)
+    money = next(i for i in _all_rows(types) if types.item(i, "text") == "Money")
+    types.selection_set(money)
+    settle(app)
+    assert app.selection.base_type is None
+    assert app.editor._spec.kind == "Type"
+
+
+def test_selecting_a_base_type_edits_nothing(app) -> None:
+    types = app.columns["type"].tree
+    row = next(i for i in _all_rows(types) if types.item(i, "text") == "string")
+    types.selection_set(row)
+    settle(app)
+    assert len(app.session.stack) == 0
+
+
+def test_declining_the_cascade_still_adds_the_one_asked_for(app, quiet) -> None:
+    """Declining means "add the one I asked for", not "do nothing" — refusing
+    the whole addition would make closure compulsory by the back door."""
+    from uuid import UUID
+
+    from designer_model import Deriver, membership
+
+    select_named(app, "context", "sales")
+    schema_uuid = UUID(select_named(app, "schema", "sales_schema"))
+    schema = app.session.model.index()[schema_uuid]
+    schema.members = ()
+    app.refresh()
+    settle(app)
+    order_line = next(e for e in app.session.model.entities if e.name == "OrderLine")
+
+    quiet["answer"] = False  # decline the cascade
+    app.apply_membership(membership.plan_add(app.session.model, schema_uuid, order_line.uuid))
+    settle(app)
+    assert schema.members == (order_line.uuid,)
+    assert Deriver(app.session.model).unclosed_references(schema), "should be left unclosed"
+
+
+def test_the_cascade_prompt_says_what_declining_does(app, quiet) -> None:
+    """Whichever way it is answered, the prompt has to say what "no" means."""
+    from uuid import UUID
+
+    from designer_model import membership
+
+    quiet["answer"] = False
+    select_named(app, "context", "sales")
+    schema_uuid = UUID(select_named(app, "schema", "sales_schema"))
+    app.session.model.index()[schema_uuid].members = ()
+    order_line = next(e for e in app.session.model.entities if e.name == "OrderLine")
+    app.apply_membership(membership.plan_add(app.session.model, schema_uuid, order_line.uuid))
+    asked = [message for _title, message in quiet["ask"]]
+    assert asked and "leaving the schema unclosed" in asked[0]

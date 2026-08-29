@@ -52,15 +52,34 @@ so first.
 Not yet built: the slot table, cross-entity rules, and Delete with its impact
 dialog. Those are still read-only summaries.
 
+`mypy.ini` is a narrow net rather than a typing campaign: attribute and call
+errors only, with the noisy rules switched off. It exists because four bugs
+reached the user through one hole — an edit that silently changed nothing,
+leaving a reference to something no longer there. `Focus.members`,
+`_editor_note`, a changed signature, an import already rewritten. Each is
+invisible to a test suite whose widget half skips without a display, and each is
+caught by this. Run it before believing a green suite.
+
 **The widget layer has not been run.** It was written on a machine with no
 tkinter and no display: the logic underneath it is tested, the widgets are not.
 Expect to find things.
 
 ## Working on it
 
-    pip install pytest ruff
-    PYTHONPATH=packages/designer-model/src:packages/designer-app/src pytest packages
-    ruff format packages && ruff check packages
+    make deps      # pytest, ruff, mypy
+    make check     # lint, types, tests, and the worked example
+    make run       # open examples/sales.json
+    make help      # the rest
+
+`make check` is four nets and they catch different things. `lint` for style and
+the constructs ruff knows are traps. `types` for attribute and call errors.
+`test` for behaviour. `model` loads `examples/sales.json`, verifies it survives a
+round trip, and runs the model check over it.
+
+The third of those lies most easily. On a machine without tkinter every widget
+test skips and the suite still reports success, so `make types` is not optional
+there — it is the net that catches a reference to something that no longer
+exists.
 
 `packages/designer-app/tests/test_widgets.py` builds a real window: it skips
 without tkinter or a display, and does the work where there is one. Run it after
@@ -153,6 +172,10 @@ join a schema, which button is enabled, and what an addition would pull in are
 all decided in `forms.py` and `designer_model/membership.py` — both testable
 without a display. The widget draws rows and wires buttons.
 
+Declining the cascade adds the entity you asked for and leaves the schema
+unclosed, rather than cancelling the addition. Refusing the whole thing would
+make closure compulsory by the back door, and closure is a warning, not a rule.
+
 Membership planning mirrors deletion: one walk produces both what the dialog
 shows and the command that carries it out, so the two cannot disagree. An entity
 that cannot join says why — a sibling context is out of reach, and the fix for
@@ -190,6 +213,18 @@ Everything that looks inside an expression goes through
 `tests/operator_matrix.txt` is the full type matrix for every binary operator,
 committed so a change to the signature tables appears as a diff and an
 unconsidered pair shows as an explicit `-` rather than hiding.
+
+Base types and built-in validators are both selectable and both read-only, and
+each says why. A base type also lists the Types that narrow it directly and the
+ones whose chain ends at it. Neither is in the model file — a Type refers to a
+base type by name, and only references to built-ins are stored — which is why
+looking either up in the document finds nothing.
+
+Selecting a built-in shows it read-only, with a note saying so and a button to
+copy it into the model. It used to report the item as *gone*, because built-ins
+are global and never written to the model file — only references to them are —
+so looking one up in the model found nothing. The item was there; it simply
+could not be edited.
 
 ## The standard library
 

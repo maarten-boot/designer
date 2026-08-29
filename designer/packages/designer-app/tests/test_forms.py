@@ -374,3 +374,104 @@ def test_a_table_row_is_identified_by_the_entity(model, library) -> None:
     sales = by_name(model.schemas, "sales_schema")
     field = spec_for(model, library, "sales_schema").by_key("members")
     assert {row.id for row in field.rows} == {str(m) for m in sales.members}
+
+
+# --- built-in validators -----------------------------------------------------
+
+
+def test_a_built_in_describes_itself(model, library) -> None:
+    """Built-ins are global and never written to the model file, so looking one
+    up in the model finds nothing. Reporting it as missing was wrong: it is
+    there, it simply cannot be edited."""
+    spec = forms.describe(model, library.by_name("max_length").uuid, library)
+    assert spec is not None
+    assert spec.title == "max_length"
+    assert spec.read_only
+    assert "cannot be edited" in spec.note
+
+
+def test_every_field_of_a_built_in_is_read_only(model, library) -> None:
+    spec = forms.describe(model, library.by_name("between").uuid, library)
+    assert all(not f.editable for f in spec.fields)
+
+
+def test_a_built_in_says_where_it_came_from(model, library) -> None:
+    spec = forms.describe(model, library.by_name("max_length").uuid, library)
+    assert spec.by_key("origin").value == "standard library"
+
+
+def test_a_built_in_offers_to_be_copied(model, library) -> None:
+    spec = forms.describe(model, library.by_name("max_length").uuid, library)
+    assert [a.name for a in spec.actions] == ["fork_builtin"]
+
+
+def test_a_built_in_reports_its_determinism(model, library) -> None:
+    """A rule that reads the clock can never be a check constraint, and the
+    form is where somebody would want to know that."""
+    assert forms.describe(model, library.by_name("in_past").uuid, library).by_key("deterministic").value == "no"
+    assert forms.describe(model, library.by_name("max_length").uuid, library).by_key("deterministic").value == "yes"
+
+
+def test_a_built_in_composite_shows_operand_names(model, library) -> None:
+    spec = forms.describe(model, library.by_name("non_blank").uuid, library)
+    assert spec.by_key("expression").value == "non_empty AND trimmed"
+
+
+def test_an_authored_form_is_not_read_only(model, library) -> None:
+    assert not spec_for(model, library, "Money").read_only
+    assert spec_for(model, library, "Money").actions == ()
+
+
+def test_something_genuinely_absent_still_describes_nothing(model, library) -> None:
+    from uuid import uuid4
+
+    assert forms.describe(model, uuid4(), library) is None
+
+
+# --- base types --------------------------------------------------------------
+
+
+def test_a_base_type_describes_itself(model) -> None:
+    """Selectable, and read-only. An item you can see and cannot inspect is
+    worse than one you cannot see."""
+    spec = forms.describe_base_type(model, "decimal")
+    assert spec is not None
+    assert spec.title == "decimal"
+    assert spec.kind == "Base type"
+    assert spec.read_only
+    assert "cannot be edited" in spec.note
+
+
+def test_every_base_type_has_a_form(model) -> None:
+    from designer_model.expressions.types import BASE_TYPES
+
+    for name in BASE_TYPES:
+        assert forms.describe_base_type(model, name) is not None
+
+
+def test_something_that_is_not_a_base_type_describes_nothing(model) -> None:
+    assert forms.describe_base_type(model, "nonsense") is None
+
+
+def test_a_base_type_lists_what_narrows_it(model) -> None:
+    spec = forms.describe_base_type(model, "decimal")
+    assert spec.by_key("built_on").value == ["Money"]
+    assert spec.by_key("reaching").value == ["Money", "PositiveMoney"]
+
+
+def test_a_base_type_nothing_uses_says_so(model) -> None:
+    spec = forms.describe_base_type(model, "boolean")
+    assert spec.by_key("built_on").value == ["none"]
+
+
+def test_every_field_of_a_base_type_is_read_only(model) -> None:
+    spec = forms.describe_base_type(model, "string")
+    assert all(not f.editable for f in spec.fields if f.kind != "summary")
+    assert spec.actions == ()
+
+
+def test_a_base_type_identity_is_stable_but_never_stored(model) -> None:
+    """A form needs something to be about; the document does not hold it."""
+    assert forms.base_type_uuid("string") == forms.base_type_uuid("string")
+    assert forms.base_type_uuid("string") != forms.base_type_uuid("integer")
+    assert forms.base_type_uuid("string") not in model.index()

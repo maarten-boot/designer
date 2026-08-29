@@ -52,8 +52,11 @@ def new_item(kind: str, context: UUID | None = None) -> Item:
     return _CLASSES[kind](**common, context=context)
 
 
-def duplicate(item: Item) -> Item:
-    """A copy, with a fresh identity and no name.
+def duplicate[ItemT: Item](item: ItemT) -> ItemT:
+    """A copy, of the same kind as its original.
+
+    The kind matters to callers: a copied Validator has a context, and `Item`
+    alone does not.
 
     The name is left blank rather than made "Copy of X" so it is named
     deliberately — and because a blank name is already a legal, visible,
