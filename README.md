@@ -16,9 +16,10 @@ non-obvious decision in this code is there, with the reasoning:
 ## Layout
 
     packages/designer-model/    the domain: items, derivation, persistence,
-                                diagnostics, the model check, the built-in
-                                validators. Standard library only, and it never
-                                imports tkinter.
+                                diagnostics, the model check, the expression
+                                checker, the built-in validators, commands,
+                                undo and the session. Standard library only,
+                                and it never imports tkinter.
     packages/designer-app/      the tkinter interface.
     examples/sales.json         the worked example, and the main test fixture.
     tools/build_stdlib.py       regenerates the built-in validator library.
@@ -26,13 +27,16 @@ non-obvious decision in this code is there, with the reasoning:
 
 ## Status
 
-**Phases 1a, 1b and 2 are done**: the package skeleton, the domain items, the
+**Phases 1a, 1b, 2 and 3a are done**: the package skeleton, the domain items, the
 derived computations, load/save, the diagnostic records, the code registry, the
 model check, the standard validator library, and the expression checker —
 tokenizer and token map, composite parser, `ast` whitelist, signature tables,
-type inference, and the `EXP` codes.
+type inference, and the `EXP` codes. Phase 3a adds the session layer the
+interface will drive: commands and a bounded undo stack, the delete planner,
+autosave with crash recovery, and application state.
 
-Not yet built: the interface (phase 3+).
+Not yet built: the widgets (phase 3b) — the shell, the six columns, the
+breadcrumb, the generated forms and the slot table.
 
 ## Working on it
 
@@ -61,6 +65,21 @@ three findings and no more — `MOD602`, `MOD101`, `MOD601` — and the surround
 tests pin the codes that a prototype checker, written against the specification
 documents rather than against this code, produced for four deliberately broken
 variants.
+
+## The session
+
+`designer_model.session.Session` is what the interface drives, and it holds no
+interface: the document, the undo stack, the dirty flag, autosave, and the
+findings. That placement is deliberate — a command-line tool or a generator
+wants the same undo and recovery guarantees, and a session that needs a window
+could not be tested.
+
+The unit of undo is **one user action**, not one object. Editing three slot rows
+is three steps; a delete with a dozen fixups is one, because a Ctrl-Z that
+restored an entity while leaving its references broken would be worse than
+either state. `plan_delete` walks the model once and returns both the
+consequences the dialog shows and the command that carries them out, so the two
+cannot drift apart.
 
 ## The expression checker
 
