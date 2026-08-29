@@ -69,9 +69,10 @@ def test_decimal_literal_does_not_trip_the_exactness_firewall() -> None:
 
 
 def test_real_and_decimal_still_do_not_mix() -> None:
-    assert "EXP201" in codes("value + other", DECIMAL, ("other",)) or True
-    result = check_leaf("value == float(other)", DECIMAL, ("other",))
-    assert "EXP201" in [f.code for f in result.findings]
+    """float(...) is the explicit escape, and it is the thing the firewall
+    catches: the conversion produces a real, which will not meet a decimal."""
+    assert "EXP201" in codes("value == float(other)", DECIMAL, ("other",))
+    assert "EXP201" in codes("value + total_days(d) > 0", DECIMAL, ("d",))
 
 
 def test_fraction_settles_on_decimal_not_real() -> None:
@@ -119,9 +120,10 @@ def test_time_has_no_arithmetic() -> None:
 
 
 def test_date_and_datetime_do_not_compare() -> None:
-    assert "EXP204" in codes("value < other", DATE, ("other",)) or True
-    result = check_leaf("value < today()", DATETIME)
-    assert "EXP204" in [f.code for f in result.findings]
+    """The conversion depends on a zone neither value carries, so it must be
+    written out rather than assumed."""
+    assert "EXP204" in codes("value < today()", DATETIME)
+    assert "EXP204" in codes("value > now()", DATE)
 
 
 def test_no_implicit_truthiness() -> None:

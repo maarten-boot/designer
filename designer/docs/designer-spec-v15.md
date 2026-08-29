@@ -915,7 +915,7 @@ interface (`load`, `save`, `items_in_context`, `references_to`).
 A vertical `ttk.PanedWindow` with two panes:
 
 - **Upper** — a horizontal `ttk.PanedWindow` with six children, left to right:
-  **Context, Schema, Entity, Property, Type, Validator**.
+  **Context, Type, Validator, Property, Entity, Schema**.
 - **Lower** — the editor.
 
 `ttk.Treeview` throughout: hierarchical for Context, Type and Entity, flat for
@@ -1020,7 +1020,12 @@ with a copy button. `[V2]` Editable once the form editor settles.
   Type; a Type highlights its Validators.
 - Selecting an Entity also **highlights the Schemas it belongs to**, and the
   Entities it references, in a colour distinct from the extension relationship.
-- A **follow selection** toggle switches highlighting to filtering throughout.
+- `[CHANGED]` A **follow selection** toggle switching highlighting to filtering
+  was specified here, built, and then removed. In use it reduced a fourteen-row
+  Type column to the single row it had already highlighted — no new
+  information, and no way left to compare or switch. Highlighting stands on its
+  own; what the toggle was reaching for, finding a related row below the fold,
+  is served by scrolling to it instead.
 
 ### 13.8 Editing, commands and undo `[DECIDED]`
 

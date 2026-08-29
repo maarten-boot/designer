@@ -20,7 +20,23 @@ from pathlib import Path
 APP_NAME = "Designer"
 SETTINGS_NAME = "settings.json"
 
-COLUMNS = ("context", "schema", "entity", "property", "type", "validator")
+# Left to right, and the order matters: the model is built from left to right.
+# A Context scopes everything; Types and Validators are the primitives; a
+# Property is a Type given a name; an Entity is Properties given a shape; a
+# Schema is the deliverable. Starting at the Schema would start at the end.
+COLUMNS = ("context", "type", "validator", "property", "entity", "schema")
+
+# The visible heading for each. Here rather than in the window, so the order and
+# the labels are one thing that cannot drift apart, and so a test can reach them
+# without a display.
+TITLES = {
+    "context": "Context",
+    "type": "Type",
+    "validator": "Validator",
+    "property": "Property",
+    "entity": "Entity",
+    "schema": "Schema",
+}
 
 
 def config_dir() -> Path:
@@ -45,7 +61,6 @@ class Settings:
     sash_positions: list[int] = field(default_factory=list)
     column_widths: dict[str, int] = field(default_factory=dict)
     collapsed_columns: list[str] = field(default_factory=list)
-    follow_selection: bool = False
     show_builtins: bool = False
     undo_limit: int = 100
     autosave_delay_ms: int = 250

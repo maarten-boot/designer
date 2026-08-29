@@ -10,11 +10,19 @@ is legal to load (the model check reports it) and must not hang the caller.
 
 from __future__ import annotations
 
+import re
 from uuid import UUID
 
 from .model import AnyTypeRef, BaseTypeRef, Entity, Model, Schema, Slot, TypeRef
 
 MAX_DEPTH = 64
+
+_UUID_TOKEN = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
+
+
+def _operand_uuids(expression: str) -> list[UUID]:
+    """The UUIDs a composite expression names (spec §5.2)."""
+    return [UUID(m.group(0)) for m in _UUID_TOKEN.finditer(expression)]
 
 
 class Deriver:
@@ -210,6 +218,12 @@ class Deriver:
         Drives the delete impact dialog and the incremental re-check scope.
         """
         out: list[tuple[UUID, str]] = []
+        for v in self.model.validators:
+            # a composite names its operands inside its expression text; without
+            # this, deleting an operand would look safe and the impact dialog
+            # would miss the row spec §11.1 gives it
+            if v.is_composite and target in _operand_uuids(v.expression):
+                out.append((v.uuid, "expression"))
         for t in self.model.types:
             if isinstance(t.parent, TypeRef) and t.parent.type_uuid == target:
                 out.append((t.uuid, "parent"))

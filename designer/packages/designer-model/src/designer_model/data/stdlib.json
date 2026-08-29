@@ -1,0 +1,583 @@
+{
+  "schema_version": 1,
+  "library_version": 1,
+  "contexts": [],
+  "validators": [
+    {
+      "uuid": "85788394-62b2-580c-aa97-6bd24b2c1fa9",
+      "name": "equals",
+      "description": "Equality against a fixed value.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "other"
+      ],
+      "expression": "value == other",
+      "message": "must equal {other}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "79c1cf65-5362-5162-bcd2-0f790f26ec59",
+      "name": "not_equals",
+      "description": "Inequality against a fixed value.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "other"
+      ],
+      "expression": "value != other",
+      "message": "must not equal {other}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "9ddd0cbe-a7ab-5096-a26d-8badef86c8ea",
+      "name": "min_value",
+      "description": "An inclusive lower bound.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "min"
+      ],
+      "expression": "value >= min",
+      "message": "must be at least {min}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "b092b2ef-76b2-5d8b-abe0-34c7d8d39189",
+      "name": "max_value",
+      "description": "An inclusive upper bound.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "max"
+      ],
+      "expression": "value <= max",
+      "message": "must be at most {max}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "4bc610e5-046e-54ae-9830-77e03d65cd80",
+      "name": "greater_than",
+      "description": "An exclusive lower bound.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "min"
+      ],
+      "expression": "value > min",
+      "message": "must be greater than {min}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "4c271928-60ae-5b83-b0b4-a621610b49f1",
+      "name": "less_than",
+      "description": "An exclusive upper bound.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "max"
+      ],
+      "expression": "value < max",
+      "message": "must be less than {max}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "cd3cbf2a-689f-5021-85f4-72787ed1c0f1",
+      "name": "between",
+      "description": "An inclusive range. Serves numbers and dates alike.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "min",
+        "max"
+      ],
+      "expression": "min <= value <= max",
+      "message": "must be between {min} and {max}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "f1798535-0e3b-5784-bf81-f5fb597400a4",
+      "name": "one_of",
+      "description": "An enumeration, expressed as a list literal.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "options"
+      ],
+      "expression": "value in options",
+      "message": "must be one of {options}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "6a6f7c42-c602-5b8b-8051-4dfddaba874e",
+      "name": "not_one_of",
+      "description": "Excludes a fixed set of values.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "options"
+      ],
+      "expression": "value not in options",
+      "message": "must not be one of {options}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "08554540-7d0d-56ac-833b-44d88569683e",
+      "name": "non_empty",
+      "description": "At least one character.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "len(value) > 0",
+      "message": "must not be empty",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "c58c2b0d-f65c-5da9-8261-3b5b98c04bcb",
+      "name": "min_length",
+      "description": "A lower length bound.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "min"
+      ],
+      "expression": "len(value) >= min",
+      "message": "must be at least {min} characters",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "b5bfc6ca-adeb-523c-8b84-ec070bb68290",
+      "name": "max_length",
+      "description": "An upper length bound.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "max"
+      ],
+      "expression": "len(value) <= max",
+      "message": "must be at most {max} characters",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "591e7e15-0887-5f96-8f10-92f0c0c2cd3c",
+      "name": "exact_length",
+      "description": "A fixed length.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "n"
+      ],
+      "expression": "len(value) == n",
+      "message": "must be exactly {n} characters",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "e175bb32-7284-535f-9c6d-2f028ca5a57b",
+      "name": "length_between",
+      "description": "A length range.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "min",
+        "max"
+      ],
+      "expression": "min <= len(value) <= max",
+      "message": "must be {min}-{max} characters",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "e724952f-c6a3-5f0e-8598-119ae222e4ef",
+      "name": "matches",
+      "description": "A regular expression, matched in full. The pattern must be a literal.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "pattern"
+      ],
+      "expression": "regex_full_match(value, pattern)",
+      "message": "must match {pattern}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "0f4c6016-8214-5418-bc18-5b2fd92ca7a3",
+      "name": "starts_with",
+      "description": "A required prefix.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "prefix"
+      ],
+      "expression": "starts_with(value, prefix)",
+      "message": "must start with {prefix}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "78132430-d41e-505e-ba9d-075b97f20f02",
+      "name": "ends_with",
+      "description": "A required suffix.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "suffix"
+      ],
+      "expression": "ends_with(value, suffix)",
+      "message": "must end with {suffix}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "39358ffb-ecbd-54a1-a008-b07a88e8c7d0",
+      "name": "contains",
+      "description": "A required substring.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "substring"
+      ],
+      "expression": "contains(value, substring)",
+      "message": "must contain {substring}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "eccb2c70-e50c-57fa-b6cb-7feb6a26472a",
+      "name": "trimmed",
+      "description": "No surrounding whitespace.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value == strip(value)",
+      "message": "must not have leading or trailing whitespace",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "ec7ca621-7b68-59a9-927c-b4325c9040ff",
+      "name": "is_lowercase",
+      "description": "No uppercase characters.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value == lower(value)",
+      "message": "must be lowercase",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "7716c4e1-57fd-5272-bb42-151e67fedbb1",
+      "name": "is_uppercase",
+      "description": "No lowercase characters.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value == upper(value)",
+      "message": "must be uppercase",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "0af131f2-e096-5a81-99d0-f2b63fdb53f7",
+      "name": "is_identifier",
+      "description": "A programming-language identifier.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "regex_full_match(value, \"[A-Za-z_][A-Za-z0-9_]*\")",
+      "message": "must be a valid identifier",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "afdb2536-25e3-5a8c-99a7-c59a787b77ee",
+      "name": "is_email",
+      "description": "An email address, by shape.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "regex_full_match(value, \"[^@\\\\s]+@[^@\\\\s]+\\\\.[^@\\\\s]+\")",
+      "message": "must be an email address",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "d6927967-9ea4-5932-92fa-9ed44f40e514",
+      "name": "is_url",
+      "description": "An http or https URL, by shape.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "regex_full_match(value, \"https?://[^\\\\s]+\")",
+      "message": "must be a URL",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "5bd36f99-970f-596e-acd8-b907ff8cfa44",
+      "name": "is_uuid",
+      "description": "A canonical UUID string.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "regex_full_match(value, \"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\")",
+      "message": "must be a UUID",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "bf3d567b-08dd-5e40-9da0-51cbe20922fb",
+      "name": "is_country_code",
+      "description": "Checks the shape of a country code, not membership of the real list, which changes.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "regex_full_match(value, \"[A-Z]{2}\")",
+      "message": "must be an ISO 3166-1 alpha-2 code",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "a1ebf1ee-a259-5a8b-bb77-a113af36afc1",
+      "name": "is_currency_code",
+      "description": "Checks the shape of a currency code, not membership of the real list, which changes.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "regex_full_match(value, \"[A-Z]{3}\")",
+      "message": "must be an ISO 4217 code",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "da114678-b856-5cc7-a25b-9e7c86cc664d",
+      "name": "no_control_characters",
+      "description": "Excludes control characters.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "regex_full_match(value, \"[^\\\\x00-\\\\x1f\\\\x7f]*\")",
+      "message": "must not contain control characters",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "76ffc377-3e32-55f0-8931-a7e86c5cffbf",
+      "name": "positive",
+      "description": "Greater than zero.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value > 0",
+      "message": "must be positive",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "0bef8c99-7560-572f-8e93-d5fb9d4be603",
+      "name": "non_negative",
+      "description": "Zero or greater.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value >= 0",
+      "message": "must not be negative",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "224a146e-28ce-5816-900b-068d80c0423b",
+      "name": "negative",
+      "description": "Less than zero.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value < 0",
+      "message": "must be negative",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "cb44e488-b310-5111-86a8-c4fde59855cf",
+      "name": "non_positive",
+      "description": "Zero or less.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value <= 0",
+      "message": "must not be positive",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "64559e56-ad92-5490-8782-8c2fd8ce7275",
+      "name": "multiple_of",
+      "description": "Divisibility. Defined for integer and decimal only; a remainder against binary floating point has no reliable answer.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "n"
+      ],
+      "expression": "value % n == 0",
+      "message": "must be a multiple of {n}",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "9b12daae-f6c6-56b2-b11e-098a956e2d4c",
+      "name": "is_finite",
+      "description": "Excludes NaN and infinity, which no backing store accepts.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "is_finite(value)",
+      "message": "must be a finite number",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "daab0953-d610-580e-ac41-59b30f08269b",
+      "name": "max_precision",
+      "description": "Recognised by the exporter by identity to emit NUMERIC(p, s). A forked copy is not recognised.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "p"
+      ],
+      "expression": "precision(value) <= p",
+      "message": "must have at most {p} significant digits",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "ddb2aefe-4cf6-5d1f-9533-b2018e11ed0b",
+      "name": "max_scale",
+      "description": "Recognised by the exporter by identity to emit NUMERIC(p, s). A forked copy is not recognised.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [
+        "s"
+      ],
+      "expression": "scale(value) <= s",
+      "message": "must have at most {s} decimal places",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "2754a6b3-bdc2-5664-a109-13aec9f296ba",
+      "name": "in_past",
+      "description": "Polymorphic over date and datetime. Not deterministic.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value < current()",
+      "message": "must be in the past",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "af4f396a-2777-55a0-bcd4-20742919ac68",
+      "name": "in_future",
+      "description": "Polymorphic over date and datetime. Not deterministic.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value > current()",
+      "message": "must be in the future",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "2a05088d-6e62-5ff3-b6c0-3d7461e33b4a",
+      "name": "not_in_past",
+      "description": "Polymorphic over date and datetime. Not deterministic.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value >= current()",
+      "message": "must not be in the past",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "08895b97-63a6-59e6-94a2-c2c2b46b61d7",
+      "name": "not_in_future",
+      "description": "Polymorphic over date and datetime. Not deterministic.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value <= current()",
+      "message": "must not be in the future",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "6ed2db87-6a94-5b45-87aa-384e22c7dd4b",
+      "name": "is_true",
+      "description": "A boolean that must be set.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "value",
+      "message": "must be true",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "bf41a858-8a21-54a7-90ca-bc761d16d3a0",
+      "name": "is_false",
+      "description": "A boolean that must be clear.",
+      "context": null,
+      "kind": "leaf",
+      "parameters": [],
+      "expression": "not value",
+      "message": "must be false",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "c0fbdbef-910a-5e6f-8e72-25cd994efcc3",
+      "name": "non_blank",
+      "description": "Non-empty, and no surrounding whitespace.",
+      "context": null,
+      "kind": "composite",
+      "parameters": [],
+      "expression": "08554540-7d0d-56ac-833b-44d88569683e AND eccb2c70-e50c-57fa-b6cb-7feb6a26472a",
+      "message": "must not be blank",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    },
+    {
+      "uuid": "e1f4b394-d6d0-5aae-9184-729ad8706fd6",
+      "name": "is_safe_identifier",
+      "description": "An identifier within a length limit. Inherits max from max_length.",
+      "context": null,
+      "kind": "composite",
+      "parameters": [
+        "max"
+      ],
+      "expression": "0af131f2-e096-5a81-99d0-f2b63fdb53f7 AND b5bfc6ca-adeb-523c-8b84-ec070bb68290",
+      "message": "must be a short, valid identifier",
+      "created": "2026-08-29T00:00:00Z",
+      "modified": "2026-08-29T00:00:00Z"
+    }
+  ],
+  "types": [],
+  "properties": [],
+  "entities": [],
+  "schemas": []
+}
