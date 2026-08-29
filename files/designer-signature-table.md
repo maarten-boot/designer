@@ -1,7 +1,7 @@
-# Designer — Expression Signature Table (proposal)
+# Designer — Expression Signature Table
 
-29 August 2026. Addresses pre-build gap 1. Becomes an appendix to the main
-specification, replacing the abbreviated tables in §5.4 and §5.6.
+29 August 2026. **Accepted in full.** An appendix to the main specification,
+authoritative for everything §5.4 and §5.6 summarise.
 
 ---
 
@@ -427,7 +427,9 @@ something:
 
 ---
 
-## 11. Summary of decisions requested
+## 11. Decisions taken
+
+All eleven accepted, 29 August 2026. Nothing in this document is open.
 
 1. `unknown` as an absorbing type, required by incomplete items (§3).
 2. Untyped numeric literals in expressions; inferred types for parameters (§4).

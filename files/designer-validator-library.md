@@ -1,7 +1,10 @@
-# Designer — Standard Validator Library (proposal)
+# Designer — Standard Validator Library
 
-29 August 2026. Addresses pre-build gap 1. Becomes §5.7 plus an appendix of the
-main specification once agreed.
+29 August 2026. **Accepted in full.** An appendix to the main specification;
+§5.7 of the spec records how the library attaches to the model.
+
+Reconciled with *designer-signature-table.md*, which is authoritative for every
+type rule referenced here.
 
 ---
 
@@ -47,10 +50,11 @@ It also means no second code path. A built-in is a Validator; the registry is a
 second source of Validators for name resolution and UUID lookup, and nothing else
 in the domain model needs to know the difference.
 
-## 3. Three things the library forces into the specification
+## 3. Three things the library forces into the specification `[DECIDED]`
 
-Writing the library out surfaced three gaps in the expression language. None is
-large, all three are structural, and all three are cheaper to settle now.
+Writing the library out surfaced three gaps in the expression language. All three
+are now settled, and the full consequences are worked out in
+*designer-signature-table.md*.
 
 ### 3.1 Free functions instead of methods
 
@@ -71,9 +75,14 @@ namespace**, so the ban on attribute access stays total:
 | `precision(x)`, `scale(x)` | decimal → integer |
 | `now()` | → datetime |
 | `today()` | → date |
+| `current()` | → datetime or date, by context (§4.4) |
+| `seconds(n)`, `minutes(n)`, `hours(n)`, `days(n)`, `weeks(n)` | numeric → duration |
+| `total_seconds(d)`, `total_days(d)` | duration → real |
 
-Existing whitelist entries (`abs`, `min`, `max`, `round`, `int`, `float`, `str`,
-`Decimal`, `datetime`) stay.
+Existing whitelist entries `abs`, `min`, `max`, `round`, `int`, `float` and `str`
+stay. `Decimal` becomes lowercase **`decimal`**, matching every other type name,
+and `decimal(real)` is rejected because it would capture binary rounding noise.
+The `datetime` callable is dropped — temporal literals cover every case.
 
 Note there is **no name collision** between these functions and the validators
 that use them. A bare identifier in a *leaf* expression is a parameter or a
@@ -116,11 +125,17 @@ rejects non-immutable functions inside CHECK constraints, so a rule using `now()
 could never have been a constraint anyway. Deriving the flag makes the tool say
 so at authoring time.
 
-### 3.4 Smaller additions to the operator table
+### 3.4 Smaller additions to the operator table `[CLOSED]`
 
-Also missing, and needed by the library: `%` on integers, `not` on booleans, and
-the `in` / `not in` forms above. These belong in pre-build gap 2's complete
-signature table.
+Also missing, and needed by the library: `%`, `not` on booleans, and the `in` /
+`not in` forms above. All are now specified in *designer-signature-table.md*,
+along with a fourth the library did not surface — **duration constructors**,
+without which `duration` had no literal form and `(end - start) < days(30)` could
+not be written at all.
+
+Note that `%` is defined for `integer` and `decimal` only, so `multiple_of`
+(§4.3) does not apply to `real`. That is the right restriction: a remainder test
+against binary floating point is not a question with a reliable answer.
 
 ---
 
@@ -204,21 +219,28 @@ for storage usually wants it.
 
 | Name | Parameters | Expression | Deterministic |
 |---|---|---|---|
-| `in_past` | — | `value < now()` | no |
-| `in_future` | — | `value > now()` | no |
-| `not_in_past` | — | `value >= now()` | no |
-| `not_in_future` | — | `value <= now()` | no |
+| `in_past` | — | `value < current()` | no |
+| `in_future` | — | `value > current()` | no |
+| `not_in_past` | — | `value >= current()` | no |
+| `not_in_future` | — | `value <= current()` | no |
 
 All four are non-deterministic per §3.3 and are therefore application-enforced.
 Absolute bounds — "no earlier than 2000-01-01" — use `min_value` from §4.1 and
 stay deterministic.
 
-`in_past` on a `date` compares against `today()` rather than `now()`; the checker
-selects by the bound type, which is one place a built-in is genuinely polymorphic
-in its body. `[OPEN]` Alternatively ship `in_past` and `date_in_past` separately
-and keep every expression monomorphic — uglier for the user, simpler for the
-checker. Recommendation: polymorphic, with the selection as an explicit rule in
-the signature table.
+`[DECIDED]` These four are **polymorphic over `date` and `datetime`**, and
+`current()` is what makes that cost nothing. It is a constrained polymorphic
+function returning `datetime` or `date`, so unification gives it the type of
+`value`: bound to a `datetime` it means `now()`, bound to a `date` it means
+`today()`. Binding one to a `time` fails the constraint, since "in the past" is
+undefined for a wall-clock time with no date, and binding to an unresolved type
+stays silent.
+
+Splitting them into `in_past` and `date_in_past` was the alternative. It would
+have kept every expression monomorphic at the cost of doubling the temporal
+section and making the user pick the right one — and since unification was
+already needed for `between` (§4.1), the polymorphic form needs no machinery that
+does not already exist.
 
 ### 4.5 Boolean
 
@@ -253,25 +275,28 @@ pattern. Two consequences:
 - **Full match, not search.** `regex_full_match` anchors both ends. A partial
   match is the more common source of a validator that silently passes everything,
   and anyone wanting a search can write `.*…​.*`.
+- **The pattern must be a literal**, or a parameter bound to one. That is what
+  lets a malformed regex be an authoring-time error carrying the compile message,
+  rather than a failure discovered in the test bench, and it lets compiled
+  patterns cache by pattern string. Nothing needs a computed pattern.
 - **Catastrophic backtracking is possible** with a user-supplied pattern, and
   Python's `re` has no timeout. In an authoring tool the blast radius is a hung
   UI during the test bench rather than a server outage, so this is a `[V2]`
   concern — but the test bench should run evaluation off the UI thread when it
   arrives, which is the natural place to add a guard.
-- Compiled patterns are cached by pattern string.
 
 ---
 
-## 6. Per-binding message override `[OPEN]`
+## 6. Per-binding message override `[DECIDED]`
 
-The message lives on the Validator, so every use of `max_length` produces the
-same wording. "must be at most 5 characters" is fine for a postcode and poor for
-a product code that has a documented format.
+The message lives on the Validator, so every use of `max_length` would produce
+the same wording. "must be at most 5 characters" is fine for a postcode and poor
+for a product code that has a documented format.
 
-**Proposal: an optional `message` on the binding**, overriding the Validator's
-when present. Half a field on an existing structure, and it removes the main
-reason a user would fork a built-in — which is worth something, since a forked
-`max_length` also loses exporter recognition (§4.3).
+**A binding carries an optional `message`**, overriding the Validator's when
+present (spec §5.6). Half a field on an existing structure, and it removes the
+main reason a user would fork a built-in — which is worth something, since a
+forked `max_length` also loses exporter recognition (§4.3).
 
 ## 7. Versioning and additions
 
@@ -305,13 +330,20 @@ prone to — a regex that is subtly wrong in a way no reviewer notices.
 
 ---
 
-## 10. Summary of decisions requested
+## 10. Decisions taken
 
-1. Global read-only library with stable UUIDv5 identifiers, plus **Fork to
-   model** (§1).
-2. Shipped as a JSON model fragment, doubling as the worked example (§2).
-3. Extend the whitelist with free functions rather than allowing methods (§3.1).
-4. Allow list-valued binding arguments, and add `in` / `not in` (§3.2).
-5. Derive determinism, and let it force `enforcement = application` (§3.3).
-6. Optional per-binding message override (§6).
-7. `in_past` polymorphic over `date` and `datetime`, or split in two (§4.4).
+All seven accepted, 29 August 2026:
+
+| | Decision | Where it now lives |
+|---|---|---|
+| 1 | Global read-only library, stable UUIDv5 identifiers, **Fork to model** | §1; spec §5.7 |
+| 2 | Shipped as a JSON model fragment, doubling as the worked example | §2; spec §5.7, §14.1 |
+| 3 | Whitelist extended with free functions rather than allowing methods | §3.1; spec §5.4; appendix §7 |
+| 4 | List-valued binding arguments, with `in` / `not in` | §3.2; spec §5.6; appendix §6.8 |
+| 5 | Determinism derived, forcing `enforcement = application` | §3.3; spec §5.7; appendix §8 |
+| 6 | Optional per-binding message override | §6; spec §5.6 |
+| 7 | `in_past` polymorphic over `date` and `datetime`, via `current()` | §4.4; appendix §7.4 |
+
+Nothing in this document is open. The remaining pre-build item is the diagnostic
+object (spec §16), which this library exercises through its own findings but does
+not itself define.

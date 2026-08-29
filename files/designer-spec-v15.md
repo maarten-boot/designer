@@ -1,4 +1,4 @@
-# Designer — Specification (revision 14)
+# Designer — Specification (revision 15)
 
 Original: 27 August 2026. Revised: 29 August 2026.
 
@@ -8,13 +8,16 @@ Markers:
 - `[OPEN]` — still to decide. None block starting work.
 - `[V2]` — deliberately deferred.
 
-Two companion documents are part of this specification, both accepted:
+Three companion documents are part of this specification, all accepted:
 
 - *designer-validator-library.md* — the built-in Validators. §5.7 records how
   they attach to the model.
 - *designer-signature-table.md* — the complete operator and function signature
-  table, the type universe, and the diagnostic codes. It is authoritative for
-  everything §5.4 and §5.6 summarise.
+  table, the type universe, and the `EXP` diagnostic codes. It is authoritative
+  for everything §5.4 and §5.6 summarise.
+- *designer-diagnostics.md* — the diagnostic and consequence records, the code
+  registry, and the incremental re-check scopes. Authoritative for §11.6 and for
+  the impact dialog's record in §11.1.
 
 ---
 
@@ -295,6 +298,7 @@ A **binding** attaches a Validator to a Type, an Entity or a Schema:
 
 | Field | Notes |
 |---|---|
+| `uuid` | Immutable identity for the binding itself. Diagnostics locate a finding by it, the impact dialog names a removed binding by it, and the inline feedback matches findings to the row it is drawing (appendix *diagnostics* §3). |
 | `validator` | Reference to a Validator, authored or built-in. |
 | `arguments` | One per declared parameter (below). |
 | `message` | **Optional override** of the Validator's message. |
@@ -734,6 +738,13 @@ It lists what will change, grouped by consequence rather than by referencing
 item, because "17 items reference this" is not a decision aid and "3 Schemas lose
 a member, 2 slots lose their target" is. Every affected item is named per §5.3.
 
+The delete planner returns a tuple of **`Consequence`** records — its own type,
+sharing the diagnostic's locator but not its shape, since a consequence predicts
+what would happen while a diagnostic describes what is true (appendix
+*diagnostics* §11). The same tuple renders the dialog and, on confirmation,
+drives the fixups, so what the user was shown and what happens are computed once
+rather than twice.
+
 | Reference to the deleted item | Consequence |
 |---|---|
 | Schema membership | Member removed. The Schema stays valid, though it may become unclosed (§9.2). |
@@ -790,6 +801,21 @@ The value is a settings key from v1 (§14.3) with a default of 100, so `[V2]` a
 Three severities — `error`, `warning`, `incomplete` — plus informational notes.
 `incomplete` never blocks saving (§3.1).
 
+Severity, title and message belong to the **code**, not to the finding: a
+diagnostic instance carries only its code, a locator, an optional span and its
+arguments, and everything human-facing is looked up in the code registry
+(appendix *diagnostics* §5). Export gating is declarative, through `blocks_export`
+on the code definition, rather than a list of special cases inside the exporter —
+which is why "Schema not closed" can stay a `warning` at all times and still stop
+an export.
+
+Each code also declares a **scope** — `item`, `context` or `model` — so the
+re-check after every command (§13.8) is neither wrong nor whole-model. Without it
+a rename would miss the duplicate-name finding on the *other* item, since that
+item did not change. `model`-scope rules run on demand and before export.
+
+The findings, by severity:
+
 **Incomplete** — unset Type parent, unset Property type, unset slot Property or
 target, unset validator anchor, blank names, bindings whose type cannot resolve.
 
@@ -830,7 +856,10 @@ string. Do not nest — the model is a graph.
 
 Non-native literals per §4.1; list literals as JSON arrays of those forms.
 **Expressions are stored as source text**, with composite operands as UUIDs
-inside that text (§5.2). Paths are stored as ordered lists of slot UUIDs.
+inside that text (§5.2). Paths are stored as ordered lists of slot UUIDs, and
+**bindings carry their own UUID** — both because a diagnostic or a consequence
+addresses list elements by identity rather than by index, which would go stale on
+any reorder.
 **Schema membership is stored** as a list of Entity UUIDs. **Built-in Validators
 are not stored** — only references to them. Every reference field is **nullable**.
 
@@ -1144,26 +1173,23 @@ and marked unavailable** rather than dropped.
 
 ---
 
-## 16. Remaining pre-build work
+## 16. Status
 
-**The signature table is closed** — see *designer-signature-table.md*, accepted
-in full. **The standard validator library is closed** — see
-*designer-validator-library.md*, accepted in full.
+**All four pre-build gaps are closed.** The specification and its three
+appendices — the validator library, the signature table, and the diagnostics —
+are accepted in full, and nothing in any of them is open.
 
-One gap remains:
+One deliverable remains before the domain model is written, and it is a piece of
+work rather than a decision:
 
-**The diagnostic object's shape** — what carries a finding from the checker and
-the model check to the three places that render one: the model check list, the
-inline binding feedback, and the delete impact dialog. Both the severity set
-(`error`, `warning`, `incomplete`, plus informational) and the code scheme
-(`EXP1xx` through `EXP5xx`, appendix §9) are settled, so what is left is the
-record itself: which fields identify the subject, how a location inside an
-expression is expressed alongside a location inside an item, and how a message
-template is substituted. It is a small piece, but every form in §13.6 renders
-from it.
+**A second worked example.** The standard library fragment (§5.7) exercises the
+file format for Validators thoroughly and nothing else. A small companion example
+covering Entities, slots, extension, a Schema with membership and a cross-entity
+rule with a path would exercise the decisions most likely to be wrong in practice
+— nullable references, stored slot-UUID paths, binding UUIDs, and an
+intentionally incomplete item. Writing it before the domain model means the first
+tests have something real to load, rather than fixtures invented alongside the
+code they are meant to check.
 
-The **worked example JSON** is half-answered. The standard library fragment
-(§5.7) exercises the format for Validators thoroughly, but nothing yet exercises
-Entities, slots, Schemas, membership or paths. A second small example is worth
-writing before the domain model is built, since it is where the
-nullable-reference and stored-path decisions get their first real test.
+After that, phase 1 — domain model, persistence and model check, headless and
+test-driven — has everything it needs.
