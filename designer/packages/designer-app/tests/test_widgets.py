@@ -1571,3 +1571,160 @@ def test_the_level_is_remembered(app) -> None:
     app._set_finding_level()
     settle(app)
     assert app.settings.finding_level == "unfinished"
+
+
+# --- rules -------------------------------------------------------------------
+
+
+def test_the_rules_table_is_rendered(app) -> None:
+    select_named(app, "context", "common")
+    select_named(app, "type", "Money")
+    assert "validators" in app.editor.tables
+    assert len(app.editor.tables["validators"].get_children()) == 3
+
+
+def test_adding_a_rule_to_a_type(app, quiet) -> None:
+    from uuid import UUID
+
+    from designer_app import bindings
+
+    select_named(app, "context", "common")
+    row = select_named(app, "type", "Money")
+    money = app.session.model.index()[UUID(row)]
+    before = len(money.validators)
+    quiet["rule"] = bindings.BindingDraft(
+        validator=app.library.by_name("between").uuid,
+        arguments={"min": "0.00", "max": "99.99"},
+    )
+    app._add_rule(UUID(row))
+    settle(app)
+    assert len(money.validators) == before + 1
+    assert len(app.session.stack) == 1
+
+
+def test_the_dialog_is_offered_only_rules_that_fit(app, quiet) -> None:
+    from uuid import UUID
+
+    select_named(app, "context", "common")
+    row = select_named(app, "type", "Money")
+    quiet["rule"] = None
+    app._add_rule(UUID(row))
+    settle(app)
+    _title, _draft, rules, _slots, _params = quiet["rule_dialogs"][-1]
+    offered = {choice.label for choice in rules}
+    assert "between" in offered
+    assert "max_length" not in offered, "a text rule was offered for a decimal"
+
+
+def test_an_entity_rule_dialog_offers_its_slots(app, quiet) -> None:
+    from uuid import UUID
+
+    select_named(app, "context", "sales")
+    row = select_named(app, "entity", "Order")
+    quiet["rule"] = None
+    app._add_rule(UUID(row))
+    settle(app)
+    _title, _draft, _rules, slots, _params = quiet["rule_dialogs"][-1]
+    assert {choice.label for choice in slots} >= {"total", "order_number"}
+
+
+def test_a_refused_rule_says_why(app, quiet) -> None:
+    from uuid import UUID
+
+    from designer_app import bindings
+
+    select_named(app, "context", "common")
+    row = select_named(app, "type", "Money")
+    quiet["rule"] = bindings.BindingDraft(validator=app.library.by_name("between").uuid, arguments={"min": "nought"})
+    app._add_rule(UUID(row))
+    settle(app)
+    assert quiet["warning"], "no reason was given"
+    assert len(app.session.stack) == 0
+
+
+def test_removing_a_rule_is_one_undo_step(app, quiet) -> None:
+    from uuid import UUID
+
+    select_named(app, "context", "common")
+    row = select_named(app, "type", "Money")
+    money = app.session.model.index()[UUID(row)]
+    victim = money.validators[1]
+    app._remove_rule(UUID(row), str(victim.uuid))
+    settle(app)
+    assert victim not in money.validators
+    app.undo()
+    settle(app)
+    assert money.validators[1] is victim
+
+
+def test_cancelling_the_rule_dialog_changes_nothing(app, quiet) -> None:
+    from uuid import UUID
+
+    select_named(app, "context", "common")
+    row = select_named(app, "type", "Money")
+    quiet["rule"] = None
+    app._add_rule(UUID(row))
+    settle(app)
+    assert len(app.session.stack) == 0
+
+
+def test_making_a_validator_composite_translates_its_expression(app) -> None:
+    """Names where identities belong would mean something different from what
+    the text says."""
+    from uuid import UUID
+
+    select_named(app, "context", "sales")
+    row = select_named(app, "validator", "is_order_number")
+    item = app.session.model.index()[UUID(row)]
+    app.editor._commit_now("expression", "is_uuid OR is_email")
+    settle(app)
+    app.editor._commit_now("kind", "composite")
+    settle(app)
+    assert item.kind == "composite"
+    assert "is_uuid" not in item.expression, "an operand name was stored"
+    assert app.editor._spec.by_key("expression").value == "is_uuid OR is_email"
+
+
+def test_changing_the_kind_is_one_undo_step(app) -> None:
+    from uuid import UUID
+
+    select_named(app, "context", "sales")
+    row = select_named(app, "validator", "order_reference")
+    item = app.session.model.index()[UUID(row)]
+    before = item.expression
+    app.editor._commit_now("kind", "leaf")
+    settle(app)
+    assert item.kind == "leaf"
+    app.undo()
+    settle(app)
+    assert item.kind == "composite"
+    assert item.expression == before
+
+
+# --- column widths -----------------------------------------------------------
+
+
+def test_the_scrollbar_survives_a_narrow_column(app) -> None:
+    """Packed after the tree, the scrollbar is the one squeezed out when the
+    column gets narrow — exactly when it is needed most."""
+    app.geometry("1024x768")
+    app.update()
+    settle(app)
+    for name in COLUMNS:
+        column = app.columns[name]
+        bar = next(child for child in column.winfo_children() if child.winfo_class() == "TScrollbar")
+        assert bar.winfo_ismapped(), f"{name} lost its scrollbar"
+        assert bar.winfo_width() > 1, f"{name}'s scrollbar has no width"
+
+
+def test_a_column_sizes_itself_to_its_contents(app) -> None:
+    select_named(app, "context", "sales")
+    settle(app)
+    widths = {name: int(app.columns[name].tree.column("#0", "width")) for name in COLUMNS}
+    assert all(width > 0 for width in widths.values())
+    assert len(set(widths.values())) > 1, "every column came out the same width"
+
+
+def test_a_column_can_be_dragged_narrower_than_it_prefers(app) -> None:
+    column = app.columns["type"]
+    assert int(column.tree.column("#0", "minwidth")) < int(column.tree.column("#0", "width"))

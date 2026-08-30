@@ -24,15 +24,15 @@ SETTINGS_NAME = "settings.json"
 # A Context scopes everything; Types and Validators are the primitives; a
 # Property is a Type given a name; an Entity is Properties given a shape; a
 # Schema is the deliverable. Starting at the Schema would start at the end.
-COLUMNS = ("context", "type", "validator", "property", "entity", "schema")
+COLUMNS = ("context", "validator", "type", "property", "entity", "schema")
 
 # The visible heading for each. Here rather than in the window, so the order and
 # the labels are one thing that cannot drift apart, and so a test can reach them
 # without a display.
 TITLES = {
     "context": "Context",
-    "type": "Type",
     "validator": "Validator",
+    "type": "Type",
     "property": "Property",
     "entity": "Entity",
     "schema": "Schema",

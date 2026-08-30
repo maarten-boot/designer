@@ -24,7 +24,7 @@ from uuid import UUID
 from designer_model import Deriver, Model
 from designer_model.model import TypeRef
 
-COLUMN_NAMES = ("context", "type", "validator", "property", "entity", "schema")
+COLUMN_NAMES = ("context", "validator", "type", "property", "entity", "schema")
 
 
 @dataclass(frozen=True, slots=True)

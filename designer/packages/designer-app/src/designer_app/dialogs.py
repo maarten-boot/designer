@@ -116,6 +116,120 @@ class FindingsWindow(tk.Toplevel):
             self._on_open(self._rows[chosen[0]])
 
 
+class RuleDialog(tk.Toplevel):
+    """Attach a rule, and supply what it asks for.
+
+    The arguments are not a fixed set of boxes: which ones appear, and what
+    each expects, comes from the chosen validator inferred against the value it
+    will be given. So `between` on a Money type asks for two decimals, and the
+    same rule on a date asks for two dates. Changing the rule rebuilds them.
+    """
+
+    def __init__(self, parent: tk.Misc, title: str, draft, rules, slots, parameters_for) -> None:
+        super().__init__(parent)
+        self.title(title)
+        self.transient(parent)
+        self.result = None
+        self._draft = draft
+        self._parameters_for = parameters_for
+        self._rules = {c.label: c.id for c in rules}
+        self._slots = {c.label: c.id for c in slots}
+
+        body = ttk.Frame(self, padding=12)
+        body.pack(fill="both", expand=True)
+        body.columnconfigure(1, weight=1)
+
+        row = 0
+        if slots:
+            ttk.Label(body, text="Applies to").grid(row=row, column=0, sticky="w", pady=2)
+            self._slot = tk.StringVar(value=next((c.label for c in slots if c.id == _text(draft.slot)), slots[0].label))
+            box = ttk.Combobox(body, textvariable=self._slot, values=[c.label for c in slots], state="readonly")
+            box.grid(row=row, column=1, sticky="ew", pady=2)
+            # which slot decides the value's type, which decides which rules
+            # fit and what they ask for, so both are rebuilt when it changes
+            box.bind("<<ComboboxSelected>>", lambda _e: self._rebuild())
+            row += 1
+        else:
+            self._slot = None
+
+        ttk.Label(body, text="Rule").grid(row=row, column=0, sticky="w", pady=2)
+        self._rule = tk.StringVar(value=next((c.label for c in rules if c.id == _text(draft.validator)), ""))
+        chooser = ttk.Combobox(body, textvariable=self._rule, values=[c.label for c in rules], state="readonly")
+        chooser.grid(row=row, column=1, sticky="ew", pady=2)
+        chooser.bind("<<ComboboxSelected>>", lambda _e: self._rebuild())
+        row += 1
+
+        self._arguments_at = row
+        self._argument_widgets: dict[str, tk.StringVar] = {}
+        self._argument_frame = ttk.Frame(body)
+        self._argument_frame.grid(row=row, column=0, columnspan=2, sticky="ew")
+        self._argument_frame.columnconfigure(1, weight=1)
+        row += 1
+
+        ttk.Label(body, text="Message when it fails").grid(row=row, column=0, sticky="w", pady=2)
+        self._message = tk.StringVar(value=draft.message)
+        ttk.Entry(body, textvariable=self._message).grid(row=row, column=1, sticky="ew", pady=2)
+        row += 1
+
+        self._error = tk.StringVar()
+        ttk.Label(body, textvariable=self._error, foreground="#a01b0b", wraplength=380).grid(
+            row=row, column=0, columnspan=2, sticky="w", pady=(6, 0)
+        )
+
+        buttons = ttk.Frame(self, padding=(12, 0, 12, 12))
+        buttons.pack(fill="x")
+        ttk.Button(buttons, text="Cancel", command=self.destroy).pack(side="right")
+        ttk.Button(buttons, text="Save", command=self._accept).pack(side="right", padx=(0, 6))
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self._rebuild()
+
+    def _collected(self):
+        from dataclasses import replace
+        from uuid import UUID
+
+        chosen = self._rules.get(self._rule.get())
+        slot = self._slots.get(self._slot.get()) if self._slot is not None else None
+        return replace(
+            self._draft,
+            validator=UUID(chosen) if chosen else None,
+            slot=UUID(slot) if slot else None,
+            arguments={name: var.get() for name, var in self._argument_widgets.items()},
+            message=self._message.get(),
+        )
+
+    def _rebuild(self) -> None:
+        """Ask for what this rule needs, and nothing else."""
+        for child in self._argument_frame.winfo_children():
+            child.destroy()
+        kept = {name: var.get() for name, var in self._argument_widgets.items()}
+        self._argument_widgets = {}
+        wanted = self._parameters_for(self._collected())
+        for index, (name, kind) in enumerate(wanted.items()):
+            ttk.Label(self._argument_frame, text=f"{name} ({kind})").grid(row=index, column=0, sticky="w", pady=2)
+            variable = tk.StringVar(value=kept.get(name, self._draft.arguments.get(name, "")))
+            ttk.Entry(self._argument_frame, textvariable=variable).grid(
+                row=index, column=1, sticky="ew", pady=2, padx=(8, 0)
+            )
+            self._argument_widgets[name] = variable
+
+    def _accept(self) -> None:
+        self.result = self._collected()
+        self.destroy()
+
+    def ask(self):
+        self.grab_set()
+        self.wait_window(self)
+        return self.result
+
+
+def _text(value) -> str | None:
+    return str(value) if value is not None else None
+
+
+def edit_rule(parent: tk.Misc, title: str, draft, rules, slots, parameters_for):
+    return RuleDialog(parent, title, draft, rules, slots, parameters_for).ask()
+
+
 class SlotDialog(tk.Toplevel):
     """Build or edit one slot.
 

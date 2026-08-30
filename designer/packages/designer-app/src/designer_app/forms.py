@@ -278,16 +278,37 @@ def _header(model: Model, item, notes: dict[str, list[str]]) -> list[Field]:
     ]
 
 
-def _binding_summary(model: Model, library: Library, item) -> list[str]:
-    lines = []
-    for binding in getattr(item, "validators", []):
-        validator = library.get(binding.validator) if binding.validator else None
-        if validator is None:
-            validator = next((v for v in model.validators if v.uuid == binding.validator), None)
-        name = label_of(validator) if validator else "<none>"
-        arguments = ", ".join(f"{k}=…" for k in binding.arguments) or "no arguments"
-        lines.append(f"{name} ({arguments})")
-    return lines or ["none"]
+def rules_field(model: Model, library: Library, item, notes: dict[str, list[str]], applies_to: bool) -> Field:
+    """The rules attached to a Type or an Entity.
+
+    An Entity's rules name the slot they apply to; a Type's apply to the type
+    itself, so that column is only there where it means something.
+    """
+    from .bindings import describes
+
+    columns = ("Rule", "Applies to", "Arguments") if applies_to else ("Rule", "Arguments")
+    rows = []
+    for binding in item.validators:
+        name, slot, arguments = describes(model, library, item, binding)
+        cells = (name, slot, arguments) if applies_to else (name, arguments)
+        rows.append(TableRow(str(binding.uuid), cells))
+    return Field(
+        "validators",
+        "Rules",
+        "table",
+        None,
+        columns=columns,
+        rows=tuple(rows),
+        actions=(
+            Action("add_rule", "Add\u2026"),
+            Action("edit_rule", "Edit\u2026", needs_row=True),
+            Action("remove_rule", "Remove", needs_row=True),
+        ),
+        note=(
+            "each rule applies to one slot's value" if applies_to else "each rule applies to every value of this type"
+        ),
+        findings=tuple(notes.get("validators", ())),
+    )
 
 
 def describe(
@@ -466,6 +487,7 @@ def _builtin_form(model: Model, item: Validator, library: Library) -> FormSpec:
                 "standard library",
                 note=("shipped with the tool, shared by every model, and identical on every installation"),
             ),
+            usage_field(item),
             Field("kind", "Kind", "readonly", "composite" if item.is_composite else "leaf"),
             Field(
                 "parameters",
@@ -473,7 +495,19 @@ def _builtin_form(model: Model, item: Validator, library: Library) -> FormSpec:
                 "readonly",
                 ", ".join(item.parameters) or "value (implicit)",
             ),
-            Field("expression", "Expression", "readonly", shown),
+            accepts_field(model, library, item),
+            Field(
+                "expression",
+                "Implementation",
+                "readonly",
+                shown,
+                note=(
+                    f"exposes the expression function {exposes}; the same "
+                    "function can be used directly in a rule of your own"
+                    if (exposes := implements(item))
+                    else "how this rule is built \u2014 a model for writing your own"
+                ),
+            ),
             Field("message", "Message when it fails", "readonly", item.message),
             Field(
                 "deterministic",
@@ -537,13 +571,7 @@ def _type_form(model, item: Type, library, context, notes) -> list[Field]:
             note=f"base type: {base}" if base else "no base type yet",
             findings=tuple(notes.get("parent", ())),
         ),
-        Field(
-            "validators",
-            "Rules",
-            "summary",
-            _binding_summary(model, library, item),
-            findings=tuple(notes.get("validators", ())),
-        ),
+        rules_field(model, library, item, notes, applies_to=False),
     ]
 
 
@@ -559,6 +587,72 @@ def _property_form(model, item: Property, library, context, notes) -> list[Field
             findings=tuple(notes.get("type", ())),
         )
     ]
+
+
+def usage(item: Validator) -> str:
+    """How the rule is written where it is used.
+
+    Not its expression. `is_country_code` is *used* as `is_country_code`; its
+    expression is `regex_full_match(value, "[A-Z]{2}")`, which is how it is
+    built. The two coincide for a rule like `ends_with`, whose expression is a
+    call to the function of the same name, and that coincidence is exactly what
+    makes showing only the expression misleading.
+    """
+    if not item.name:
+        return "(unnamed)"
+    return f"{item.name}({', '.join(item.parameters)})" if item.parameters else item.name
+
+
+def implements(item: Validator) -> str | None:
+    """The expression-language function a rule exposes, when it exposes one.
+
+    Five functions return a yes or no and so can be a rule on their own:
+    `contains`, `ends_with`, `starts_with`, `is_finite` and `regex_full_match`.
+    The rest — `len`, `scale`, `lower` and so on — return a length or a number
+    or a string, and are used inside an expression rather than being a rule.
+    """
+    expression = item.expression.strip()
+    head, _, rest = expression.partition("(")
+    if rest and head.isidentifier() and expression.endswith(")"):
+        return head
+    return None
+
+
+def usage_field(item: Validator) -> Field:
+    note = "in a composite, write just the name; its arguments come from the binding"
+    if item.parameters:
+        note = (
+            f"supply {', '.join(item.parameters)} when binding it. "
+            "In a composite, write just the name — a composite takes on the "
+            "parameters of the rules it combines."
+        )
+    return Field("usage", "Used as", "readonly", usage(item), note=note)
+
+
+def accepts_field(model: Model, library: Library, item: Validator) -> Field:
+    """Which base types a validator will take.
+
+    Read-only and derived from the expression, because a validator does not
+    have *a* base type: `max_length` takes only string, `non_negative` the
+    three numeric ones, `equals` all eight. A field to pick one would either
+    throw that away or restate what the expression already decides.
+    """
+    from .bindings import accepts
+
+    taken = accepts(model, library, item)
+    if not taken:
+        value = "nothing — no base type satisfies this expression"
+    elif len(taken) == len(BASE_TYPES):
+        value = "any base type"
+    else:
+        value = ", ".join(taken)
+    return Field(
+        "accepts",
+        "Applies to values of",
+        "readonly",
+        value,
+        note="worked out from the expression; a rule may take several base types",
+    )
 
 
 def validator_names(model: Model, library: Library, context: UUID | None) -> dict[UUID, str]:
@@ -591,13 +685,30 @@ def _validator_form(model, item: Validator, library, context, notes) -> list[Fie
         else item.expression
     )
     fields = [
-        Field("kind", "Kind", "readonly", "composite" if composite else "leaf"),
+        usage_field(item),
+        Field(
+            "kind",
+            "Kind",
+            "choice",
+            item.kind,
+            (
+                Choice("leaf", "leaf — an expression over value"),
+                Choice("composite", "composite — other rules combined"),
+            ),
+            PLAIN,
+            note=(
+                "a composite combines rules by name with AND, OR, XOR, NOT and "
+                "parentheses; every operand is applied to the same value"
+            ),
+            findings=tuple(notes.get("kind", ())),
+        ),
         Field(
             "parameters",
             "Parameters",
             "readonly",
             ", ".join(item.parameters) or "value (implicit)",
         ),
+        accepts_field(model, library, item),
         Field(
             "expression",
             "Expression",
@@ -605,7 +716,8 @@ def _validator_form(model, item: Validator, library, context, notes) -> list[Fie
             shown,
             converter=COMPOSITE if composite else PLAIN,
             note=(
-                "operands are stored as identities and shown by name"
+                "names of other rules, combined with AND, OR, XOR, NOT and "
+                "parentheses \u2014 for example:  is_email OR (is_uuid AND NOT is_blank)"
                 if composite
                 else "one implicit argument, called value"
             ),
@@ -700,13 +812,7 @@ def _entity_form(model, item: Entity, library, context, notes) -> list[Field]:
             "summary",
             [_slot_name(effective, u) for u in deriver.effective_identity(item.uuid)] or ["none"],
         ),
-        Field(
-            "validators",
-            "Rules",
-            "summary",
-            _binding_summary(model, library, item),
-            findings=tuple(notes.get("validators", ())),
-        ),
+        rules_field(model, library, item, notes, applies_to=True),
         Field(
             "schemas",
             "In schemas",

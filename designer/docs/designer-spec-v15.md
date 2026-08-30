@@ -915,7 +915,10 @@ interface (`load`, `save`, `items_in_context`, `references_to`).
 A vertical `ttk.PanedWindow` with two panes:
 
 - **Upper** — a horizontal `ttk.PanedWindow` with six children, left to right:
-  **Context, Type, Validator, Property, Entity, Schema**.
+  **Context, Validator, Type, Property, Entity, Schema** `[CHANGED]`. Validator
+  moved ahead of Type: a Type is built from Validators, and a Validator depends
+  on nothing but the base types, so the order is now strictly what things are
+  made of before what is made from them.
 - **Lower** — the editor.
 
 `ttk.Treeview` throughout: hierarchical for Context, Type and Entity, flat for

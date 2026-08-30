@@ -548,3 +548,37 @@ def test_reversing_still_sorts_within_each_group(model) -> None:
     )
     built_in = [r.label.lower() for r in data.rows if "builtin" in r.tags]
     assert built_in == sorted(built_in, reverse=True)
+
+
+# --- column widths -----------------------------------------------------------
+
+
+def test_a_column_wants_three_quarters_of_its_widest_row(model) -> None:
+    """The longest name is usually an outlier; sizing to the worst case gives
+    six columns that do not fit on a 1024-wide screen."""
+    assert rows.preferred_width([40, 120, 200], em=8) == 150
+
+
+def test_a_very_long_name_does_not_squeeze_its_neighbours(model) -> None:
+    assert rows.preferred_width([2000], em=8) == 22 * 8
+
+
+def test_a_column_of_short_names_stays_usable(model) -> None:
+    assert rows.preferred_width([12, 15], em=8) == rows.minimum_width(8)
+
+
+def test_an_empty_column_still_has_a_width(model) -> None:
+    assert rows.preferred_width([], em=8) > 0
+
+
+def test_six_columns_at_the_minimum_fit_a_small_screen(model) -> None:
+    """Which is the point of the minimum being much smaller than the preferred
+    width: a preferred width that cannot be given up is a minimum by another
+    name."""
+    assert rows.minimum_width(8) * 6 < 1024
+
+
+def test_the_floor_follows_the_font(model) -> None:
+    """Measured in the interface font, so it is not right on one machine and
+    wrong on the next."""
+    assert rows.minimum_width(16) == 2 * rows.minimum_width(8)

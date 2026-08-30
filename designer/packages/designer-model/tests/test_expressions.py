@@ -379,3 +379,18 @@ def test_result_of_a_duration_subtraction() -> None:
 def test_scalar_types_are_hashable_and_comparable() -> None:
     assert Scalar("integer") == INTEGER
     assert len({Scalar("integer"), INTEGER}) == 1
+
+
+def test_a_composite_takes_parentheses_and_precedence() -> None:
+    """The shape a real rule takes: groups combined, one of them negated."""
+    from designer_model.expressions import composite
+
+    node = composite.parse("(v1 AND v2 OR v3) OR (NOT v4)")
+    assert composite.render(node, str) == "(((v1 AND v2) OR v3) OR NOT v4)"
+
+
+def test_an_unclosed_parenthesis_is_refused() -> None:
+    from designer_model.expressions import composite
+
+    with pytest.raises(composite.ParseError, match="unclosed"):
+        composite.parse("(a AND b")

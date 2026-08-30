@@ -254,9 +254,27 @@ def test_an_unclosed_schema_names_what_dangles(model, library) -> None:
     assert "Order.customer" in closure
 
 
-def test_a_type_summarises_its_rules(model, library) -> None:
-    lines = spec_for(model, library, "Money").by_key("validators").value
-    assert any("non_negative" in line for line in lines)
+def test_a_type_lists_its_rules_in_a_table(model, library) -> None:
+    field = spec_for(model, library, "Money").by_key("validators")
+    assert field.kind == "table"
+    assert field.columns == ("Rule", "Arguments")
+    rules = {row.cells[0]: row.cells[1] for row in field.rows}
+    assert "non_negative" in rules
+    assert rules["max_scale"] == "s=2"
+
+
+def test_an_entity_rule_names_the_slot_it_applies_to(model, library) -> None:
+    """A Type's rules apply to the type itself, so that column is only there
+    where it means something."""
+    field = spec_for(model, library, "Auditable").by_key("validators")
+    assert field.columns == ("Rule", "Applies to", "Arguments")
+    assert field.rows[0].cells[:2] == ("in_past", "created_at")
+
+
+def test_the_rules_table_offers_add_edit_and_remove(model, library) -> None:
+    field = spec_for(model, library, "Money").by_key("validators")
+    assert [a.name for a in field.actions] == ["add_rule", "edit_rule", "remove_rule"]
+    assert all(a.needs_row for a in field.actions if a.name != "add_rule")
 
 
 # --- findings ---------------------------------------------------------------
@@ -602,3 +620,102 @@ def test_slots_keep_their_stored_order(model, library) -> None:
     names = [row.cells[0] for row in field.rows]
     assert names != sorted(names, key=str.lower)
     assert names.index("order_number") < names.index("customer")
+
+
+# --- composite validators ----------------------------------------------------
+
+
+def test_the_kind_can_be_chosen(model, library) -> None:
+    """A new validator is a leaf; without this there is no way to make one
+    composite, and no way to combine rules at all."""
+    field = spec_for(model, library, "is_order_number").by_key("kind")
+    assert field.editable
+    assert {c.id for c in field.choices} == {"leaf", "composite"}
+
+
+def test_a_composite_expression_survives_parentheses(model, library) -> None:
+    from designer_model.expressions import tokens
+
+    composite = by_name(model.validators, "order_reference")
+    written = "is_order_number AND is_uuid OR (NOT is_email)"
+    stored = tokens.to_stored(written, forms.resolver(model, library, composite.context))
+    assert "is_order_number" not in stored, "a name was left in the stored form"
+    assert tokens.to_display(stored, forms.validator_names(model, library, composite.context)).text == written
+
+
+def test_the_expression_note_shows_the_syntax(model, library) -> None:
+    """Nothing else in the interface says what a composite may contain."""
+    note = spec_for(model, library, "order_reference").by_key("expression").note
+    assert "AND" in note and "OR" in note and "NOT" in note
+    assert "parentheses" in note
+
+
+def test_a_validator_says_which_base_types_it_takes(model, library) -> None:
+    """Derived from the expression, never declared: a field to pick one would
+    either throw the polymorphism away or drift from the expression."""
+    field = forms.describe(model, library.by_name("non_negative").uuid, library).by_key("accepts")
+    assert field.value == "integer, real, decimal"
+    assert not field.editable
+
+
+def test_a_validator_taking_everything_says_so_briefly(model, library) -> None:
+    field = forms.describe(model, library.by_name("equals").uuid, library).by_key("accepts")
+    assert field.value == "any base type"
+
+
+def test_an_authored_validator_says_it_too(model, library) -> None:
+    own = by_name(model.validators, "is_order_number")
+    assert forms.describe(model, own.uuid, library, own.context).by_key("accepts").value == "string"
+
+
+# --- how a rule is used, versus how it is built -------------------------------
+
+
+def test_a_rule_says_how_it_is_written_where_it_is_used(model, library) -> None:
+    """`is_country_code` is *used* as `is_country_code`; its expression is a
+    regex call, which is how it is built."""
+    spec = forms.describe(model, library.by_name("is_country_code").uuid, library)
+    assert spec.by_key("usage").value == "is_country_code"
+    assert spec.by_key("expression").value.startswith("regex_full_match")
+
+
+def test_usage_names_the_arguments_to_supply(model, library) -> None:
+    spec = forms.describe(model, library.by_name("between").uuid, library)
+    assert spec.by_key("usage").value == "between(min, max)"
+
+
+def test_usage_differs_from_the_expression_even_when_they_look_alike(model, library) -> None:
+    """`ends_with` is the case that makes showing only the expression
+    misleading: it is a call to the function of the same name, so it reads like
+    usage while carrying an extra `value` argument that is never written."""
+    spec = forms.describe(model, library.by_name("ends_with").uuid, library)
+    assert spec.by_key("usage").value == "ends_with(suffix)"
+    assert spec.by_key("expression").value == "ends_with(value, suffix)"
+
+
+def test_a_composite_takes_on_its_operands_parameters(model, library) -> None:
+    spec = forms.describe(model, library.by_name("is_safe_identifier").uuid, library)
+    assert spec.by_key("usage").value == "is_safe_identifier(max)"
+    assert spec.by_key("expression").value == "is_identifier AND max_length"
+
+
+def test_a_rule_that_exposes_a_function_says_which(model, library) -> None:
+    """Useful for writing your own: the same function is available directly."""
+    spec = forms.describe(model, library.by_name("matches").uuid, library)
+    assert "regex_full_match" in spec.by_key("expression").note
+
+
+def test_a_rule_built_from_operators_says_so_instead(model, library) -> None:
+    spec = forms.describe(model, library.by_name("between").uuid, library)
+    assert "a model for writing your own" in spec.by_key("expression").note
+
+
+def test_an_authored_rule_shows_its_usage_too(model, library) -> None:
+    own = by_name(model.validators, "is_order_number")
+    assert forms.describe(model, own.uuid, library, own.context).by_key("usage").value == ("is_order_number")
+
+
+def test_every_built_in_has_a_usage_line(model, library) -> None:
+    for name in library.names:
+        spec = forms.describe(model, library.by_name(name).uuid, library)
+        assert spec.by_key("usage").value.startswith(name)

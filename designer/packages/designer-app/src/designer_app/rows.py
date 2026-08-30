@@ -78,6 +78,36 @@ def context_label(model: Model, context: UUID | None, separator: str = " \u203a 
     return separator.join(name for _, name in context_path(model, context)) or "(none)"
 
 
+def preferred_width(widths: list[int], em: int, floor_chars: int = 10, ceiling_ems: int = 22) -> int:
+    """How wide a column wants to be, from what is actually in it.
+
+    Three quarters of the widest row, not all of it: the longest name in a
+    column is usually an outlier, and sizing every column to its worst case
+    means six columns that do not fit on a 1024-wide screen.
+
+    Clamped at both ends. The floor keeps a column of short names usable; the
+    ceiling stops one very long name from squeezing its neighbours out —
+    a column can always be widened by dragging, and that is a choice rather
+    than something to be forced into.
+    """
+    widest = max(widths, default=0)
+    return max(minimum_width(em, floor_chars), min(int(widest * 0.75), ceiling_ems * em))
+
+
+def minimum_width(em: int, floor_chars: int = 10) -> int:
+    """How narrow a column may be dragged.
+
+    Separate from the preferred width, and much smaller: six columns at their
+    preferred width do not fit on a 1024-wide screen, and a preferred width
+    that cannot be given up is a minimum by another name.
+
+    Measured in the interface font rather than in pixels, so the floor follows
+    font size and display scaling instead of being right on one machine and
+    wrong on the next.
+    """
+    return floor_chars * em
+
+
 def label_of(item) -> str:
     """A blank name shows as a placeholder rather than an empty line, because a
     new item is created empty and has to be selectable before it is named."""

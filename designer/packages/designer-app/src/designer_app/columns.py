@@ -12,7 +12,7 @@ import tkinter as tk
 from collections.abc import Callable
 from tkinter import ttk
 
-from .rows import ColumnData, Row
+from .rows import ColumnData, Row, minimum_width, preferred_width
 from .tooltip import attach
 
 # Row styling. Kept here rather than scattered through the code so the palette
@@ -119,8 +119,11 @@ class ColumnView(ttk.Frame):
         self._active = False
         scroll = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scroll.set)
-        self.tree.pack(side="left", fill="both", expand=True, padx=(2, 0), pady=(0, 2))
+        # the scrollbar is packed first. Packed after the tree it is the one
+        # squeezed out when the column gets narrow, which is exactly when it is
+        # needed most.
         scroll.pack(side="right", fill="y", pady=(0, 2))
+        self.tree.pack(side="left", fill="both", expand=True, padx=(2, 0), pady=(0, 2))
 
         for tag, style in TAG_STYLES.items():
             self.tree.tag_configure(tag, **style)
@@ -180,6 +183,7 @@ class ColumnView(ttk.Frame):
                 self.tree.selection_remove(*self.tree.selection())
             # the row is gone, so the application has to hear about it
             self._reported = None
+        self.fit_to_contents()
         if reveal is not None and str(reveal) in self._rows:
             self.tree.see(str(reveal))
         self._set_delete_enabled(bool(self.selected_id))
@@ -237,14 +241,22 @@ class ColumnView(ttk.Frame):
 
     # --- sizing -------------------------------------------------------------
 
-    @staticmethod
-    def minimum_width(widget: tk.Misc) -> int:
-        """Ten 'm' of the actual interface font.
+    def fit_to_contents(self) -> None:
+        """Size the column to what is actually in it.
 
-        Measured at run time rather than hardcoded in pixels, so the floor
-        follows font size and display scaling instead of being right on one
-        machine and wrong on the next.
+        The preferred width comes from the rows; the minimum is much smaller,
+        so six columns still fit on a small screen and a column can be dragged
+        narrow when its neighbour matters more.
         """
         from tkinter import font
 
-        return font.nametofont("TkDefaultFont").measure("m") * MIN_CHARS
+        measure = font.nametofont("TkDefaultFont")
+        em = measure.measure("m")
+        indent = 24  # the disclosure triangle and its inset
+        widths = [measure.measure(row.label) + indent * (1 if row.parent else 0) for row in self._rows.values()]
+        self.tree.column(
+            "#0",
+            width=preferred_width(widths, em, MIN_CHARS),
+            minwidth=minimum_width(em, MIN_CHARS),
+            stretch=True,
+        )

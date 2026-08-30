@@ -178,10 +178,20 @@ class RemoveSlot(Command):
 class AddBinding(Command):
     owner_uuid: UUID
     binding: Binding
+    index: int | None = None
+    """Where to put it. Appended when unset.
+
+    Editing a rule replaces it, and a rule that jumped to the end of the list
+    every time it was edited would reorder what the author arranged.
+    """
     label: str = "add rule"
 
     def do(self, model: Model) -> None:
-        _find(model, self.owner_uuid).validators.append(self.binding)
+        bindings = _find(model, self.owner_uuid).validators
+        if self.index is None:
+            bindings.append(self.binding)
+        else:
+            bindings.insert(self.index, self.binding)
 
     def undo(self, model: Model) -> None:
         _find(model, self.owner_uuid).validators.remove(self.binding)

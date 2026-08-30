@@ -17,17 +17,19 @@ from tkinter import filedialog, messagebox, ttk
 from uuid import UUID
 
 from designer_model import Deriver, Session, membership
-from designer_model.commands import AddItem, SetField
+from designer_model.commands import AddItem, Command, Macro, SetField
 from designer_model.expressions import tokens
+from designer_model.model import Type, Validator
 from designer_model.stdlib import standard_library
 
+from . import bindings as bindingedit
 from . import findings as findingview
 from . import forms
 from . import rows as rowbuild
 from . import slots as slotedit
 from .breadcrumb import Breadcrumb
 from .columns import ColumnView
-from .dialogs import FindingsWindow, choose, confirm_delete, edit_slot
+from .dialogs import FindingsWindow, choose, confirm_delete, edit_rule, edit_slot
 from .factory import duplicate, new_item
 from .formview import FRAME_STYLE, PANEL, FormView
 from .impact import summarise
@@ -353,8 +355,33 @@ class DesignerApp(tk.Tk):
         converted = self._convert(entry.converter, value, item)
         if converted == getattr(item, key, None):
             return
+        if isinstance(item, Validator) and key == "kind":
+            self.session.execute(self._change_validator_kind(item, str(converted)))
+            self.refresh()
+            return
         self.session.execute(SetField(uuid, key, converted, label=f"edit {entry.label.lower()}"))
         self.refresh()
+
+    def _change_validator_kind(self, item: Validator, kind: str) -> Command:
+        """Switch between leaf and composite, translating the expression.
+
+        A composite stores its operands as identities and shows them as names.
+        Changing the kind without translating would leave the text meaning
+        something different from what it says: names where identities belong,
+        or identities on screen where names should be. One step, because the
+        two changes are one decision.
+        """
+        names = forms.validator_names(self.session.model, self.library, item.context)
+        if kind == "composite":
+            expression = tokens.to_stored(
+                item.expression, forms.resolver(self.session.model, self.library, item.context)
+            )
+        else:
+            expression = tokens.to_display(item.expression, names).text
+        changes = [SetField(item.uuid, "kind", kind)]
+        if expression != item.expression:
+            changes.append(SetField(item.uuid, "expression", expression))
+        return Macro(f"make {kind}", changes)
 
     def _convert(self, converter: str, value: object, item) -> object:
         if converter == forms.BOOL:
@@ -386,6 +413,9 @@ class DesignerApp(tk.Tk):
             "remove_slot": self._remove_slot,
             "move_slot_up": self._move_slot_up,
             "move_slot_down": self._move_slot_down,
+            "add_rule": self._add_rule,
+            "edit_rule": self._edit_rule,
+            "remove_rule": self._remove_rule,
         }.get(action)
         if handler is not None:
             handler(uuid, row_id)
@@ -593,6 +623,93 @@ class DesignerApp(tk.Tk):
 
     def _move_slot_down(self, entity_uuid: UUID, row: str | None) -> None:
         self._move_slot(entity_uuid, row, 1)
+
+    # --- rules --------------------------------------------------------------
+
+    def _rule_dialog(self, owner, draft, title: str):
+        """Offer only rules that fit, and ask only for what they need.
+
+        A rule that cannot type-check against the value it would be given is
+        not offered: the alternative is offering it and then reporting an error
+        the user could not have avoided.
+        """
+        deriver = Deriver(self.session.model)
+        slots = (
+            tuple(
+                forms.Choice(str(s.uuid), s.slot_name)
+                for s in sorted(deriver.effective_slots(owner.uuid), key=lambda s: s.slot_name)
+                if s.is_value
+            )
+            if not isinstance(owner, Type)
+            else ()
+        )
+        if slots and draft.slot is None:
+            draft.slot = UUID(slots[0].id)
+
+        def applicable(current):
+            names = []
+            for validator in self.session.model.validators:
+                if validator.name and bindingedit.fits(
+                    self.session.model, self.library, owner, current, validator.uuid
+                ):
+                    names.append(forms.Choice(str(validator.uuid), validator.name))
+            for name in sorted(self.library.names):
+                built_in = self.library.by_name(name)
+                if bindingedit.fits(self.session.model, self.library, owner, current, built_in.uuid):
+                    names.append(forms.Choice(str(built_in.uuid), name))
+            return tuple(names)
+
+        return edit_rule(
+            self,
+            title,
+            draft,
+            applicable(draft),
+            slots,
+            lambda current: bindingedit.parameters_for(self.session.model, self.library, owner, current),
+        )
+
+    def _rule_owner(self, uuid: UUID):
+        return self.session.model.index().get(uuid)
+
+    def _binding(self, owner, row: str | None):
+        if row is None:
+            return None
+        return next((b for b in owner.validators if str(b.uuid) == row), None)
+
+    def _apply_rule(self, build) -> None:
+        try:
+            command = build()
+        except bindingedit.BindingError as error:
+            messagebox.showwarning("That rule cannot be saved", str(error))
+            return
+        self.session.execute(command)
+        self.refresh()
+
+    def _add_rule(self, uuid: UUID, _row: str | None = None) -> None:
+        owner = self._rule_owner(uuid)
+        if owner is None:
+            return
+        collected = self._rule_dialog(owner, bindingedit.BindingDraft(), "Add a rule")
+        if collected is None:
+            return
+        self._apply_rule(lambda: bindingedit.add(self.session.model, self.library, owner, collected))
+
+    def _edit_rule(self, uuid: UUID, row: str | None) -> None:
+        owner = self._rule_owner(uuid)
+        binding = self._binding(owner, row) if owner else None
+        if owner is None or binding is None:
+            return
+        collected = self._rule_dialog(owner, bindingedit.BindingDraft.of(binding), "Edit the rule")
+        if collected is None:
+            return
+        self._apply_rule(lambda: bindingedit.edit(self.session.model, self.library, owner, binding, collected))
+
+    def _remove_rule(self, uuid: UUID, row: str | None) -> None:
+        owner = self._rule_owner(uuid)
+        binding = self._binding(owner, row) if owner else None
+        if owner is None or binding is None:
+            return
+        self._apply_rule(lambda: bindingedit.remove(owner, binding))
 
     def _delete_item(self, title: str) -> None:
         """Show what would happen, then do it if asked.

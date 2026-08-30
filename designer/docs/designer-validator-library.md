@@ -167,7 +167,27 @@ validator serves all of them.
 
 ### 4.2 String
 
-| Name | Parameters | Expression | Message |
+> **Expression is the implementation, not the usage.** `[CHANGED]` The tables
+> below give each rule's *expression* — how it is built. How it is *written
+> where it is used* is its name and the parameters in the second column:
+> `is_country_code` is used as `is_country_code`, not as
+> `regex_full_match(value, "[A-Z]{2}")`; `max_length` is used as
+> `max_length(max)`, not `len(value) <= max`. The two coincide for
+> `starts_with`, `ends_with` and `contains`, whose expressions call the
+> function of the same name — and that coincidence is what made showing only
+> the expression misleading. In a composite, a rule is written as its bare
+> name; the composite takes on the parameters of the rules it combines, which
+> is why `is_safe_identifier` has a `max`.
+>
+> Five expression functions return a yes or no and so are available as rules in
+> their own right: `contains`, `ends_with`, `starts_with`, `is_finite`, and
+> `regex_full_match` — the last as **`matches(pattern)`**. The rest (`len`,
+> `scale`, `precision`, `lower`, `upper`, `strip`, `abs`, `round`, the duration
+> constructors and the conversions) return a length or a number or a string
+> rather than a verdict, so they cannot be a rule on their own and are used
+> inside an expression instead.
+
+| Name | Parameters | Expression (the implementation) | Message |
 |---|---|---|---|
 | `non_empty` | — | `len(value) > 0` | must not be empty |
 | `min_length` | `min` | `len(value) >= min` | must be at least {min} characters |

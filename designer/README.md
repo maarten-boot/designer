@@ -29,6 +29,14 @@ non-obvious decision in this code is there, with the reasoning:
     tools/build_stdlib.py       regenerates the built-in validator library.
     tools/build_matrix.py       regenerates the committed operator matrix.
 
+## The columns
+
+**Context, Validator, Type, Property, Entity, Schema** — strictly from what
+things are made of to what ships. A Context scopes everything; a Validator
+depends on nothing but the base types; a Type is built from Validators; a
+Property is a Type given a name; an Entity is Properties given a shape; a Schema
+is the deliverable. Beginning at the Schema would begin at the end.
+
 ## Status
 
 **Phases 1a, 1b, 2, 3a and the first round of 3b are done**: the package skeleton, the domain items, the
@@ -59,8 +67,12 @@ remove, reorder, and override an inherited one. Inherited slots are shown so the
 effective record reads in one place, marked, and not removable — they are edited
 on the entity that declares them.
 
+Types and Entities have an editable rules table: add, edit and remove
+validator bindings. A Type's rules apply to every value of that type; an
+Entity's name the slot they apply to.
+
 Not yet built: cross-entity rules on a Schema. Those are still a read-only
-summary.
+summary — they need the anchored path picker.
 
 `mypy.ini` is a narrow net rather than a typing campaign: attribute and call
 errors only, with the noisy rules switched off. It exists because four bugs
@@ -139,6 +151,20 @@ or without installing:
 
 tkinter is standard library but packaged separately on Debian and Ubuntu
 (`python3-tk`); the app checks and says so rather than throwing an ImportError.
+
+## Column widths
+
+A column asks for three quarters of its widest row, clamped: the longest name
+is usually an outlier, and sizing every column to its worst case gives six
+columns that will not fit on a 1024-wide screen.
+
+The **minimum** is separate and much smaller — ten characters of the interface
+font, so six columns need under 500px between them. A preferred width that
+cannot be given up is a minimum by another name.
+
+Each column's scrollbar is packed *before* its list. Packed after, it is the one
+the packer squeezes to nothing when the column gets narrow — which is exactly
+when it is needed.
 
 ## Sorting
 
@@ -262,6 +288,50 @@ The override picker offers only Types that narrow the inherited one, so a
 widening override cannot be built and then refused. Reference targets are
 restricted to concrete entities with an identity — an abstract one has no table
 to point at, and one without an identity has no column to point at.
+
+## Rules
+
+The rule dialog asks for what the rule needs, and nothing else. Which arguments
+appear and what each expects is *inferred*, not declared: `check_leaf` runs the
+validator's own expression against the value it will be given, so `between` on a
+Money type asks for two decimals and the same rule on a date asks for two dates.
+Change the rule, or the slot it applies to, and the boxes are rebuilt.
+
+A validator's form separates **how the rule is used** from **how it is built**.
+`is_country_code` is used as `is_country_code`; its implementation is
+`regex_full_match(value, "[A-Z]{2}")`. The two look alike for `ends_with`,
+whose implementation calls the function of the same name — and that coincidence
+is what made showing only the expression misleading.
+
+Five expression functions return a verdict and are therefore available as rules
+already: `contains`, `ends_with`, `starts_with`, `is_finite`, and
+`regex_full_match` as **`matches(pattern)`**. The other two dozen (`len`,
+`scale`, `lower`, `abs`, the duration constructors…) return a length or a
+number or a string rather than a yes or no, so they cannot be a rule on their
+own; they are used inside an expression. Each built-in that exposes a function
+names it, since the same function is available for a rule of your own.
+
+A validator's form says which base types it takes — `string` for `max_length`,
+`integer, real, decimal` for `non_negative`, `any base type` for `equals`. It is
+**derived from the expression, never declared**: a validator does not have *a*
+base type, and a field to pick one would either throw that polymorphism away or
+restate what the expression already decides and then drift from it.
+
+A rule that combines other rules is a **composite** Validator, not something
+expressed in the binding. Set Kind to composite and write the operands by name:
+
+    (is_email AND non_blank OR is_uuid) OR (NOT is_blank)
+
+`AND`, `OR`, `XOR`, `NOT` and parentheses, with `AND` binding tighter than `OR`.
+Every operand is applied to the same value. The file holds identities and the
+form shows names, so renaming a rule cannot break an expression that uses it —
+and changing the Kind translates the expression rather than leaving names where
+identities belong.
+
+Rules that cannot apply are not offered at all. `max_length` does not appear for
+a decimal — the alternative is offering it and then reporting an error the user
+could not have avoided. While a type is unfinished everything is offered, since
+nothing is known to contradict.
 
 ## Tables in the form
 
