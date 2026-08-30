@@ -91,6 +91,8 @@ def quiet(monkeypatch):
         "slot": None,
         "rule_dialogs": [],
         "rule": None,
+        "schema_rule_dialogs": [],
+        "schema_rule": None,
         "answer": False,
     }
 
@@ -130,6 +132,10 @@ def quiet(monkeypatch):
         calls["delete"].append(impact)
         return calls["answer"]
 
+    def edit_schema_rule(_parent, title, draft, anchors, rules, parameters_for, steps_for, render):
+        calls["schema_rule_dialogs"].append((title, draft, anchors, rules, steps_for))
+        return calls["schema_rule"]
+
     def edit_rule(_parent, title, draft, rules, slots, parameters_for):
         """Return whatever the test put in `rule`, or nothing (Cancel)."""
         calls["rule_dialogs"].append((title, draft, rules, slots, parameters_for))
@@ -145,6 +151,7 @@ def quiet(monkeypatch):
     monkeypatch.setattr(app_module, "confirm_delete", confirm_delete)
     monkeypatch.setattr(app_module, "edit_slot", edit_slot)
     monkeypatch.setattr(app_module, "edit_rule", edit_rule)
+    monkeypatch.setattr(app_module, "edit_schema_rule", edit_schema_rule)
     return calls
 
 

@@ -1728,3 +1728,94 @@ def test_a_column_sizes_itself_to_its_contents(app) -> None:
 def test_a_column_can_be_dragged_narrower_than_it_prefers(app) -> None:
     column = app.columns["type"]
     assert int(column.tree.column("#0", "minwidth")) < int(column.tree.column("#0", "width"))
+
+
+# --- cross-entity rules ------------------------------------------------------
+
+
+def test_the_schema_rules_table_is_rendered(app) -> None:
+    select_named(app, "context", "sales")
+    select_named(app, "schema", "sales_schema")
+    assert "validators" in app.editor.tables
+    tree = app.editor.tables["validators"]
+    assert len(tree.get_children()) == 1
+    assert tree.item(tree.get_children()[0], "values")[1] == "OrderLine"
+
+
+def test_the_dialog_offers_only_members_as_anchors(app, quiet) -> None:
+    from uuid import UUID
+
+    select_named(app, "context", "sales")
+    row = select_named(app, "schema", "sales_schema")
+    quiet["schema_rule"] = None
+    app._add_schema_rule(UUID(row))
+    settle(app)
+    _title, _draft, anchors, _rules, _steps = quiet["schema_rule_dialogs"][-1]
+    assert {c.label for c in anchors} == {"Customer", "Order", "OrderLine"}
+
+
+def test_the_dialog_walks_the_path_a_step_at_a_time(app, quiet) -> None:
+    """An invalid path should be unconstructible, not reported afterwards."""
+    from uuid import UUID
+
+    select_named(app, "context", "sales")
+    row = select_named(app, "schema", "sales_schema")
+    quiet["schema_rule"] = None
+    app._add_schema_rule(UUID(row))
+    settle(app)
+    _title, _draft, anchors, _rules, steps_for = quiet["schema_rule_dialogs"][-1]
+    order = next(c for c in anchors if c.label == "Order")
+    steps = steps_for(UUID(order.id), ())
+    assert any(s.continues for s in steps), "no reference to follow"
+    assert any(not s.continues for s in steps), "no value to finish on"
+
+
+def test_adding_a_cross_entity_rule(app, quiet) -> None:
+    from uuid import UUID
+
+    from designer_app import bindings, paths
+
+    select_named(app, "context", "sales")
+    row = select_named(app, "schema", "sales_schema")
+    schema = app.session.model.index()[UUID(row)]
+    order = next(e for e in app.session.model.entities if e.name == "Order")
+    total = next(s for s in paths.next_steps(app.session.model, schema, order.uuid, ()) if s.name == "total")
+    quiet["schema_rule"] = bindings.SchemaDraft(
+        anchor=order.uuid,
+        validator=app.library.by_name("non_negative").uuid,
+        paths={"value": (total.slot,)},
+    )
+    before = len(schema.validators)
+    app._add_schema_rule(UUID(row))
+    settle(app)
+    assert len(schema.validators) == before + 1
+    assert len(app.session.stack) == 1
+
+
+def test_a_refused_cross_entity_rule_says_why(app, quiet) -> None:
+    from uuid import UUID
+
+    from designer_app import bindings
+
+    select_named(app, "context", "sales")
+    row = select_named(app, "schema", "sales_schema")
+    quiet["schema_rule"] = bindings.SchemaDraft()  # nothing chosen
+    app._add_schema_rule(UUID(row))
+    settle(app)
+    assert quiet["warning"]
+    assert len(app.session.stack) == 0
+
+
+def test_removing_a_cross_entity_rule(app, quiet) -> None:
+    from uuid import UUID
+
+    select_named(app, "context", "sales")
+    row = select_named(app, "schema", "sales_schema")
+    schema = app.session.model.index()[UUID(row)]
+    victim = schema.validators[0]
+    app._remove_rule(UUID(row), str(victim.uuid))
+    settle(app)
+    assert victim not in schema.validators
+    app.undo()
+    settle(app)
+    assert schema.validators[0] is victim

@@ -284,3 +284,121 @@ def test_what_it_accepts_agrees_with_what_it_fits(session, library) -> None:
         candidate = library.by_name(name)
         taken = bindings.accepts(session.model, library, candidate)
         assert bindings.fits(session.model, library, money, empty, candidate.uuid) == ("decimal" in taken), name
+
+
+# --- cross-entity rules ------------------------------------------------------
+
+
+def schema_of(session, name="sales_schema"):
+    return named(session.model.schemas, name)
+
+
+def test_an_existing_cross_entity_rule_round_trips(session, library) -> None:
+    sales = schema_of(session)
+    draft = bindings.SchemaDraft.of(sales.validators[0])
+    bindings.schema_check(session.model, library, sales, draft)
+    assert set(draft.paths) == {"value", "other"}
+
+
+def test_value_comes_from_the_path_it_lands_on(session, library) -> None:
+    """Unlike the other two sites, a Schema rule has to say *which* value
+    before it can say anything about it."""
+    sales = schema_of(session)
+    draft = bindings.SchemaDraft.of(sales.validators[0])
+    assert str(bindings.schema_value_type(session.model, draft)) == "string"
+
+
+def test_no_path_means_nothing_is_known_yet(session, library) -> None:
+    draft = bindings.SchemaDraft()
+    assert bindings.schema_value_type(session.model, draft) is UNKNOWN
+
+
+def test_value_is_one_of_the_paths_to_build(session, library) -> None:
+    sales = schema_of(session)
+    draft = bindings.SchemaDraft.of(sales.validators[0])
+    assert "value" in bindings.schema_parameters(session.model, library, draft)
+
+
+def test_an_unbuilt_path_is_refused(session, library) -> None:
+    sales = schema_of(session)
+    draft = bindings.SchemaDraft.of(sales.validators[0])
+    draft.paths["other"] = ()
+    with pytest.raises(bindings.BindingError, match="other: choose a value"):
+        bindings.schema_check(session.model, library, sales, draft)
+
+
+def test_an_anchor_must_be_chosen(session, library) -> None:
+    sales = schema_of(session)
+    with pytest.raises(bindings.BindingError, match="anchor"):
+        bindings.schema_check(session.model, library, sales, bindings.SchemaDraft())
+
+
+def test_adding_a_cross_entity_rule_is_one_undo_step(session, library) -> None:
+    from designer_app import paths
+
+    sales = schema_of(session)
+    order = named(session.model.entities, "Order")
+    steps = paths.next_steps(session.model, sales, order.uuid, ())
+    total = next(s for s in steps if s.name == "total")
+    draft = bindings.SchemaDraft(
+        anchor=order.uuid,
+        validator=library.by_name("non_negative").uuid,
+        paths={"value": (total.slot,)},
+    )
+    before = len(sales.validators)
+    session.execute(bindings.schema_add(session.model, library, sales, draft))
+    assert len(sales.validators) == before + 1
+    assert len(session.stack) == 1
+    session.undo()
+    assert len(sales.validators) == before
+
+
+def test_a_cross_entity_rule_is_never_a_check_constraint(session, library) -> None:
+    """A rule spanning two tables cannot be one, whatever anyone claims — so
+    the enforcement is not offered as a choice."""
+    from designer_app import paths
+
+    sales = schema_of(session)
+    order = named(session.model.entities, "Order")
+    total = next(s for s in paths.next_steps(session.model, sales, order.uuid, ()) if s.name == "total")
+    draft = bindings.SchemaDraft(
+        anchor=order.uuid,
+        validator=library.by_name("non_negative").uuid,
+        paths={"value": (total.slot,)},
+    )
+    session.execute(bindings.schema_add(session.model, library, sales, draft))
+    assert sales.validators[-1].enforcement == "application"
+
+
+def test_a_cross_entity_rule_describes_itself_as_a_row(session, library) -> None:
+    sales = schema_of(session)
+    name, anchor, routes, enforced = bindings.schema_describes(session.model, library, sales.validators[0])
+    assert (name, anchor, enforced) == ("equals", "OrderLine", "application")
+    assert "OrderLine.order.ship_to_country" in routes
+
+
+def test_editing_a_cross_entity_rule_leaves_it_in_place(session, library) -> None:
+    sales = schema_of(session)
+    first = sales.validators[0]
+    draft = bindings.SchemaDraft.of(first)
+    draft.message = "countries must match"
+    session.execute(bindings.schema_edit(session.model, library, sales, first, draft))
+    assert sales.validators[0].message == "countries must match"
+    assert len(sales.validators) == 1
+
+
+def test_a_rule_added_through_the_editor_checks_clean(session, library) -> None:
+    """The editor's rules and the model check must agree."""
+    from designer_app import paths
+
+    sales = schema_of(session)
+    order = named(session.model.entities, "Order")
+    total = next(s for s in paths.next_steps(session.model, sales, order.uuid, ()) if s.name == "total")
+    draft = bindings.SchemaDraft(
+        anchor=order.uuid,
+        validator=library.by_name("non_negative").uuid,
+        paths={"value": (total.slot,)},
+    )
+    session.execute(bindings.schema_add(session.model, library, sales, draft))
+    codes = {f.code for f in session.full_check().findings if f.subject.item_uuid == sales.uuid}
+    assert not {c for c in codes if c.startswith("MOD5")}, codes

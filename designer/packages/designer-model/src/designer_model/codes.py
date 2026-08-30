@@ -361,6 +361,29 @@ _ALL = [
         "Nothing to relate",
         "{item} has fewer than two members, so nothing spans them",
     ),
+    # --- INT1xx  interfaces --------------------------------------------------
+    _d(
+        "INT101", Severity.INCOMPLETE, Scope.ITEM, "No base type yet", "{item} has no base type yet", blocks_export=True
+    ),
+    _d("INT102", Severity.INCOMPLETE, Scope.ITEM, "No picture yet", "{item} has no picture yet", blocks_export=True),
+    _d("INT201", Severity.ERROR, Scope.ITEM, "Picture is not valid", "{item}: {detail}", blocks_export=True),
+    _d(
+        "INT301",
+        Severity.ERROR,
+        Scope.MODEL,
+        "Wrong base type",
+        "{item} presents {base}, but {target} is {other}",
+        blocks_export=True,
+    ),
+    _d(
+        "INT302",
+        Severity.ERROR,
+        Scope.ITEM,
+        "Two defaults",
+        "{item} has more than one default presentation",
+        blocks_export=True,
+    ),
+    _d("INT601", Severity.INFO, Scope.MODEL, "Bound to nothing", "{item} is bound to no type"),
     # --- MOD6xx  enforcement, export and orphans ----------------------------
     _d("MOD601", Severity.INFO, Scope.MODEL, "Referenced by nothing", "{item} is referenced by nothing"),
     _d(

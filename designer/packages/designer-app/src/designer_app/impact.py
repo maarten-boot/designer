@@ -35,6 +35,7 @@ HEADINGS: dict[ConsequenceKind, str] = {
     ConsequenceKind.PROPERTY_CLEARED: "Slots losing their property",
     ConsequenceKind.TYPE_CLEARED: "Items losing their type",
     ConsequenceKind.PARENT_CLEARED: "Items losing their parent",
+    ConsequenceKind.PRESENTATION_CHANGED: "Types that will present differently",
 }
 
 ORDER = list(HEADINGS)
@@ -49,6 +50,7 @@ SINGULAR: dict[ConsequenceKind, str] = {
     ConsequenceKind.PROPERTY_CLEARED: "slot loses its property",
     ConsequenceKind.TYPE_CLEARED: "item loses its type",
     ConsequenceKind.PARENT_CLEARED: "item loses its parent",
+    ConsequenceKind.PRESENTATION_CHANGED: "type will present differently",
 }
 
 PLURALS = {"Property": "properties", "Schema": "schemas", "Entity": "entities"}
@@ -102,6 +104,16 @@ def _name(model: Model, uuid: UUID) -> str:
 
 def _line(model: Model, consequence) -> str:
     subject = _name(model, consequence.subject.item_uuid)
+    if consequence.kind is ConsequenceKind.PRESENTATION_CHANGED:
+        # the outcome, not the mechanism: what this Type will present with
+        # afterwards is what somebody needs in order to decide
+        replacement = consequence.args.get("item")
+        if replacement is None:
+            return f"{subject} — no presentation will remain"
+        origin = consequence.args.get("origin")
+        came_from = _name(model, origin.uuid) if origin else ""
+        where = "" if came_from == subject.split(" (")[0] else f", from {came_from}"
+        return f"{subject} — will present with {_name(model, replacement.uuid)}{where}"
     detail = []
     for key, value in consequence.args.items():
         rendered = _name(model, value.uuid) if isinstance(value, ItemRef) else str(value)

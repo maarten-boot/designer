@@ -278,6 +278,12 @@ def _header(model: Model, item, notes: dict[str, list[str]]) -> list[Field]:
     ]
 
 
+def schema_describes(model: Model, library: Library, binding) -> tuple[str, ...]:
+    from .bindings import schema_describes as describe
+
+    return describe(model, library, binding)
+
+
 def rules_field(model: Model, library: Library, item, notes: dict[str, list[str]], applies_to: bool) -> Field:
     """The rules attached to a Type or an Entity.
 
@@ -843,12 +849,7 @@ def _schema_form(model, item: Schema, library, context, notes) -> list[Field]:
         else f"{len(dangling)} reference(s) point outside: "
         + ", ".join(f"{label_of(model.index()[m])}.{s.slot_name}" for m, s, _ in dangling)
     )
-    rules = []
-    for binding in item.validators:
-        anchor = model.index().get(binding.anchor) if binding.anchor else None
-        rules.append(
-            f"{label_of(anchor) if anchor else '<no anchor>'}: {binding.message or 'rule'} [{binding.enforcement}]"
-        )
+
     return [
         Field(
             "members",
@@ -888,8 +889,22 @@ def _schema_form(model, item: Schema, library, context, notes) -> list[Field]:
         Field(
             "validators",
             "Cross-entity rules",
-            "summary",
-            rules or ["none"],
+            "table",
+            None,
+            columns=("Rule", "Anchored on", "Values", "Enforced"),
+            rows=tuple(
+                TableRow(str(binding.uuid), schema_describes(model, library, binding)) for binding in item.validators
+            ),
+            actions=(
+                Action("add_schema_rule", "Add\u2026", enabled=bool(item.members)),
+                Action("edit_schema_rule", "Edit\u2026", needs_row=True),
+                Action("remove_schema_rule", "Remove", needs_row=True),
+            ),
+            note=(
+                "a rule reaching across members, anchored on one of them. "
+                "Always enforced in the application: a rule spanning two tables "
+                "cannot be a check constraint"
+            ),
             findings=tuple(notes.get("validators", ())),
         ),
     ]

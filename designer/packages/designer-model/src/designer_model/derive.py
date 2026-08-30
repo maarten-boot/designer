@@ -58,6 +58,28 @@ class Deriver:
 
     # --- types --------------------------------------------------------------
 
+    def effective_interface(self, type_uuid: UUID) -> tuple[UUID, UUID] | None:
+        """The Interface a Type presents with, and the Type it came from.
+
+        Deepest wins: a Type that binds one uses its own, otherwise the nearest
+        ancestor that binds one. Same rule as a narrowing slot — the more
+        specific statement is the one that applies.
+
+        Returns the Interface and its *origin*, because a presentation that
+        looks declared when it was inherited is worse than no inheritance:
+        somebody edits it, and silently creates a binding where there was none.
+        """
+        for uuid in self.type_chain(type_uuid):
+            item = self.types.get(uuid)
+            if item is None:
+                continue
+            bound = [b for b in item.interfaces if b.interface is not None]
+            if not bound:
+                continue
+            chosen = next((b for b in bound if b.is_default), bound[0])
+            return chosen.interface, uuid
+        return None
+
     def type_chain(self, type_uuid: UUID) -> list[UUID]:
         """A Type and its ancestors, nearest first. Stops at a BaseType."""
         out: list[UUID] = []

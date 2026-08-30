@@ -50,6 +50,7 @@ def _collection(model: Model, item: Any) -> list:
     return {
         "Context": model.contexts,
         "Validator": model.validators,
+        "Interface": model.interfaces,
         "Type": model.types,
         "Property": model.properties,
         "Entity": model.entities,

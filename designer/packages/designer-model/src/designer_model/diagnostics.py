@@ -47,6 +47,7 @@ class Scope(enum.Enum):
 class Kind(enum.StrEnum):
     CONTEXT = "Context"
     VALIDATOR = "Validator"
+    INTERFACE = "Interface"
     TYPE = "Type"
     PROPERTY = "Property"
     ENTITY = "Entity"
@@ -154,6 +155,13 @@ class ConsequenceKind(enum.StrEnum):
     TYPE_CLEARED = "type_cleared"
     EXTENSION_CLEARED = "extension_cleared"
     BINDING_REMOVED = "binding_removed"
+    PRESENTATION_CHANGED = "presentation_changed"
+    """A Type that loses its Interface falls back along the type chain.
+
+    Reported as the *outcome* rather than the mechanism: "Money will present
+    with money_uk, from its parent" is what somebody needs in order to decide,
+    and "a binding was removed" is not.
+    """
     OPERAND_ORPHANED = "operand_orphaned"
     ANCHOR_CLEARED = "anchor_cleared"
 

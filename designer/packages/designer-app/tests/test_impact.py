@@ -144,3 +144,57 @@ def test_deleting_one_item_needs_no_subtree(session) -> None:
 def test_the_title_names_what_is_going(session) -> None:
     assert impact_of(session, "Customer").title == "Delete Customer?"
     assert impact_of(session, "support", session.model.contexts).title == "Delete support?"
+
+
+# --- deleting an interface ---------------------------------------------------
+
+
+def interfaces_on(session):
+    """A parent presentation and a narrower one on the type that inherits."""
+    import datetime as dt
+    from uuid import uuid4
+
+    from designer_model.model import Interface, InterfaceBinding
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    made = []
+    for name, picture in (("money_uk", "#,##0.00"), ("money_tight", "0.00")):
+        face = Interface(
+            uuid=uuid4(),
+            name=name,
+            description="",
+            created=now,
+            modified=now,
+            context=session.model.contexts[0].uuid,
+            base_type="decimal",
+            picture=picture,
+        )
+        session.model.interfaces.append(face)
+        made.append(face)
+    for type_name, face in (("Money", made[0]), ("PositiveMoney", made[1])):
+        by_name(session.model.types, type_name).interfaces.append(
+            InterfaceBinding(uuid=uuid4(), interface=face.uuid, is_default=True)
+        )
+    return made
+
+
+def test_the_impact_says_what_will_present_instead(session) -> None:
+    _general, specific = interfaces_on(session)
+    result = impact.summarise(session.model, session.plan_delete(specific.uuid))
+    line = result.groups[0].lines[0]
+    assert "PositiveMoney" in line
+    assert "will present with money_uk" in line
+    assert "from Money" in line
+
+
+def test_the_impact_says_when_nothing_will_remain(session) -> None:
+    general, _specific = interfaces_on(session)
+    by_name(session.model.types, "PositiveMoney").interfaces.clear()
+    result = impact.summarise(session.model, session.plan_delete(general.uuid))
+    assert "no presentation will remain" in result.groups[0].lines[0]
+
+
+def test_losing_a_presentation_is_not_destructive(session) -> None:
+    """It changes how a value is written down, not what any entity is."""
+    _general, specific = interfaces_on(session)
+    assert not impact.summarise(session.model, session.plan_delete(specific.uuid)).destructive

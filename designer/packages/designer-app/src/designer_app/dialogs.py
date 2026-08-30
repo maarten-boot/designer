@@ -116,6 +116,185 @@ class FindingsWindow(tk.Toplevel):
             self._on_open(self._rows[chosen[0]])
 
 
+class PathPicker(ttk.Frame):
+    """Build a route one step at a time.
+
+    Only steps that keep the path legal are offered, so an invalid path cannot
+    be built: references that would leave the Schema are absent, references
+    disappear at the length limit, and a value slot ends the walk. That is the
+    difference between a control that guides and one that grades.
+    """
+
+    def __init__(self, parent: tk.Misc, label: str, path, steps_for, render, on_change) -> None:
+        super().__init__(parent)
+        self._path = tuple(path)
+        self._steps_for = steps_for
+        self._render = render
+        self._on_change = on_change
+
+        ttk.Label(self, text=label).grid(row=0, column=0, sticky="w")
+        self._route = ttk.Label(self, text="", foreground="#3c3c3c")
+        self._route.grid(row=0, column=1, sticky="w", padx=(8, 0))
+
+        controls = ttk.Frame(self)
+        controls.grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(2, 6))
+        self._choice = tk.StringVar()
+        self._next = ttk.Combobox(controls, textvariable=self._choice, state="readonly", width=28)
+        self._next.pack(side="left")
+        self._next.bind("<<ComboboxSelected>>", lambda _e: self._take())
+        self._back = ttk.Button(controls, text="Back", width=6, command=self._drop)
+        self._back.pack(side="left", padx=(4, 0))
+        self.columnconfigure(1, weight=1)
+        self.refresh()
+
+    @property
+    def path(self) -> tuple:
+        return self._path
+
+    def refresh(self) -> None:
+        steps = self._steps_for(self._path)
+        self._labels = {f"{step.name}  \u2192 {step.reaches}" if step.continues else step.name: step for step in steps}
+        self._next.configure(values=list(self._labels))
+        self._choice.set("")
+        self._route.configure(text=self._render(self._path))
+        self._next.state(["!disabled"] if steps else ["disabled"])
+        self._back.state(["!disabled"] if self._path else ["disabled"])
+
+    def _take(self) -> None:
+        step = self._labels.get(self._choice.get())
+        if step is None:
+            return
+        self._path = (*self._path, step.slot)
+        self.refresh()
+        self._on_change()
+
+    def _drop(self) -> None:
+        self._path = self._path[:-1]
+        self.refresh()
+        self._on_change()
+
+
+class SchemaRuleDialog(tk.Toplevel):
+    """A rule reaching across members of a Schema.
+
+    Its arguments are routes rather than values, so each one is a path picker.
+    Changing the anchor rebuilds them all: a path is meaningless without the
+    entity it starts from.
+    """
+
+    def __init__(self, parent: tk.Misc, title: str, draft, anchors, rules, parameters_for, steps_for, render) -> None:
+        super().__init__(parent)
+        self.title(title)
+        self.transient(parent)
+        self.result = None
+        self._draft = draft
+        self._parameters_for = parameters_for
+        self._steps_for = steps_for
+        self._render = render
+        self._anchors = {c.label: c.id for c in anchors}
+        self._rules = {c.label: c.id for c in rules}
+
+        body = ttk.Frame(self, padding=12)
+        body.pack(fill="both", expand=True)
+        body.columnconfigure(1, weight=1)
+
+        ttk.Label(body, text="Anchored on").grid(row=0, column=0, sticky="w", pady=2)
+        self._anchor = tk.StringVar(
+            value=next((c.label for c in anchors if c.id == _text(draft.anchor)), anchors[0].label if anchors else "")
+        )
+        anchor_box = ttk.Combobox(body, textvariable=self._anchor, values=[c.label for c in anchors], state="readonly")
+        anchor_box.grid(row=0, column=1, sticky="ew", pady=2)
+        anchor_box.bind("<<ComboboxSelected>>", lambda _e: self._anchor_changed())
+
+        ttk.Label(body, text="Rule").grid(row=1, column=0, sticky="w", pady=2)
+        self._rule = tk.StringVar(value=next((c.label for c in rules if c.id == _text(draft.validator)), ""))
+        rule_box = ttk.Combobox(body, textvariable=self._rule, values=[c.label for c in rules], state="readonly")
+        rule_box.grid(row=1, column=1, sticky="ew", pady=2)
+        rule_box.bind("<<ComboboxSelected>>", lambda _e: self._rebuild())
+
+        self._paths_frame = ttk.Frame(body)
+        self._paths_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        self._paths_frame.columnconfigure(0, weight=1)
+        self._pickers: dict[str, PathPicker] = {}
+
+        ttk.Label(body, text="Message when it fails").grid(row=3, column=0, sticky="w", pady=2)
+        self._message = tk.StringVar(value=draft.message)
+        ttk.Entry(body, textvariable=self._message).grid(row=3, column=1, sticky="ew", pady=2)
+
+        ttk.Label(
+            body,
+            text="Enforced in the application: a rule spanning two tables is not a check constraint.",
+            foreground="#4f4f4f",
+            wraplength=420,
+            justify="left",
+        ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        buttons = ttk.Frame(self, padding=(12, 0, 12, 12))
+        buttons.pack(fill="x")
+        ttk.Button(buttons, text="Cancel", command=self.destroy).pack(side="right")
+        ttk.Button(buttons, text="Save", command=self._accept).pack(side="right", padx=(0, 6))
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self._rebuild()
+
+    def _collected(self):
+        from dataclasses import replace
+        from uuid import UUID
+
+        anchor = self._anchors.get(self._anchor.get())
+        rule = self._rules.get(self._rule.get())
+        return replace(
+            self._draft,
+            anchor=UUID(anchor) if anchor else None,
+            validator=UUID(rule) if rule else None,
+            paths={name: picker.path for name, picker in self._pickers.items()},
+            message=self._message.get(),
+        )
+
+    def _anchor_changed(self) -> None:
+        """A path is meaningless without the entity it starts from."""
+        self._draft.paths = {}
+        self._pickers = {}
+        self._rebuild()
+
+    def _rebuild(self) -> None:
+        for child in self._paths_frame.winfo_children():
+            child.destroy()
+        kept = {name: picker.path for name, picker in self._pickers.items()}
+        self._pickers = {}
+        current = self._collected()
+        for index, name in enumerate(self._parameters_for(current)):
+            picker = PathPicker(
+                self._paths_frame,
+                f"{name}:",
+                kept.get(name, self._draft.paths.get(name, ())),
+                lambda prefix, a=current.anchor: self._steps_for(a, prefix),
+                lambda path, a=current.anchor: self._render(a, path),
+                self._rebuild_types,
+            )
+            picker.grid(row=index, column=0, sticky="ew")
+            self._pickers[name] = picker
+
+    def _rebuild_types(self) -> None:
+        """The `value` path decides the types the other parameters need, so
+        finishing it may change what the rest of the dialog is asking for."""
+        wanted = list(self._parameters_for(self._collected()))
+        if list(self._pickers) != wanted:
+            self._rebuild()
+
+    def _accept(self) -> None:
+        self.result = self._collected()
+        self.destroy()
+
+    def ask(self):
+        self.grab_set()
+        self.wait_window(self)
+        return self.result
+
+
+def edit_schema_rule(parent, title, draft, anchors, rules, parameters_for, steps_for, render):
+    return SchemaRuleDialog(parent, title, draft, anchors, rules, parameters_for, steps_for, render).ask()
+
+
 class RuleDialog(tk.Toplevel):
     """Attach a rule, and supply what it asks for.
 

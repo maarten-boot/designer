@@ -156,9 +156,43 @@ class Validator(ContextualItem):
 
 
 @dataclass(slots=True)
+class Interface(ContextualItem):
+    """How a value is written down for a person, and read back.
+
+    A leaf: no parent, no chain. It knows only about a base type, which is what
+    lets any Type over that base type use it. Presentation follows the *Type*
+    chain instead (spec appendix §4).
+
+    It never decides whether a value is allowed — that is a Validator, running
+    after parsing and before presenting.
+    """
+
+    base_type: str = ""
+    picture: str = ""
+    decimal_point: str = "."
+    group_mark: str = ","
+    parse_lenient: bool = True
+    blank: str = ""
+
+
+@dataclass(slots=True)
+class InterfaceBinding:
+    """One Interface attached to a Type.
+
+    No name of its own: the Interface's name identifies it, and two names for
+    one thing is an invitation for them to disagree.
+    """
+
+    uuid: UUID
+    interface: UUID | None = None
+    is_default: bool = False
+
+
+@dataclass(slots=True)
 class Type(ContextualItem):
     parent: AnyTypeRef | None = None
     validators: list[Binding] = field(default_factory=list)
+    interfaces: list[InterfaceBinding] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -192,6 +226,7 @@ class Model:
     library_version: int = 1
     contexts: list[Context] = field(default_factory=list)
     validators: list[Validator] = field(default_factory=list)
+    interfaces: list[Interface] = field(default_factory=list)
     types: list[Type] = field(default_factory=list)
     properties: list[Property] = field(default_factory=list)
     entities: list[Entity] = field(default_factory=list)
@@ -201,7 +236,15 @@ class Model:
         """Every item by UUID. Rebuilt on demand rather than cached, since a
         stale index is a worse failure than a repeated walk."""
         out: dict[UUID, Item] = {}
-        for group in (self.contexts, self.validators, self.types, self.properties, self.entities, self.schemas):
+        for group in (
+            self.contexts,
+            self.validators,
+            self.interfaces,
+            self.types,
+            self.properties,
+            self.entities,
+            self.schemas,
+        ):
             for item in group:
                 out[item.uuid] = item
         return out

@@ -56,6 +56,7 @@ MAX_PATH = 4
 KIND_OF = {
     "Context": Kind.CONTEXT,
     "Validator": Kind.VALIDATOR,
+    "Interface": Kind.INTERFACE,
     "Type": Kind.TYPE,
     "Property": Kind.PROPERTY,
     "Entity": Kind.ENTITY,
@@ -125,6 +126,8 @@ class Checker:
             (Scope.ITEM, self._check_types),
             (Scope.ITEM, self._check_properties),
             (Scope.ITEM, self._check_validators),
+            (Scope.ITEM, self._check_interfaces),
+            (Scope.MODEL, self._check_interface_bindings),
             (Scope.ITEM, self._check_entities),
             (Scope.ITEM, self._check_schemas),
             (Scope.CONTEXT, self._check_names),
@@ -277,6 +280,57 @@ class Checker:
                 yield Diagnostic("MOD102", at.then("type"), {"item": ItemRef(p.uuid)})
             elif isinstance(p.type, TypeRef) and not self._exists(p.type.type_uuid):
                 yield Diagnostic("MOD111", at.then("type"), {"field": "type", "target": ItemRef(p.type.type_uuid)})
+
+    def _check_interfaces(self) -> Iterator[Diagnostic]:
+        """A picture is checked when it is written, not when a form renders."""
+        from . import pictures
+
+        for item in self.model.interfaces:
+            at = self._subject(item)
+            if not item.base_type:
+                yield Diagnostic("INT101", at.then("base_type"), {"item": ItemRef(item.uuid)})
+                continue
+            if not item.picture.strip():
+                yield Diagnostic("INT102", at.then("picture"), {"item": ItemRef(item.uuid)})
+                continue
+            try:
+                pictures.compile_picture(item.base_type, item.picture, item.decimal_point, item.group_mark)
+            except pictures.PictureError as error:
+                yield Diagnostic("INT201", at.then("picture"), {"item": ItemRef(item.uuid), "detail": str(error)})
+
+    def _check_interface_bindings(self) -> Iterator[Diagnostic]:
+        """An Interface knows one base type; a Type may only use one that
+        matches. That is the whole of the compatibility rule, and it is why an
+        Interface needs no hierarchy of its own."""
+        interfaces = {i.uuid: i for i in self.model.interfaces}
+        bound: set[UUID] = set()
+        for item in self.model.types:
+            at = self._subject(item)
+            defaults = [b for b in item.interfaces if b.is_default]
+            if len(defaults) > 1:
+                yield Diagnostic("INT302", at.then("interfaces"), {"item": ItemRef(item.uuid)})
+            base = self.d.base_type_of(item.parent)
+            for binding in item.interfaces:
+                if binding.interface is None:
+                    continue
+                bound.add(binding.interface)
+                face = interfaces.get(binding.interface)
+                if face is None or not base or not face.base_type:
+                    continue
+                if face.base_type != base:
+                    yield Diagnostic(
+                        "INT301",
+                        at.then("interfaces"),
+                        {
+                            "item": ItemRef(face.uuid),
+                            "base": face.base_type,
+                            "target": ItemRef(item.uuid),
+                            "other": base,
+                        },
+                    )
+        for face in self.model.interfaces:
+            if face.uuid not in bound:
+                yield Diagnostic("INT601", self._subject(face), {"item": ItemRef(face.uuid)})
 
     def _check_validators(self) -> Iterator[Diagnostic]:
         for v in self.model.validators:

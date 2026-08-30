@@ -25,11 +25,19 @@ from designer_model.stdlib import standard_library
 from . import bindings as bindingedit
 from . import findings as findingview
 from . import forms
+from . import paths as pathedit
 from . import rows as rowbuild
 from . import slots as slotedit
 from .breadcrumb import Breadcrumb
 from .columns import ColumnView
-from .dialogs import FindingsWindow, choose, confirm_delete, edit_rule, edit_slot
+from .dialogs import (
+    FindingsWindow,
+    choose,
+    confirm_delete,
+    edit_rule,
+    edit_schema_rule,
+    edit_slot,
+)
 from .factory import duplicate, new_item
 from .formview import FRAME_STYLE, PANEL, FormView
 from .impact import summarise
@@ -416,6 +424,9 @@ class DesignerApp(tk.Tk):
             "add_rule": self._add_rule,
             "edit_rule": self._edit_rule,
             "remove_rule": self._remove_rule,
+            "add_schema_rule": self._add_schema_rule,
+            "edit_schema_rule": self._edit_schema_rule,
+            "remove_schema_rule": self._remove_rule,
         }.get(action)
         if handler is not None:
             handler(uuid, row_id)
@@ -710,6 +721,49 @@ class DesignerApp(tk.Tk):
         if owner is None or binding is None:
             return
         self._apply_rule(lambda: bindingedit.remove(owner, binding))
+
+    # --- cross-entity rules --------------------------------------------------
+
+    def _schema_rule_dialog(self, schema, draft, title: str):
+        """Anchors, rules, and a path picker for each argument."""
+        model = self.session.model
+        anchors = tuple(
+            forms.Choice(str(uuid), rowbuild.label_of(model.index()[uuid])) for uuid in pathedit.anchors(model, schema)
+        )
+        if anchors and draft.anchor is None:
+            draft.anchor = UUID(anchors[0].id)
+        rules = tuple(
+            forms.Choice(str(v.uuid), v.name) for v in sorted(model.validators, key=lambda v: v.name.lower()) if v.name
+        ) + tuple(forms.Choice(str(self.library.by_name(n).uuid), n) for n in sorted(self.library.names))
+        return edit_schema_rule(
+            self,
+            title,
+            draft,
+            anchors,
+            rules,
+            lambda current: bindingedit.schema_parameters(model, self.library, current),
+            lambda anchor, prefix: pathedit.next_steps(model, schema, anchor, prefix),
+            lambda anchor, path: pathedit.render(model, anchor, path),
+        )
+
+    def _add_schema_rule(self, uuid: UUID, _row: str | None = None) -> None:
+        schema = self.session.model.index().get(uuid)
+        if schema is None:
+            return
+        collected = self._schema_rule_dialog(schema, bindingedit.SchemaDraft(), "Add a cross-entity rule")
+        if collected is None:
+            return
+        self._apply_rule(lambda: bindingedit.schema_add(self.session.model, self.library, schema, collected))
+
+    def _edit_schema_rule(self, uuid: UUID, row: str | None) -> None:
+        schema = self.session.model.index().get(uuid)
+        binding = self._binding(schema, row) if schema else None
+        if schema is None or binding is None:
+            return
+        collected = self._schema_rule_dialog(schema, bindingedit.SchemaDraft.of(binding), "Edit the rule")
+        if collected is None:
+            return
+        self._apply_rule(lambda: bindingedit.schema_edit(self.session.model, self.library, schema, binding, collected))
 
     def _delete_item(self, title: str) -> None:
         """Show what would happen, then do it if asked.

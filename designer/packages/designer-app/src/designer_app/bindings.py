@@ -20,7 +20,15 @@ from designer_model import Deriver, Model
 from designer_model.commands import AddBinding, Command, Macro, RemoveBinding
 from designer_model.expressions.infer import check_leaf
 from designer_model.expressions.types import BASE_TYPES, UNKNOWN, ExprType, Scalar
-from designer_model.model import Binding, Entity, LiteralArg, SlotArg, Type
+from designer_model.model import (
+    Binding,
+    Entity,
+    LiteralArg,
+    PathArg,
+    SchemaBinding,
+    SlotArg,
+    Type,
+)
 from designer_model.stdlib import Library
 
 from .slots import SlotError, parse_default
@@ -246,6 +254,133 @@ def edit(model: Model, library: Library, owner, binding: Binding, draft: Binding
 
 def remove(owner, binding: Binding) -> Command:
     return RemoveBinding(owner.uuid, binding, index=owner.validators.index(binding), label="remove rule")
+
+
+# --- the third binding site: a Schema ----------------------------------------
+
+
+@dataclass
+class SchemaDraft:
+    """A cross-entity rule. Its arguments are paths, not literals.
+
+    `enforcement` is not offered as a choice. A rule reaching across two tables
+    cannot be a check constraint whatever anyone says about it, and a field
+    that lets someone claim otherwise would only be a way to be wrong.
+    """
+
+    anchor: UUID | None = None
+    validator: UUID | None = None
+    paths: dict[str, tuple[UUID, ...]] = field(default_factory=dict)
+    message: str = ""
+
+    @classmethod
+    def of(cls, binding: SchemaBinding) -> SchemaDraft:
+        return cls(
+            anchor=binding.anchor,
+            validator=binding.validator,
+            paths={
+                name: argument.path for name, argument in binding.arguments.items() if isinstance(argument, PathArg)
+            },
+            message=binding.message or "",
+        )
+
+
+def schema_value_type(model: Model, draft: SchemaDraft) -> ExprType:
+    """What `value` is: the type the `value` path lands on."""
+    from .paths import value_slot
+
+    slot = value_slot(model, draft.anchor, draft.paths.get(VALUE, ()))
+    if slot is None:
+        return UNKNOWN
+    deriver = Deriver(model)
+    base = deriver.base_type_of(deriver.slot_type(slot))
+    return Scalar(base) if base else UNKNOWN
+
+
+def schema_parameters(model: Model, library: Library, draft: SchemaDraft) -> dict[str, ExprType]:
+    """Every parameter the rule needs, `value` included.
+
+    Unlike the other two sites, `value` is one of the paths to be built here —
+    a Schema rule has to say *which* value before it can say anything about it.
+    """
+    validator = _validator(model, library, draft.validator)
+    if validator is None:
+        return {}
+    wanted: dict[str, ExprType] = {VALUE: schema_value_type(model, draft)}
+    for leaf in _leaves(model, library, validator):
+        result = check_leaf(leaf.expression, wanted[VALUE], tuple(leaf.parameters))
+        for name, kind in result.parameters.items():
+            wanted.setdefault(name, kind)
+    return wanted
+
+
+def schema_check(model: Model, library: Library, schema, draft: SchemaDraft) -> None:
+    from .paths import problem
+
+    if draft.anchor is None:
+        raise BindingError("choose an anchor")
+    if draft.validator is None:
+        raise BindingError("choose a rule")
+    for name in schema_parameters(model, library, draft):
+        path = draft.paths.get(name, ())
+        if not path:
+            raise BindingError(f"{name}: choose a value")
+        wrong = problem(model, schema, draft.anchor, path)
+        if wrong:
+            raise BindingError(f"{name}: {wrong}")
+
+
+def schema_add(model: Model, library: Library, schema, draft: SchemaDraft) -> Command:
+    schema_check(model, library, schema, draft)
+    return AddBinding(schema.uuid, _schema_binding(model, library, draft, uuid4()), label="add rule")
+
+
+def schema_edit(model: Model, library: Library, schema, binding: SchemaBinding, draft: SchemaDraft) -> Command:
+    schema_check(model, library, schema, draft)
+    index = schema.validators.index(binding)
+    return Macro(
+        "edit rule",
+        [
+            RemoveBinding(schema.uuid, binding, index=index),
+            AddBinding(
+                schema.uuid,
+                _schema_binding(model, library, draft, binding.uuid),
+                index=index,
+            ),
+        ],
+    )
+
+
+def _schema_binding(model: Model, library: Library, draft: SchemaDraft, uuid: UUID) -> SchemaBinding:
+    return SchemaBinding(
+        uuid=uuid,
+        validator=draft.validator,
+        arguments={name: PathArg(path) for name, path in draft.paths.items() if path},
+        message=draft.message.strip() or None,
+        anchor=draft.anchor,
+        # never "database": a rule spanning two tables is not a check
+        # constraint, and saying otherwise would only be a way to be wrong
+        enforcement="application",
+    )
+
+
+def schema_describes(model: Model, library: Library, binding: SchemaBinding) -> tuple[str, ...]:
+    """One row of the schema's rules table."""
+    from .paths import render
+
+    validator = _validator(model, library, binding.validator)
+    anchor = Deriver(model).entities.get(binding.anchor) if binding.anchor else None
+    routes = ", ".join(
+        f"{name}: {render(model, binding.anchor, argument.path)}"
+        for name, argument in binding.arguments.items()
+        if isinstance(argument, PathArg)
+    )
+    return (
+        validator.name if validator else "(none)",
+        anchor.name if anchor else "(no anchor)",
+        routes,
+        binding.enforcement,
+    )
 
 
 # --- describing one ----------------------------------------------------------

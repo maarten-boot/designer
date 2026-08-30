@@ -22,7 +22,9 @@ from .commands import (
     SetField,
     SetMembers,
     SetSlotField,
+    _find,
 )
+from .derive import Deriver
 from .diagnostics import Consequence, ConsequenceKind, ItemRef, Kind, Subject
 from .model import Context, Entity, Model, Property, Schema, SchemaBinding, Type, TypeRef, Validator
 from .stdlib import operand_uuids
@@ -154,6 +156,9 @@ def _fixups(model, other, targets: set[UUID], consequences: list, commands: list
                 commands.append(SetSlotField(other.uuid, slot.uuid, "target", None))
         _binding_fixups(other, targets, consequences, commands, at)
 
+    if isinstance(other, Type):
+        _interface_fixups(model, other, targets, consequences, commands, at)
+
     if isinstance(other, Schema):
         lost = [m for m in other.members if m in targets]
         if lost:
@@ -169,6 +174,65 @@ def _fixups(model, other, targets: set[UUID], consequences: list, commands: list
                 commands.append(SetField(other.uuid, "validators", other.validators))
                 # anchors are cleared in place; the binding itself survives
                 commands[-1] = _ClearAnchor(other.uuid, binding.uuid)
+
+
+def _interface_fixups(model: Model, item: Type, targets: set[UUID], consequences: list, commands: list, at) -> None:
+    """A Type losing its Interface falls back to its parent's, if it has one.
+
+    No refusal, and no attempt to be clever: the deletion is deliberate, and
+    the useful thing is to say what the Type will present with afterwards
+    rather than that a binding went. Where the chain offers nothing, that is
+    worth saying too — quietly, because a Type with no presentation is a
+    perfectly ordinary state and not a fault.
+    """
+    lost = [b for b in item.interfaces if b.interface in targets]
+    if not lost:
+        return
+    remaining = [b for b in item.interfaces if b.interface not in targets]
+    for binding in lost:
+        commands.append(_RemoveInterfaceBinding(item.uuid, binding))
+
+    if remaining:
+        replacement: UUID | None = next((b.interface for b in remaining if b.is_default), remaining[0].interface)
+        origin: UUID | None = item.uuid
+    else:
+        # what the chain gives once this Type binds nothing of its own
+        probe = Deriver(model)
+        found = None
+        for uuid in probe.type_chain(item.uuid)[1:]:
+            ancestor = probe.types.get(uuid)
+            if ancestor is None:
+                continue
+            usable = [b for b in ancestor.interfaces if b.interface and b.interface not in targets]
+            if usable:
+                chosen = next((b for b in usable if b.is_default), usable[0])
+                found = (chosen.interface, uuid)
+                break
+        replacement, origin = found if found else (None, None)
+
+    consequences.append(
+        Consequence(
+            ConsequenceKind.PRESENTATION_CHANGED,
+            at.then("interfaces"),
+            {"item": ItemRef(replacement), "origin": ItemRef(origin)} if replacement else {},
+        )
+    )
+
+
+@dataclass
+class _RemoveInterfaceBinding(Command):
+    owner_uuid: UUID
+    binding: object
+    label: str = "remove presentation"
+
+    def do(self, model: Model) -> None:
+        owner = _find(model, self.owner_uuid)
+        if self.binding in owner.interfaces:
+            self._index = owner.interfaces.index(self.binding)
+            owner.interfaces.remove(self.binding)
+
+    def undo(self, model: Model) -> None:
+        _find(model, self.owner_uuid).interfaces.insert(getattr(self, "_index", 0), self.binding)
 
 
 def _binding_fixups(owner, targets: set[UUID], consequences: list, commands: list, at) -> None:

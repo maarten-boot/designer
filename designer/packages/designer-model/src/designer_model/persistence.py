@@ -26,6 +26,8 @@ from .model import (
     Context,
     Entity,
     Index,
+    Interface,
+    InterfaceBinding,
     LiteralArg,
     Model,
     OrderTerm,
@@ -40,7 +42,22 @@ from .model import (
     Validator,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+
+def needed_version(model) -> int:
+    """The lowest version that can represent this document.
+
+    Interfaces widened the shape, so a model using them is version 2. One that
+    does not stays at 1 and keeps loading in an older build — bumping every
+    document on save would strand models that never used the feature, for
+    nothing.
+    """
+    if model.interfaces or any(t.interfaces for t in model.types):
+        return 2
+    return 1
+
+
 LIBRARY_VERSION = 1
 
 
@@ -246,6 +263,21 @@ def load(source: str | Path | dict[str, Any]) -> Model:
             )
         )
 
+    # a version 1 file has no interfaces key, which reads as none
+    for i in raw.get("interfaces", []):
+        model.interfaces.append(
+            Interface(
+                **_common(i),
+                context=_opt_uuid(i.get("context"), i["name"]),
+                base_type=i.get("base_type", ""),
+                picture=i.get("picture", ""),
+                decimal_point=i.get("decimal_point", "."),
+                group_mark=i.get("group_mark", ","),
+                parse_lenient=i.get("parse_lenient", True),
+                blank=i.get("blank", ""),
+            )
+        )
+
     for t in raw.get("types", []):
         model.types.append(
             Type(
@@ -253,6 +285,14 @@ def load(source: str | Path | dict[str, Any]) -> Model:
                 context=_opt_uuid(t.get("context"), t["name"]),
                 parent=_type_ref_in(t.get("parent"), t["name"]),
                 validators=[_binding_in(b, t["name"]) for b in t.get("validators", [])],
+                interfaces=[
+                    InterfaceBinding(
+                        uuid=_uuid(b["uuid"], t["name"]),
+                        interface=_opt_uuid(b.get("interface"), t["name"]),
+                        is_default=b.get("is_default", False),
+                    )
+                    for b in t.get("interfaces", [])
+                ],
             )
         )
 
@@ -298,8 +338,9 @@ def load(source: str | Path | dict[str, Any]) -> Model:
 
 
 def dump(model: Model) -> dict[str, Any]:
-    return {
-        "schema_version": model.schema_version,
+    version = needed_version(model)
+    document: dict[str, Any] = {
+        "schema_version": version,
         "library_version": model.library_version,
         "contexts": [
             {
@@ -321,12 +362,34 @@ def dump(model: Model) -> dict[str, Any]:
             }
             for v in model.validators
         ],
+        "interfaces": [
+            {
+                **_head_out(i),
+                "context": None if i.context is None else str(i.context),
+                "base_type": i.base_type,
+                "picture": i.picture,
+                "decimal_point": i.decimal_point,
+                "group_mark": i.group_mark,
+                "parse_lenient": i.parse_lenient,
+                "blank": i.blank,
+                **_tail_out(i),
+            }
+            for i in model.interfaces
+        ],
         "types": [
             {
                 **_head_out(t),
                 "context": None if t.context is None else str(t.context),
                 "parent": _type_ref_out(t.parent),
                 "validators": [_binding_out(b) for b in t.validators],
+                "interfaces": [
+                    {
+                        "uuid": str(b.uuid),
+                        "interface": None if b.interface is None else str(b.interface),
+                        "is_default": b.is_default,
+                    }
+                    for b in t.interfaces
+                ],
                 **_tail_out(t),
             }
             for t in model.types
@@ -366,6 +429,15 @@ def dump(model: Model) -> dict[str, Any]:
             for s in model.schemas
         ],
     }
+    if version < 2:
+        # a document declaring version 1 must not contain version 2 keys:
+        # the shape follows the declared version, or the file is lying
+        # about itself and an older build would meet something it does not
+        # know while being told it is safe
+        document.pop("interfaces")
+        for written in document["types"]:
+            written.pop("interfaces")
+    return document
 
 
 def dumps(model: Model) -> str:

@@ -13,6 +13,7 @@ non-obvious decision in this code is there, with the reasoning:
 | `docs/designer-validator-library.md` | the built-in Validators |
 | `docs/designer-diagnostics.md` | the diagnostic and consequence records |
 | `docs/designer-example-notes.md` | what the worked example exercises, and what it does not |
+| `docs/designer-interfaces.md` | presentation and parsing — accepted; engine and item built |
 
 ## Layout
 
@@ -71,8 +72,8 @@ Types and Entities have an editable rules table: add, edit and remove
 validator bindings. A Type's rules apply to every value of that type; an
 Entity's name the slot they apply to.
 
-Not yet built: cross-entity rules on a Schema. Those are still a read-only
-summary — they need the anchored path picker.
+Schemas have an editable cross-entity rules table: anchor the rule on a member
+and build each argument as a path.
 
 `mypy.ini` is a narrow net rather than a typing campaign: attribute and call
 errors only, with the noisy rules switched off. It exists because four bugs
@@ -333,6 +334,25 @@ a decimal — the alternative is offering it and then reporting an error the use
 could not have avoided. While a type is unfinished everything is offered, since
 nothing is known to contradict.
 
+## Paths
+
+A cross-entity rule reaches a value by walking reference slots from one member
+of a Schema. The picker offers one step at a time and offers only steps that
+keep the path legal, so an invalid path cannot be built: a reference leaving the
+Schema is absent, references stop being offered at the fourth segment, and a
+value slot ends the walk. That is the difference between a control that guides
+and one that grades — the model check still runs, because a file can arrive from
+anywhere.
+
+Changing the anchor clears the paths: a route is meaningless without the entity
+it starts from. And `value` is one of the paths to build, not a given — a rule
+spanning entities has to say *which* value before it can say anything about it,
+and that choice decides the types the other arguments need.
+
+Enforcement is not offered as a choice. A rule spanning two tables cannot be a
+check constraint whatever anyone claims, so a field to claim it would only be a
+way to be wrong.
+
 ## Tables in the form
 
 A table field carries its rows and its buttons as data, so which entities may
@@ -397,6 +417,50 @@ over and the built-in naming where it has been taken over. It used to report the
 are global and never written to the model file — only references to them are —
 so looking one up in the model found nothing. The item was there; it simply
 could not be edited.
+
+## Interfaces
+
+An `Interface` says how a value of some base type is written down for a person
+and read back. A Type binds any number of them, at most one default, and a Type
+that binds none uses the nearest ancestor's — deepest wins, and `effective_interface`
+reports *where it came from* as well as what it is. A presentation that looks
+declared when it was inherited is worse than no inheritance: somebody edits it
+and silently creates a binding where there was none.
+
+The document declares the lowest version that can represent it. A model with no
+Interfaces stays at `schema_version` 1, keeps loading in an older build, and
+round-trips byte for byte — and a version 1 document carries no version 2 keys,
+because the shape has to follow the declared version or the file is lying about
+itself.
+
+Deleting an Interface is never refused. Each affected Type falls back along its
+chain, and the impact dialog says the outcome rather than the mechanism —
+"PositiveMoney will present with money_uk, from Money", or "no presentation will
+remain". A Type without one is an ordinary state, not a fault.
+
+The column and the form are not built yet.
+
+## Pictures
+
+`designer_model/pictures.py` presents a value for a person and reads one back.
+It is domain code, not interface code: the export carries pictures, so a
+generator needs them without needing a window.
+
+A picture never decides whether a value is *allowed* — that is a Validator, and
+it runs after parsing and before presenting. `X(30)` is a hint about width, not
+a limit; a longer value presents in full and the application scrolls.
+
+Numbers carry two separator settings, and the picture stays canonical: `#,##0.00`
+with a comma decimal and a full-stop grouping presents `1.234.567,50`. Writing
+the separators into the picture was rejected — with only one of them present,
+`#,##0` and `0,00` are indistinguishable. Dates need no such setting, because
+there the separator is literal text and a region simply writes `dd/MM/yyyy`.
+
+The law is `parse(present(v)) == v` for every value the Type admits, and
+`check_round_trip` is that law as a function. The quantifier matters: `X(3)U` is
+sound on a Type with `is_uppercase` and lossy without it, and `#,##0.00` is
+sound with `max_scale(2)` and rounds without it. Neither the picture nor the
+rules are at fault in those pairs — the pair is.
 
 ## The standard library
 
