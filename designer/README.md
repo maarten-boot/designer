@@ -6,6 +6,10 @@ fields, record structures and the schemas that group them.
 The specification and its three appendices are the source of truth. Every
 non-obvious decision in this code is there, with the reasoning:
 
+`HISTORY.md` is every prompt in this project, in order — the design decisions
+as they were actually asked for, which is often more useful than the settled
+answer in the specification.
+
 | Document | Covers |
 |---|---|
 | `docs/designer-spec-v15.md` | the model, the application, packaging |
