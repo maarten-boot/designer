@@ -78,33 +78,34 @@ def context_label(model: Model, context: UUID | None, separator: str = " \u203a 
     return separator.join(name for _, name in context_path(model, context)) or "(none)"
 
 
-def preferred_width(widths: list[int], em: int, floor_chars: int = 10, ceiling_ems: int = 22) -> int:
-    """How wide a column wants to be, from what is actually in it.
+FLOOR_CHARS = 6
+"""The narrowest a column may ever be: a floor under the content-derived width
+below, not a width in its own right."""
 
-    Three quarters of the widest row, not all of it: the longest name in a
-    column is usually an outlier, and sizing every column to its worst case
-    means six columns that do not fit on a 1024-wide screen.
 
-    Clamped at both ends. The floor keeps a column of short names usable; the
-    ceiling stops one very long name from squeezing its neighbours out —
-    a column can always be widened by dragging, and that is a choice rather
-    than something to be forced into.
+def preferred_width(widths: list[int], em: int, columns: int = 7, screen: int = 1024) -> int:
+    """How wide a column should be, from what is actually in it.
+
+    Three quarters of the widest row: the longest name is usually an outlier,
+    and sizing to the worst case gives columns that will not fit together.
+
+    Both the starting width *and* the minimum. An earlier version made this a
+    preferred width with a flat ten-character floor under it, which was wrong
+    in both directions: the floor swallowed the calculation for every column of
+    short names, and the ceiling was fixed without reference to how many
+    columns there are, so adding a seventh pushed the total past the screen it
+    was meant to fit.
+
+    The ceiling is derived instead, so every column at its widest still fits.
     """
     widest = max(widths, default=0)
-    return max(minimum_width(em, floor_chars), min(int(widest * 0.75), ceiling_ems * em))
+    ceiling = max(FLOOR_CHARS * em, screen // max(columns, 1) - em)
+    return max(minimum_width(em), min(int(widest * 0.75), ceiling))
 
 
-def minimum_width(em: int, floor_chars: int = 10) -> int:
-    """How narrow a column may be dragged.
-
-    Separate from the preferred width, and much smaller: six columns at their
-    preferred width do not fit on a 1024-wide screen, and a preferred width
-    that cannot be given up is a minimum by another name.
-
-    Measured in the interface font rather than in pixels, so the floor follows
-    font size and display scaling instead of being right on one machine and
-    wrong on the next.
-    """
+def minimum_width(em: int, floor_chars: int = FLOOR_CHARS) -> int:
+    """The absolute floor, in the interface font rather than in pixels, so it
+    follows font size and display scaling."""
     return floor_chars * em
 
 
@@ -182,6 +183,18 @@ def properties(model: Model, context: UUID | None, filter_text: str = "", descen
         if _matches(label_of(p), filter_text)
     ]
     return ColumnData("Property", _by_label(rows, descending))
+
+
+def interfaces(model: Model, context: UUID | None, filter_text: str = "", descending: bool = False) -> ColumnData:
+    """The presentations. Flat: an Interface has no parent and no chain."""
+    deriver = Deriver(model)
+    rows = []
+    for item in _visible(deriver, model.interfaces, context):
+        tags = [] if item.name else ["unnamed"]
+        if not item.base_type or not item.picture.strip():
+            tags.append("incomplete")
+        rows.append(Row(str(item.uuid), label_of(item), "Interface", "", tuple(tags)))
+    return ColumnData("Interface", _by_label([r for r in rows if _matches(r.label, filter_text)], descending))
 
 
 def types(model: Model, context: UUID | None, filter_text: str = "", descending: bool = False) -> ColumnData:

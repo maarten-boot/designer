@@ -405,9 +405,11 @@ can act on it.
 2. ~~The `Interface` item: dataclass, persistence, identity,
    `INT101`/`INT102`/`INT201`/`INT301`/`INT302`/`INT601`, the deepest-wins
    resolution of §4, and deletion.~~ **Built** — 32 tests.
-3. The seventh column, and the form.
-4. Binding to a Type, with the deepest-wins inheritance of §4 and the
-   provenance line.
+3. ~~The seventh column, and the form.~~ **Built** — with a live preview: a
+   picture shows what it does to a few sample values, and says when they do
+   not read back.
+4. ~~Binding to a Type, with the deepest-wins inheritance of §4 and the
+   provenance line.~~ **Built.**
 5. `INT202` against the bound Type — the round trip over the values that Type
    admits, which is where §6 says the interesting failures are.
 6. `INT401`/`INT402`, comparing pictures against the Type's rules.

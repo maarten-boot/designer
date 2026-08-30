@@ -556,11 +556,11 @@ def test_reversing_still_sorts_within_each_group(model) -> None:
 def test_a_column_wants_three_quarters_of_its_widest_row(model) -> None:
     """The longest name is usually an outlier; sizing to the worst case gives
     six columns that do not fit on a 1024-wide screen."""
-    assert rows.preferred_width([40, 120, 200], em=8) == 150
+    assert rows.preferred_width([40, 120, 200], em=8) == 138  # capped by the column count
 
 
 def test_a_very_long_name_does_not_squeeze_its_neighbours(model) -> None:
-    assert rows.preferred_width([2000], em=8) == 22 * 8
+    assert rows.preferred_width([2000], em=8) == 1024 // 7 - 8
 
 
 def test_a_column_of_short_names_stays_usable(model) -> None:
@@ -575,10 +575,84 @@ def test_six_columns_at_the_minimum_fit_a_small_screen(model) -> None:
     """Which is the point of the minimum being much smaller than the preferred
     width: a preferred width that cannot be given up is a minimum by another
     name."""
-    assert rows.minimum_width(8) * 6 < 1024
+    assert rows.minimum_width(8) * 7 < 1024
 
 
 def test_the_floor_follows_the_font(model) -> None:
     """Measured in the interface font, so it is not right on one machine and
     wrong on the next."""
     assert rows.minimum_width(16) == 2 * rows.minimum_width(8)
+
+
+def test_the_interface_column_is_flat(model) -> None:
+    """An Interface has no parent and no chain."""
+    import datetime as dt
+    from uuid import uuid4
+
+    from designer_model.model import Interface
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    model.interfaces.append(
+        Interface(
+            uuid=uuid4(),
+            name="money_uk",
+            description="",
+            created=now,
+            modified=now,
+            context=ctx(model, "common"),
+            base_type="decimal",
+            picture="#,##0.00",
+        )
+    )
+    data = rows.interfaces(model, ctx(model, "common"))
+    assert data.labels() == ["money_uk"]
+    assert all(row.parent == "" for row in data.rows)
+
+
+def test_an_unfinished_interface_is_tagged(model) -> None:
+    import datetime as dt
+    from uuid import uuid4
+
+    from designer_model.model import Interface
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    model.interfaces.append(
+        Interface(
+            uuid=uuid4(),
+            name="half_done",
+            description="",
+            created=now,
+            modified=now,
+            context=ctx(model, "common"),
+            base_type="decimal",
+            picture="",
+        )
+    )
+    assert "incomplete" in rows.interfaces(model, ctx(model, "common")).rows[0].tags
+
+
+def test_interfaces_come_before_types_in_the_columns(model) -> None:
+    """A Type binds them, so it reads left to right."""
+    from designer_app.state import COLUMNS
+
+    assert COLUMNS.index("interface") < COLUMNS.index("type")
+    assert COLUMNS.index("validator") < COLUMNS.index("interface")
+
+
+def test_the_ceiling_follows_the_column_count(model) -> None:
+    """Fixed, it was set for six columns and a seventh pushed the total past
+    the screen it was meant to fit."""
+    em = 8
+    for count in (6, 7, 10):
+        widest = [10_000]
+        assert rows.preferred_width(widest, em, columns=count) * count < 1024
+
+
+def test_a_column_of_short_names_is_not_forced_wide(model) -> None:
+    """A flat floor swallowed the calculation for every such column."""
+    assert rows.preferred_width([40, 48], 8) < rows.preferred_width([200, 240], 8)
+
+
+def test_nothing_goes_below_the_absolute_floor(model) -> None:
+    assert rows.preferred_width([8], 8) == rows.minimum_width(8)
+    assert rows.preferred_width([], 8) == rows.minimum_width(8)

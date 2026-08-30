@@ -24,7 +24,7 @@ from uuid import UUID
 from designer_model import Deriver, Model
 from designer_model.model import TypeRef
 
-COLUMN_NAMES = ("context", "validator", "type", "property", "entity", "schema")
+COLUMN_NAMES = ("context", "validator", "interface", "type", "property", "entity", "schema")
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +35,7 @@ class Selection:
     property: UUID | None = None
     type: UUID | None = None
     validator: UUID | None = None
+    interface: UUID | None = None
     base_type: str | None = None
     """A base type chosen in the Type column.
 
@@ -129,8 +130,14 @@ def focus(model: Model, selection: Selection) -> Focus:
         item = next((t for t in model.types if t.uuid == selection.type), None)
         if item is not None:
             result.uses |= {b.validator for b in item.validators if b.validator}
+            result.uses |= {b.interface for b in item.interfaces if b.interface}
             if isinstance(item.parent, TypeRef):
                 result.references.add(item.parent.type_uuid)
+
+    if selection.interface is not None:
+        result.contains |= {
+            t.uuid for t in model.types if any(b.interface == selection.interface for b in t.interfaces)
+        }
 
     if selection.validator is not None:
         result.contains |= {

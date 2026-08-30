@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
-from .model import Binding, Entity, Model, Schema, Slot
+from .model import Binding, Entity, InterfaceBinding, Model, Schema, Slot
 
 DEFAULT_UNDO_LIMIT = 100
 
@@ -199,6 +199,59 @@ class AddBinding(Command):
 
     def touches(self) -> set[UUID]:
         return {self.owner_uuid}
+
+
+@dataclass
+class AddInterfaceBinding(Command):
+    owner_uuid: UUID
+    binding: InterfaceBinding
+    label: str = "add presentation"
+
+    def do(self, model: Model) -> None:
+        _find(model, self.owner_uuid).interfaces.append(self.binding)
+
+    def undo(self, model: Model) -> None:
+        _find(model, self.owner_uuid).interfaces.remove(self.binding)
+
+
+@dataclass
+class RemoveInterfaceBinding(Command):
+    owner_uuid: UUID
+    binding: InterfaceBinding
+    index: int | None = None
+    label: str = "remove presentation"
+
+    def do(self, model: Model) -> None:
+        bindings = _find(model, self.owner_uuid).interfaces
+        self.index = bindings.index(self.binding)
+        bindings.remove(self.binding)
+
+    def undo(self, model: Model) -> None:
+        _find(model, self.owner_uuid).interfaces.insert(self.index or 0, self.binding)
+
+
+@dataclass
+class SetDefaultPresentation(Command):
+    """Exactly one default, so choosing one clears the rest.
+
+    One command rather than several, because it is one decision: undoing it
+    should put every flag back as it was, not peel them off one at a time.
+    """
+
+    owner_uuid: UUID
+    binding_uuid: UUID
+    old: tuple[bool, ...] = ()
+    label: str = "make default"
+
+    def do(self, model: Model) -> None:
+        bindings = _find(model, self.owner_uuid).interfaces
+        self.old = tuple(b.is_default for b in bindings)
+        for binding in bindings:
+            binding.is_default = binding.uuid == self.binding_uuid
+
+    def undo(self, model: Model) -> None:
+        for binding, was in zip(_find(model, self.owner_uuid).interfaces, self.old, strict=False):
+            binding.is_default = was
 
 
 @dataclass

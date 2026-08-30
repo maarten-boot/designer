@@ -119,7 +119,15 @@ def test_column_order_runs_from_primitives_to_deliverable() -> None:
     Property is a Type given a name; an Entity is Properties given a shape; a
     Schema is the deliverable. Beginning at the Schema would begin at the end.
     """
-    assert COLUMNS == ("context", "validator", "type", "property", "entity", "schema")
+    assert COLUMNS == (
+        "context",
+        "validator",
+        "interface",
+        "type",
+        "property",
+        "entity",
+        "schema",
+    )
 
 
 def test_titles_and_columns_agree() -> None:
@@ -133,4 +141,12 @@ def test_validators_come_before_types() -> None:
     """A Type is built from Validators, so it reads left to right: the columns
     run strictly from what things are made of to what ships."""
     assert COLUMNS.index("validator") < COLUMNS.index("type")
-    assert COLUMNS == ("context", "validator", "type", "property", "entity", "schema")
+    assert COLUMNS == (
+        "context",
+        "validator",
+        "interface",
+        "type",
+        "property",
+        "entity",
+        "schema",
+    )

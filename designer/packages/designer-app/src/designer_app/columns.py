@@ -12,7 +12,8 @@ import tkinter as tk
 from collections.abc import Callable
 from tkinter import ttk
 
-from .rows import ColumnData, Row, minimum_width, preferred_width
+from .rows import ColumnData, Row, preferred_width
+from .state import COLUMNS
 from .tooltip import attach
 
 # Row styling. Kept here rather than scattered through the code so the palette
@@ -28,8 +29,6 @@ TAG_STYLES: dict[str, dict[str, str]] = {
     "references": {"background": "#e6f4ea"},
     "contains": {"background": "#fdf1e3"},
 }
-
-MIN_CHARS = 10  # the minimum column width, in 'm' widths of the actual font
 
 # Several columns hold a selection at once, and only one of them is what the
 # editor is showing. The active one is marked in amber; the others keep a muted
@@ -254,9 +253,8 @@ class ColumnView(ttk.Frame):
         em = measure.measure("m")
         indent = 24  # the disclosure triangle and its inset
         widths = [measure.measure(row.label) + indent * (1 if row.parent else 0) for row in self._rows.values()]
-        self.tree.column(
-            "#0",
-            width=preferred_width(widths, em, MIN_CHARS),
-            minwidth=minimum_width(em, MIN_CHARS),
-            stretch=True,
-        )
+        wanted = preferred_width(widths, em, columns=len(COLUMNS))
+        # the same number for both: a width the column cannot be given down to
+        # is a minimum, and having two of them meant the flat floor quietly
+        # replaced the calculation
+        self.tree.column("#0", width=wanted, minwidth=wanted, stretch=True)

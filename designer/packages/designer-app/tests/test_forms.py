@@ -719,3 +719,116 @@ def test_every_built_in_has_a_usage_line(model, library) -> None:
     for name in library.names:
         spec = forms.describe(model, library.by_name(name).uuid, library)
         assert spec.by_key("usage").value.startswith(name)
+
+
+# --- the Interface form ------------------------------------------------------
+
+
+def an_interface(model, name="money_uk", base="decimal", picture="#,##0.00", **kwargs):
+    import datetime as dt
+    from uuid import uuid4
+
+    from designer_model.model import Interface
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    face = Interface(
+        uuid=uuid4(),
+        name=name,
+        description="",
+        created=now,
+        modified=now,
+        context=model.contexts[0].uuid,
+        base_type=base,
+        picture=picture,
+        **kwargs,
+    )
+    model.interfaces.append(face)
+    return face
+
+
+def bind_interface(model, type_name, face, default=True):
+    from uuid import uuid4
+
+    from designer_model.model import InterfaceBinding
+
+    by_name(model.types, type_name).interfaces.append(
+        InterfaceBinding(uuid=uuid4(), interface=face.uuid, is_default=default)
+    )
+
+
+def test_an_interface_form_asks_for_a_base_type_and_a_picture(model, library) -> None:
+    face = an_interface(model)
+    spec = forms.describe(model, face.uuid, library, face.context)
+    assert spec.by_key("base_type").editable
+    assert spec.by_key("picture").value == "#,##0.00"
+
+
+def test_the_form_previews_the_picture(model, library) -> None:
+    """Most picture mistakes are visible the moment somebody sees one."""
+    face = an_interface(model)
+    lines = forms.describe(model, face.uuid, library, face.context).by_key("preview").value
+    assert any("1,234.50" in line for line in lines)
+
+
+def test_the_preview_says_when_a_picture_does_not_read_back(model, library) -> None:
+    face = an_interface(model, base="string", picture="X(3)U")
+    field = forms.describe(model, face.uuid, library, face.context).by_key("preview")
+    assert "does not read back" in field.note
+    assert field.emphasis == "attention"
+
+
+def test_the_preview_explains_a_picture_it_cannot_use(model, library) -> None:
+    face = an_interface(model, picture="0.0.0")
+    lines = forms.describe(model, face.uuid, library, face.context).by_key("preview").value
+    assert "cannot be used" in lines[0]
+
+
+def test_separators_are_asked_for_only_where_they_mean_something(model, library) -> None:
+    numeric = an_interface(model)
+    textual = an_interface(model, name="a_name", base="string", picture="X(10)<")
+    assert forms.describe(model, numeric.uuid, library, numeric.context).by_key("group_mark")
+    assert forms.describe(model, textual.uuid, library, textual.context).by_key("group_mark") is None
+
+
+def test_the_picture_help_follows_the_base_type(model, library) -> None:
+    numeric = an_interface(model)
+    temporal = an_interface(model, name="a_day", base="date", picture="dd-MM-yyyy")
+    assert "#,##0" in forms.describe(model, numeric.uuid, library, numeric.context).by_key("picture").note
+    assert "dd-MM-yyyy" in forms.describe(model, temporal.uuid, library, temporal.context).by_key("picture").note
+
+
+def test_an_interface_says_what_uses_it(model, library) -> None:
+    face = an_interface(model)
+    bind_interface(model, "Money", face)
+    assert forms.describe(model, face.uuid, library, face.context).by_key("bound_to").value == ["Money"]
+
+
+# --- presentations on a Type -------------------------------------------------
+
+
+def test_a_type_says_what_it_presents_with(model, library) -> None:
+    face = an_interface(model)
+    bind_interface(model, "Money", face)
+    assert spec_for(model, library, "Money").by_key("presents_with").value == ("money_uk, declared here")
+
+
+def test_an_inherited_presentation_names_where_it_came_from(model, library) -> None:
+    """One that looks declared is worse than no inheritance: somebody edits it
+    and silently creates a binding where there was none."""
+    face = an_interface(model)
+    bind_interface(model, "Money", face)
+    field = spec_for(model, library, "PositiveMoney").by_key("presents_with")
+    assert field.value == "money_uk, inherited from Money"
+    assert field.emphasis == "attention"
+
+
+def test_a_type_with_no_presentation_says_so(model, library) -> None:
+    assert spec_for(model, library, "Money").by_key("presents_with").value == "nothing"
+
+
+def test_the_presentations_table_lists_the_bindings(model, library) -> None:
+    face = an_interface(model)
+    bind_interface(model, "Money", face)
+    field = spec_for(model, library, "Money").by_key("interfaces")
+    assert field.kind == "table"
+    assert field.rows[0].cells == ("money_uk", "#,##0.00", "yes")

@@ -12,10 +12,12 @@ hand-built per kind, so a new field appears in one place.
 
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import dataclass, field
+from decimal import Decimal
 from uuid import NAMESPACE_DNS, UUID, uuid5
 
-from designer_model import Deriver, Model, Report
+from designer_model import Deriver, Model, Report, pictures
 from designer_model.codes import definition
 from designer_model.diagnostics import Severity
 from designer_model.expressions import tokens
@@ -25,6 +27,7 @@ from designer_model.model import (
     BaseTypeRef,
     Context,
     Entity,
+    Interface,
     Property,
     Schema,
     Slot,
@@ -35,6 +38,17 @@ from designer_model.model import (
 from designer_model.stdlib import Library
 
 from .rows import BASE_PREFIX, context_label, label_of
+
+PICTURE_HELP = {
+    "integer": "0 a digit shown always, # only if needed, , grouping. e.g. #,##0",
+    "decimal": "0 shown always, # if needed, . decimal, ; a negative form, % a fraction. e.g. #,##0.00;(#,##0.00)",
+    "real": "as decimal. e.g. #,##0.00",
+    "string": "X(n) positions, then < > or ^ to align, U or L for case. e.g. X(30)<",
+    "date": "yyyy MM dd, and 'text' for literals. e.g. dd-MM-yyyy",
+    "time": "HH mm ss SSS. e.g. HH:mm",
+    "datetime": "yyyy MM dd HH mm ss SSS ZZ. e.g. yyyy-MM-dd'T'HH:mm:ssZZ",
+    "boolean": "two labels, positive first. e.g. Yes;No",
+}
 
 BASE_TYPE_NOTES = {
     "integer": "whole numbers",
@@ -338,6 +352,7 @@ def describe(
         "Type": _type_form,
         "Property": _property_form,
         "Validator": _validator_form,
+        "Interface": _interface_form,
         "Entity": _entity_form,
         "Schema": _schema_form,
     }[type(item).__name__]
@@ -548,6 +563,102 @@ def _builtin_form(model: Model, item: Validator, library: Library) -> FormSpec:
     )
 
 
+SAMPLES: dict[str, tuple] = {
+    "integer": (0, 42, -1234567),
+    "decimal": (Decimal("0"), Decimal("1234.5"), Decimal("-12.345")),
+    "real": (0.0, 1234.5, -12.5),
+    "string": ("Ada", "Ada Lovelace"),
+    "boolean": (True, False),
+    "date": (dt.date(2026, 8, 30),),
+    "time": (dt.time(14, 22, 5),),
+    "datetime": (dt.datetime(2026, 8, 30, 14, 22, 5, tzinfo=dt.UTC),),
+}
+"""What the preview is drawn with. Fixed values rather than anything from the
+model: a picture is checked against its base type, not against a particular
+column's data, and a preview that changed with the model would be a worse
+answer to "what does this format do"."""
+
+
+def _preview(item: Interface) -> tuple[list[str], str]:
+    """A few values as this picture writes them, and what reading them back
+    does. Most picture mistakes are visible the moment somebody sees one."""
+    if not item.base_type or not item.picture.strip():
+        return ["give it a base type and a picture"], ""
+    try:
+        compiled = pictures.compile_picture(item.base_type, item.picture, item.decimal_point, item.group_mark)
+    except pictures.PictureError as error:
+        return [f"the picture cannot be used: {error}"], ""
+    samples = SAMPLES.get(item.base_type, ())
+    lines = [f"{value!s:>14}  \u2192  {pictures.present(compiled, value)}" for value in samples]
+    trip = pictures.check_round_trip(compiled, samples)
+    return lines, "" if trip.holds else f"does not read back: {trip.why()}"
+
+
+def _interface_form(model, item: Interface, library, context, notes) -> list[Field]:
+    lines, problem = _preview(item)
+    numeric = item.base_type in pictures.NUMERIC
+    fields = [
+        Field(
+            "base_type",
+            "Presents values of",
+            "choice",
+            item.base_type or None,
+            (Choice(None, NONE_CHOICE), *(Choice(n, n) for n in BASE_TYPES)),
+            PLAIN,
+            note="an interface knows one base type; any Type over it may use this",
+            findings=tuple(notes.get("base_type", ())),
+        ),
+        Field(
+            "picture",
+            "Picture",
+            "text",
+            item.picture,
+            note=PICTURE_HELP.get(item.base_type, "choose a base type first"),
+            findings=tuple(notes.get("picture", ())),
+        ),
+    ]
+    if numeric:
+        # the picture stays canonical and these say how it is written, so one
+        # picture serves every region
+        fields += [
+            Field("decimal_point", "Decimal separator", "text", item.decimal_point),
+            Field(
+                "group_mark",
+                "Grouping separator",
+                "text",
+                item.group_mark,
+                note="the picture itself is always written with . and , whatever these say",
+            ),
+        ]
+    fields += [
+        Field("blank", "An absent value shows as", "text", item.blank),
+        Field(
+            "parse_lenient",
+            "Read input leniently",
+            "checkbox",
+            item.parse_lenient,
+            converter=BOOL,
+            note="accept spacing and missing separators that cannot change the value",
+        ),
+        Field(
+            "preview",
+            "For example",
+            "summary",
+            lines,
+            note=problem,
+            emphasis="attention" if problem else "",
+        ),
+        Field(
+            "bound_to",
+            "Used by",
+            "summary",
+            [label_of(t) for t in model.types if any(b.interface == item.uuid for b in t.interfaces)]
+            or ["nothing yet"],
+        ),
+    ]
+    return fields
+
+
 def _context_form(model, item: Context, library, context, notes) -> list[Field]:
     return [
         Field(
@@ -566,6 +677,7 @@ def _context_form(model, item: Context, library, context, notes) -> list[Field]:
 def _type_form(model, item: Type, library, context, notes) -> list[Field]:
     deriver = Deriver(model)
     base = deriver.base_type_of(item.parent)
+    faces = {i.uuid: i for i in model.interfaces}
     return [
         Field(
             "parent",
@@ -578,7 +690,63 @@ def _type_form(model, item: Type, library, context, notes) -> list[Field]:
             findings=tuple(notes.get("parent", ())),
         ),
         rules_field(model, library, item, notes, applies_to=False),
+        _presents_with(model, item),
+        Field(
+            "interfaces",
+            "Presentations",
+            "table",
+            None,
+            columns=("Interface", "Picture", "Default"),
+            rows=tuple(
+                TableRow(
+                    str(binding.uuid),
+                    (
+                        label_of(faces[binding.interface]) if binding.interface in faces else "(missing)",
+                        faces[binding.interface].picture if binding.interface in faces else "",
+                        "yes" if binding.is_default else "",
+                    ),
+                )
+                for binding in item.interfaces
+            ),
+            actions=(
+                Action("add_presentation", "Add\u2026"),
+                Action("default_presentation", "Make default", needs_row=True),
+                Action("remove_presentation", "Remove", needs_row=True),
+            ),
+            note="an interface for this type's base type; the default is the one used",
+            findings=tuple(notes.get("interfaces", ())),
+        ),
     ]
+
+
+def _presents_with(model: Model, item: Type) -> Field:
+    """What this Type actually presents with, and where that came from.
+
+    An inherited presentation that looks declared is worse than no inheritance:
+    somebody edits it, and silently creates a binding where there was none.
+    """
+    found = Deriver(model).effective_interface(item.uuid)
+    if found is None:
+        return Field(
+            "presents_with",
+            "Presents with",
+            "readonly",
+            "nothing",
+            note="values of this type are written however the application decides",
+        )
+    face_uuid, origin = found
+    face = next((i for i in model.interfaces if i.uuid == face_uuid), None)
+    name = label_of(face) if face else "(missing)"
+    if origin == item.uuid:
+        return Field("presents_with", "Presents with", "readonly", f"{name}, declared here")
+    return Field(
+        "presents_with",
+        "Presents with",
+        "readonly",
+        f"{name}, inherited from {label_of(model.index()[origin])}",
+        emphasis="attention",
+        note="add one here to override it for this type",
+    )
 
 
 def _property_form(model, item: Property, library, context, notes) -> list[Field]:

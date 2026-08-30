@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 from designer_model.model import (
     Context,
     Entity,
+    Interface,
     Item,
     Property,
     Schema,
@@ -25,12 +26,13 @@ from designer_model.model import (
     Validator,
 )
 
-KINDS = ("Context", "Type", "Validator", "Property", "Entity", "Schema")
+KINDS = ("Context", "Validator", "Interface", "Type", "Property", "Entity", "Schema")
 
 _CLASSES = {
     "Context": Context,
     "Type": Type,
     "Validator": Validator,
+    "Interface": Interface,
     "Property": Property,
     "Entity": Entity,
     "Schema": Schema,

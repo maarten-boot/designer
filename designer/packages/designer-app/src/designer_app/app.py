@@ -14,12 +14,20 @@ import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from designer_model import Deriver, Session, membership
-from designer_model.commands import AddItem, Command, Macro, SetField
+from designer_model.commands import (
+    AddInterfaceBinding,
+    AddItem,
+    Command,
+    Macro,
+    RemoveInterfaceBinding,
+    SetDefaultPresentation,
+    SetField,
+)
 from designer_model.expressions import tokens
-from designer_model.model import Type, Validator
+from designer_model.model import InterfaceBinding, Type, Validator
 from designer_model.stdlib import standard_library
 
 from . import bindings as bindingedit
@@ -284,6 +292,7 @@ class DesignerApp(tk.Tk):
             "entity": rowbuild.entities(model, context, text("entity"), self._descending("entity")),
             "property": rowbuild.properties(model, context, text("property"), self._descending("property")),
             "type": rowbuild.types(model, context, text("type"), self._descending("type")),
+            "interface": rowbuild.interfaces(model, context, text("interface"), self._descending("interface")),
             "validator": rowbuild.validators(
                 model,
                 context,
@@ -424,6 +433,9 @@ class DesignerApp(tk.Tk):
             "add_rule": self._add_rule,
             "edit_rule": self._edit_rule,
             "remove_rule": self._remove_rule,
+            "add_presentation": self._add_presentation,
+            "default_presentation": self._default_presentation,
+            "remove_presentation": self._remove_presentation,
             "add_schema_rule": self._add_schema_rule,
             "edit_schema_rule": self._edit_schema_rule,
             "remove_schema_rule": self._remove_rule,
@@ -721,6 +733,75 @@ class DesignerApp(tk.Tk):
         if owner is None or binding is None:
             return
         self._apply_rule(lambda: bindingedit.remove(owner, binding))
+
+    # --- presentations --------------------------------------------------------
+
+    def _presentation_binding(self, item, row: str | None):
+        if row is None:
+            return None
+        return next((b for b in item.interfaces if str(b.uuid) == row), None)
+
+    def _add_presentation(self, uuid: UUID, _row: str | None = None) -> None:
+        """Offer only interfaces for this type's base type.
+
+        That is the whole compatibility rule, so anything else would be offered
+        and then refused.
+        """
+        model = self.session.model
+        item = model.index().get(uuid)
+        # presentations belong to Types; the action reaches nothing else, and
+        # saying so is what lets the rest of this read a Type's fields
+        if not isinstance(item, Type):
+            return
+        base = Deriver(model).base_type_of(item.parent)
+        if not base:
+            messagebox.showinfo(
+                "No base type yet",
+                "Give this type a parent first: a presentation is chosen to match the base type the values have.",
+            )
+            return
+        taken = {b.interface for b in item.interfaces}
+        candidates = [face for face in model.interfaces if face.base_type == base and face.uuid not in taken]
+        if not candidates:
+            messagebox.showinfo(
+                "Nothing to add",
+                f"No interface for {base} values is available here. Make one in the Interface column first.",
+            )
+            return
+        chosen = choose(
+            self,
+            "Add a presentation",
+            f"An interface for {base} values:",
+            sorted(((str(f.uuid), rowbuild.label_of(f)) for f in candidates), key=lambda p: p[1]),
+        )
+        if chosen is None:
+            return
+        binding = InterfaceBinding(uuid=uuid4(), interface=UUID(chosen), is_default=not item.interfaces)
+        self.session.execute(AddInterfaceBinding(uuid, binding, label="add presentation"))
+        self.refresh()
+
+    def _default_presentation(self, uuid: UUID, row: str | None) -> None:
+        """One default, so making one clears the others — as one step, because
+        that is one decision."""
+        item = self.session.model.index().get(uuid)
+        binding = self._presentation_binding(item, row) if isinstance(item, Type) else None
+        if binding is None or binding.is_default:
+            return
+        self.session.execute(
+            Macro(
+                "make default",
+                [SetDefaultPresentation(uuid, binding.uuid)],
+            )
+        )
+        self.refresh()
+
+    def _remove_presentation(self, uuid: UUID, row: str | None) -> None:
+        item = self.session.model.index().get(uuid)
+        binding = self._presentation_binding(item, row) if isinstance(item, Type) else None
+        if binding is None:
+            return
+        self.session.execute(RemoveInterfaceBinding(uuid, binding, label="remove presentation"))
+        self.refresh()
 
     # --- cross-entity rules --------------------------------------------------
 

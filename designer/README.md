@@ -13,7 +13,7 @@ non-obvious decision in this code is there, with the reasoning:
 | `docs/designer-validator-library.md` | the built-in Validators |
 | `docs/designer-diagnostics.md` | the diagnostic and consequence records |
 | `docs/designer-example-notes.md` | what the worked example exercises, and what it does not |
-| `docs/designer-interfaces.md` | presentation and parsing — accepted; engine and item built |
+| `docs/designer-interfaces.md` | presentation and parsing |
 
 ## Layout
 
@@ -155,13 +155,15 @@ tkinter is standard library but packaged separately on Debian and Ubuntu
 
 ## Column widths
 
-A column asks for three quarters of its widest row, clamped: the longest name
-is usually an outlier, and sizing every column to its worst case gives six
-columns that will not fit on a 1024-wide screen.
+A column asks for three quarters of its widest row — the longest name is usually
+an outlier — and that one number is both its starting width and its minimum.
 
-The **minimum** is separate and much smaller — ten characters of the interface
-font, so six columns need under 500px between them. A preferred width that
-cannot be given up is a minimum by another name.
+An earlier version had two numbers, a preferred width with a flat
+ten-character floor under it, and it was wrong in both directions: the floor
+swallowed the calculation for every column of short names, so they all came out
+identical, and the ceiling was fixed without reference to how many columns
+there are, so adding a seventh pushed the total past the screen it was meant to
+fit. The ceiling is now derived from the column count.
 
 Each column's scrollbar is packed *before* its list. Packed after, it is the one
 the packer squeezes to nothing when the column gets narrow — which is exactly
@@ -438,7 +440,11 @@ chain, and the impact dialog says the outcome rather than the mechanism —
 "PositiveMoney will present with money_uk, from Money", or "no presentation will
 remain". A Type without one is an ordinary state, not a fault.
 
-The column and the form are not built yet.
+**Context · Validator · Interface · Type · Property · Entity · Schema** — seven
+columns, still 560px at their minimum. The Interface form previews the picture
+against sample values and says when they do not read back; a Type says what it
+presents with and, when that was inherited, names the ancestor it came from with
+an action to override it here.
 
 ## Pictures
 

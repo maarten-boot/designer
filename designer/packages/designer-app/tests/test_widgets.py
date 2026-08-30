@@ -1718,16 +1718,32 @@ def test_the_scrollbar_survives_a_narrow_column(app) -> None:
 
 
 def test_a_column_sizes_itself_to_its_contents(app) -> None:
+    """`minwidth`, not `width`: with stretch on, `width` reports what the column
+    was stretched to after layout, so every column reads the same and the test
+    says nothing. The minimum is what the calculation actually sets."""
     select_named(app, "context", "sales")
     settle(app)
-    widths = {name: int(app.columns[name].tree.column("#0", "width")) for name in COLUMNS}
-    assert all(width > 0 for width in widths.values())
-    assert len(set(widths.values())) > 1, "every column came out the same width"
+    minimums = {name: int(app.columns[name].tree.column("#0", "minwidth")) for name in COLUMNS}
+    assert all(width > 0 for width in minimums.values())
+    assert len(set(minimums.values())) > 1, "every column came out the same"
+    assert minimums["type"] > minimums["schema"], "longer names should ask for more room"
 
 
-def test_a_column_can_be_dragged_narrower_than_it_prefers(app) -> None:
+def test_every_column_at_its_minimum_fits_a_small_screen(app) -> None:
+    """The ceiling is derived from the column count, so a seventh column cannot
+    push the total past the screen it was meant to fit."""
+    select_named(app, "context", "sales")
+    settle(app)
+    total = sum(int(app.columns[name].tree.column("#0", "minwidth")) for name in COLUMNS)
+    assert total < 1024
+
+
+def test_a_column_asks_for_what_it_will_also_settle_for(app) -> None:
+    """One number, not two. A width a column cannot be given down to is a
+    minimum, and having both meant the flat floor quietly replaced the
+    content-derived calculation."""
     column = app.columns["type"]
-    assert int(column.tree.column("#0", "minwidth")) < int(column.tree.column("#0", "width"))
+    assert int(column.tree.column("#0", "minwidth")) == int(column.tree.column("#0", "width"))
 
 
 # --- cross-entity rules ------------------------------------------------------
@@ -1819,3 +1835,135 @@ def test_removing_a_cross_entity_rule(app, quiet) -> None:
     app.undo()
     settle(app)
     assert schema.validators[0] is victim
+
+
+# --- the Interface column ----------------------------------------------------
+
+
+def make_interface(app, name="money_uk", base="decimal", picture="#,##0.00"):
+    import datetime as dt
+    from uuid import uuid4
+
+    from designer_model.model import Interface
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    face = Interface(
+        uuid=uuid4(),
+        name=name,
+        description="",
+        created=now,
+        modified=now,
+        context=app.selection.context,
+        base_type=base,
+        picture=picture,
+    )
+    app.session.model.interfaces.append(face)
+    app.refresh()
+    settle(app)
+    return face
+
+
+def test_there_are_seven_columns(app) -> None:
+    assert len(app.columns) == 7
+    assert list(app.columns).index("interface") < list(app.columns).index("type")
+
+
+def test_seven_columns_fit_a_small_screen(app) -> None:
+    app.geometry("1024x768")
+    app.update()
+    settle(app)
+    for name in COLUMNS:
+        column = app.columns[name]
+        bar = next(c for c in column.winfo_children() if c.winfo_class() == "TScrollbar")
+        assert bar.winfo_ismapped(), f"{name} lost its scrollbar"
+
+
+def test_an_interface_appears_in_its_column(app) -> None:
+    select_named(app, "context", "common")
+    make_interface(app)
+    tree = app.columns["interface"].tree
+    assert "money_uk" in {tree.item(i, "text") for i in _all_rows(tree)}
+
+
+def test_selecting_an_interface_shows_its_form(app) -> None:
+    select_named(app, "context", "common")
+    make_interface(app)
+    select_named(app, "interface", "money_uk")
+    assert app.editor._spec.kind == "Interface"
+    assert app.editor._spec.by_key("picture").value == "#,##0.00"
+
+
+def test_a_new_interface_is_created_empty(app) -> None:
+    select_named(app, "context", "common")
+    before = len(app.session.model.interfaces)
+    app._new_item("Interface")
+    settle(app)
+    assert len(app.session.model.interfaces) == before + 1
+    assert app.editor._spec.by_key("base_type").value is None
+
+
+def test_binding_a_presentation_to_a_type(app, quiet) -> None:
+    from uuid import UUID
+
+    select_named(app, "context", "common")
+    face = make_interface(app)
+    row = select_named(app, "type", "Money")
+    money = app.session.model.index()[UUID(row)]
+    from uuid import uuid4 as fresh
+
+    from designer_model.commands import AddInterfaceBinding
+    from designer_model.model import InterfaceBinding
+
+    app.session.execute(
+        AddInterfaceBinding(
+            money.uuid,
+            InterfaceBinding(uuid=fresh(), interface=face.uuid, is_default=True),
+        )
+    )
+    app.refresh()
+    settle(app)
+    assert app.editor._spec.by_key("presents_with").value == "money_uk, declared here"
+
+
+def test_adding_a_presentation_with_no_base_type_explains(app, quiet) -> None:
+    from uuid import UUID
+
+    select_named(app, "context", "common")
+    row = select_named(app, "type", "Weight")  # no parent, so no base type
+    app._add_presentation(UUID(row))
+    settle(app)
+    assert quiet["info"]
+    assert len(app.session.stack) == 0
+
+
+def test_adding_a_presentation_with_nothing_available_explains(app, quiet) -> None:
+    from uuid import UUID
+
+    select_named(app, "context", "common")
+    row = select_named(app, "type", "Money")
+    app._add_presentation(UUID(row))
+    settle(app)
+    assert quiet["info"]
+
+
+def test_removing_a_presentation_is_one_undo_step(app, quiet) -> None:
+    from uuid import UUID
+    from uuid import uuid4 as fresh
+
+    from designer_model.commands import AddInterfaceBinding
+    from designer_model.model import InterfaceBinding
+
+    select_named(app, "context", "common")
+    face = make_interface(app)
+    row = select_named(app, "type", "Money")
+    money = app.session.model.index()[UUID(row)]
+    binding = InterfaceBinding(uuid=fresh(), interface=face.uuid, is_default=True)
+    app.session.execute(AddInterfaceBinding(money.uuid, binding))
+    app.refresh()
+    settle(app)
+    app._remove_presentation(money.uuid, str(binding.uuid))
+    settle(app)
+    assert money.interfaces == []
+    app.undo()
+    settle(app)
+    assert len(money.interfaces) == 1
