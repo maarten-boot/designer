@@ -97,6 +97,9 @@ def preferred_width(widths: list[int], em: int, columns: int = 7, screen: int = 
     was meant to fit.
 
     The ceiling is derived instead, so every column at its widest still fits.
+    `screen` defaults to a small display for callers that have no window to ask;
+    the interface passes the real width, because the window starts maximised and
+    a constant would cap the columns on every larger screen.
     """
     widest = max(widths, default=0)
     ceiling = max(FLOOR_CHARS * em, screen // max(columns, 1) - em)

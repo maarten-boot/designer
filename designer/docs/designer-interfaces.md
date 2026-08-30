@@ -286,18 +286,21 @@ date" and "that date is in the future" are different sentences to show somebody.
 
 ## 7. What the checker verifies
 
-New codes, `INT1xx`, in the existing severity scheme.
+New codes, `INT1xx`, in the existing severity scheme. Six of the nine are in the
+registry; `INT202`, `INT401` and `INT402` are steps 5 and 6 of §9 and are marked
+below, because a code table that does not say which codes exist is a table
+somebody will trust.
 
 | Code | Severity | Blocks export | Says |
 |---|---|---|---|
 | `INT101` | incomplete | yes | Interface has no base type yet |
 | `INT102` | incomplete | yes | Interface has no picture yet |
 | `INT201` | error | yes | the picture is not valid for `{base_type}` |
-| `INT202` | error | yes | the picture is ambiguous: `{detail}` cannot be parsed back |
+| `INT202` | error | yes | the picture is ambiguous: `{detail}` cannot be parsed back — **specified, not yet implemented** |
 | `INT301` | error | yes | bound to `{type}`, whose base type is `{other}` |
 | `INT302` | error | yes | two Interfaces on `{type}` are both marked default |
-| `INT401` | warning | no | presenting loses precision: `{picture}` shows {n} decimals of a value allowing {m} |
-| `INT402` | note | no | `{picture}` gives {n} positions to a value `{validator}` allows {m} |
+| `INT401` | warning | no | presenting loses precision: `{picture}` shows {n} decimals of a value allowing {m} — **specified, not yet implemented** |
+| `INT402` | note | no | `{picture}` gives {n} positions to a value `{validator}` allows {m} — **specified, not yet implemented** |
 | `INT601` | note | no | Interface is bound to nothing |
 
 `INT402` is a **note**, not a warning. `[DECIDED]` If a Type says
@@ -399,12 +402,12 @@ can act on it.
 ## 9. What I would build first
 
 1. ~~The picture engine: all four vocabularies, present, parse, round trip, and
-   the regional separators.~~ **Built** — `designer_model/pictures.py`, 49
+   the regional separators.~~ **Built** — `designer_model/pictures.py`, 53
    tests. It went first because it is the part with real design in it, and
    because it is testable without any of the plumbing below.
 2. ~~The `Interface` item: dataclass, persistence, identity,
    `INT101`/`INT102`/`INT201`/`INT301`/`INT302`/`INT601`, the deepest-wins
-   resolution of §4, and deletion.~~ **Built** — 32 tests.
+   resolution of §4, and deletion.~~ **Built** — 29 tests.
 3. ~~The seventh column, and the form.~~ **Built** — with a live preview: a
    picture shows what it does to a few sample values, and says when they do
    not read back.

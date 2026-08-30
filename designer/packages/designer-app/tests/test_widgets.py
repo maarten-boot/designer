@@ -1739,11 +1739,18 @@ def test_every_column_at_its_minimum_fits_a_small_screen(app) -> None:
 
 
 def test_a_column_asks_for_what_it_will_also_settle_for(app) -> None:
-    """One number, not two. A width a column cannot be given down to is a
-    minimum, and having both meant the flat floor quietly replaced the
-    content-derived calculation."""
+    """One number, not two: a width a column cannot be given down to is a
+    minimum, and having both let a flat floor quietly replace the
+    content-derived calculation.
+
+    Asks the column what it wanted rather than recomputing it. Recomputing got
+    this wrong twice: first reading `width`, which is what tk stretched the
+    column to rather than what was set, then omitting the indent allowance that
+    child rows carry.
+    """
     column = app.columns["type"]
-    assert int(column.tree.column("#0", "minwidth")) == int(column.tree.column("#0", "width"))
+    assert int(column.tree.column("#0", "minwidth")) == column.wanted_width()
+    assert column.wanted_width() > 0
 
 
 # --- cross-entity rules ------------------------------------------------------
@@ -1967,3 +1974,17 @@ def test_removing_a_presentation_is_one_undo_step(app, quiet) -> None:
     app.undo()
     settle(app)
     assert len(money.interfaces) == 1
+
+
+def test_the_ceiling_comes_from_the_actual_screen(app) -> None:
+    """The window starts maximised, so a 1024 constant capped the columns on
+    every larger display — a seventh of the screen the app is not using."""
+    from designer_app.rows import preferred_width
+
+    column = app.columns["type"]
+    screen = app.winfo_screenwidth()
+    widest = preferred_width([10_000], 8, columns=len(COLUMNS), screen=screen)
+    narrow = preferred_width([10_000], 8, columns=len(COLUMNS), screen=1024)
+    if screen > 1024:
+        assert widest > narrow, "a wider screen should allow wider columns"
+    assert column.wanted_width() <= max(widest, narrow)

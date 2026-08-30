@@ -929,7 +929,7 @@ style. Each column has a filter entry above its list.
 
 The **Validator column** also shows built-ins, in a distinct style, visible from
 every Context. Its filter carries a **show built-ins** toggle, defaulting to off
-once a model has validators of its own — forty built-ins swamping a user's five
+once a model has validators of its own — forty-four built-ins swamping a user's five
 would make the column useless. Deprecated built-ins are marked and hidden from
 pickers.
 

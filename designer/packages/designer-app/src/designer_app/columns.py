@@ -240,12 +240,13 @@ class ColumnView(ttk.Frame):
 
     # --- sizing -------------------------------------------------------------
 
-    def fit_to_contents(self) -> None:
-        """Size the column to what is actually in it.
+    def wanted_width(self) -> int:
+        """How wide this column should be, from what is in it.
 
-        The preferred width comes from the rows; the minimum is much smaller,
-        so six columns still fit on a small screen and a column can be dragged
-        narrow when its neighbour matters more.
+        Public, and the single place the number is worked out. A test that
+        recomputed the same formula got it wrong twice — once forgetting the
+        indent, once reading `width` instead — so anything that wants to know
+        asks here rather than doing the arithmetic again.
         """
         from tkinter import font
 
@@ -253,8 +254,14 @@ class ColumnView(ttk.Frame):
         em = measure.measure("m")
         indent = 24  # the disclosure triangle and its inset
         widths = [measure.measure(row.label) + indent * (1 if row.parent else 0) for row in self._rows.values()]
-        wanted = preferred_width(widths, em, columns=len(COLUMNS))
-        # the same number for both: a width the column cannot be given down to
-        # is a minimum, and having two of them meant the flat floor quietly
-        # replaced the calculation
+        return preferred_width(widths, em, columns=len(COLUMNS), screen=self.winfo_screenwidth())
+
+    def fit_to_contents(self) -> None:
+        """Size the column to what is actually in it.
+
+        The width and the minimum are one number: a width a column cannot be
+        given down to is a minimum, and having two of them let a flat floor
+        quietly replace the calculation.
+        """
+        wanted = self.wanted_width()
         self.tree.column("#0", width=wanted, minwidth=wanted, stretch=True)

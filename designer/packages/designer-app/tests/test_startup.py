@@ -129,6 +129,23 @@ def test_a_scrollbar_is_always_packed_before_what_it_scrolls() -> None:
     assert wrong == [], f"scrollbar packed after its widget at {wrong}"
 
 
+def test_widget_tests_never_assert_on_a_stretched_column_width() -> None:
+    """`column(..., "width")` reports what tk stretched the column to after
+    layout, not what was asked for. Two tests have now been written against it
+    — one expecting the columns to differ, one expecting width to equal
+    minwidth — and both were wrong in the same way. `minwidth` is what the
+    calculation sets.
+    """
+    import pathlib
+    import re
+
+    source = pathlib.Path(__file__).with_name("test_widgets.py").read_text()
+    offenders = [
+        number for number, line in enumerate(source.splitlines(), start=1) if re.search(r'\.column\([^)]*"width"', line)
+    ]
+    assert offenders == [], f"assert on minwidth, not width, at lines {offenders}"
+
+
 def test_widget_tests_never_compare_a_raw_cget_result() -> None:
     """`cget` returns a Tcl object for some options, not a Python string.
 

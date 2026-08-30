@@ -15,7 +15,7 @@ document. It has no Context, is visible everywhere, and cannot be edited or
 deleted.
 
 The alternative — seeding a copy of the library into each new model's root
-Context — was rejected. It would duplicate forty items into every file, freeze
+Context — was rejected. It would duplicate forty-four items into every file, freeze
 each model against the library version it was created with, and let a user
 silently break `non_empty` for one project and not another.
 
@@ -43,7 +43,7 @@ loaded at startup into a read-only registry.
 
 This is worth doing for a reason beyond tidiness: it makes the library the first
 real exercise of the file format, and it doubles as the worked example that
-pre-build gap 3 asks for. If the format cannot express forty validators
+pre-build gap 3 asks for. If the format cannot express forty-four validators
 comfortably, that is something to discover before the UI exists, not after.
 
 It also means no second code path. A built-in is a Validator; the registry is a

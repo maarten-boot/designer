@@ -6,7 +6,8 @@ fields, record structures and the schemas that group them.
 The specification and its three appendices are the source of truth. Every
 non-obvious decision in this code is there, with the reasoning:
 
-`HISTORY.md` is every prompt in this project, in order — the design decisions
+`HISTORY.md` is every prompt in this project, in order — appended as each turn
+arrives, attachments included, rather than reconstructed afterwards — the design decisions
 as they were actually asked for, which is often more useful than the settled
 answer in the specification.
 
@@ -98,10 +99,17 @@ Expect to find things.
     make run       # open examples/sales.json
     make help      # the rest
 
-`make check` is four nets and they catch different things. `lint` for style and
+`make check` is five nets and they catch different things. `lint` for style and
 the constructs ruff knows are traps. `types` for attribute and call errors.
 `test` for behaviour. `model` loads `examples/sales.json`, verifies it survives a
-round trip, and runs the model check over it.
+round trip, and runs the model check over it. `docs` checks the specification and
+its appendices against each other and against the code — section references,
+diagnostic codes, the validator catalogue, file paths and the counts asserted in
+prose. Its first run found seven errors, including a library that still said
+"forty" after it grew to forty-four and a `build_example.py` that both the notes
+and `make dist` named after it had ceased to exist, with the failure swallowed by
+`2>/dev/null || true`. Prose goes stale the way code does; the difference is that
+nothing runs it.
 
 The third of those lies most easily. On a machine without tkinter every widget
 test skips and the suite still reports success, so `make types` is not optional

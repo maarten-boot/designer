@@ -18,7 +18,7 @@ PY       := PYTHONPATH=$(PACKAGES) python3
 EXAMPLE  := examples/sales.json
 
 .DEFAULT_GOAL := help
-.PHONY: help deps format lint types test gui model check run clean dist
+.PHONY: help deps format lint types test gui model docs check run clean dist
 
 help:  ## show this list
 	@grep -E '^[a-z]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -45,15 +45,20 @@ gui:  ## only the tests that build a real window
 model:  ## load, round trip and check the worked example
 	$(PY) tools/check_model.py $(EXAMPLE)
 
-check: lint types test model  ## everything above, in the order that fails fastest
+docs:  ## the documents against each other and against the code
+	$(PY) tools/check_docs.py
+
+check: lint types test model docs  ## everything above, in the order that fails fastest
 
 run:  ## open the worked example
 	$(PY) -m designer_app.main $(EXAMPLE)
 
 dist:  ## regenerate the built-in library and the operator matrix
+# examples/sales.json is not regenerated: the tool that built it is gone, and
+# this target used to call it with the failure swallowed. The example is
+# maintained as a file and held to account by `make model` instead.
 	$(PY) tools/build_stdlib.py
 	$(PY) tools/build_matrix.py
-	$(PY) tools/build_example.py 2>/dev/null || true
 
 clean:  ## remove caches
 	find . -type d \( -name __pycache__ -o -name .pytest_cache -o -name .ruff_cache \
