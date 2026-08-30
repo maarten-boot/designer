@@ -21,7 +21,17 @@ from designer_model.diagnostics import Severity
 from designer_model.expressions import tokens
 from designer_model.expressions.types import BASE_TYPES
 from designer_model.membership import addable
-from designer_model.model import BaseTypeRef, Context, Entity, Property, Schema, Type, TypeRef, Validator
+from designer_model.model import (
+    BaseTypeRef,
+    Context,
+    Entity,
+    Property,
+    Schema,
+    Slot,
+    Type,
+    TypeRef,
+    Validator,
+)
 from designer_model.stdlib import Library
 
 from .rows import BASE_PREFIX, context_label, label_of
@@ -76,6 +86,14 @@ class Action:
     label: str
     enabled: bool = True
     needs_row: bool = False
+    requires: str = ""
+    """`own` for a row this item declares, `inherited` for one it does not.
+
+    Removing an inherited slot is meaningless — it is edited on the entity that
+    declares it — and overriding a slot the entity already declares is equally
+    so. Disabling rather than hiding, because a control that comes and goes is
+    harder to aim at than one that greys out.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +109,13 @@ class Field:
     columns: tuple[str, ...] = ()
     rows: tuple[TableRow, ...] = ()
     actions: tuple[Action, ...] = ()
+    emphasis: str = ""
+    """`attention` for something true and worth noticing that is not a fault.
+
+    A copied built-in taking precedence over the original is the point of
+    copying it, so it is not a warning — but it changes what a name means, and
+    that is worth seeing without hunting for it.
+    """
 
     @property
     def editable(self) -> bool:
@@ -355,6 +380,64 @@ def describe_base_type(model: Model, name: str) -> FormSpec | None:
     )
 
 
+def slot_property_choices(model: Model, entity: Entity) -> tuple[Choice, ...]:
+    deriver = Deriver(model)
+    return (
+        Choice(None, NONE_CHOICE),
+        *(
+            Choice(str(p.uuid), label_of(p))
+            for p in sorted(
+                _visible(deriver, model.properties, entity.context),
+                key=lambda p: label_of(p).lower(),
+            )
+        ),
+    )
+
+
+def slot_target_choices(model: Model, entity: Entity) -> tuple[Choice, ...]:
+    """Concrete entities with an identity.
+
+    An abstract entity has no table to point a foreign key at, and one without
+    an identity has no column to point at — so neither is offered rather than
+    offered and then refused.
+    """
+    deriver = Deriver(model)
+    return (
+        Choice(None, NONE_CHOICE),
+        *(
+            Choice(str(e.uuid), label_of(e))
+            for e in sorted(
+                _visible(deriver, model.entities, entity.context),
+                key=lambda e: label_of(e).lower(),
+            )
+            if not e.abstract and deriver.effective_identity(e.uuid)
+        ),
+    )
+
+
+def narrowing_type_choices(model: Model, entity: Entity, inherited: Slot) -> tuple[Choice, ...]:
+    """Types that narrow the inherited one.
+
+    An override may only restrict, so offering the rest would be offering
+    something that will be refused.
+    """
+    deriver = Deriver(model)
+    current = deriver.slot_type(inherited)
+    if not isinstance(current, TypeRef):
+        return type_choices(model, entity.context)
+    return (
+        Choice(None, NONE_CHOICE),
+        *(
+            Choice(str(t.uuid), label_of(t))
+            for t in sorted(
+                _visible(deriver, model.types, entity.context),
+                key=lambda t: label_of(t).lower(),
+            )
+            if deriver.narrows(t.uuid, current.type_uuid)
+        ),
+    )
+
+
 def _builtin_form(model: Model, item: Validator, library: Library) -> FormSpec:
     """A built-in validator, read-only.
 
@@ -400,6 +483,20 @@ def _builtin_form(model: Model, item: Validator, library: Library) -> FormSpec:
                 note=("" if deterministic else "reads the clock, so no check constraint can enforce it"),
             ),
             Field("uuid", "Identity", "readonly", str(item.uuid)),
+            *(
+                [
+                    Field(
+                        "shadowed",
+                        "Taken precedence over by",
+                        "summary",
+                        [f"{label_of(v)} in {context_label(model, v.context)}" for v in shadowed],
+                        emphasis="attention",
+                        note="a rule naming it there gets that one instead",
+                    )
+                ]
+                if (shadowed := shadowed_by(model, item.name))
+                else []
+            ),
         ],
         actions=(Action("fork_builtin", "Copy into this model\u2026"),),
         read_only=True,
@@ -478,8 +575,14 @@ def resolver(model: Model, library: Library, context: UUID | None):
     return by_name.get
 
 
+def shadowed_by(model: Model, name: str) -> list[Validator]:
+    """Authored validators taking precedence over the built-in of this name."""
+    return [v for v in model.validators if v.name == name]
+
+
 def _validator_form(model, item: Validator, library, context, notes) -> list[Field]:
     composite = item.is_composite
+    overrides = library.by_name(item.name) if item.name else None
     # a composite stores its operands as identities and shows them by name, so
     # renaming a validator cannot break an expression that uses it
     shown = (
@@ -487,7 +590,7 @@ def _validator_form(model, item: Validator, library, context, notes) -> list[Fie
         if composite
         else item.expression
     )
-    return [
+    fields = [
         Field("kind", "Kind", "readonly", "composite" if composite else "leaf"),
         Field(
             "parameters",
@@ -510,18 +613,49 @@ def _validator_form(model, item: Validator, library, context, notes) -> list[Fie
         ),
         Field("message", "Message when it fails", "text", item.message),
     ]
+    if overrides is not None:
+        fields.insert(
+            0,
+            Field(
+                "overrides",
+                "Takes precedence over",
+                "readonly",
+                f"the built-in {item.name}",
+                emphasis="attention",
+                note=(
+                    "a rule naming it from here downwards gets this one. The "
+                    "built-in is unchanged, and every rule already bound to it "
+                    "still uses it."
+                ),
+            ),
+        )
+    return fields
 
 
 def _entity_form(model, item: Entity, library, context, notes) -> list[Field]:
     deriver = Deriver(model)
-    slots = deriver.effective_slots(item.uuid)
+    effective = deriver.effective_slots(item.uuid)
     own = {s.uuid for s in item.slots}
-    lines = []
-    for slot in slots:
-        origin = "" if slot.uuid in own else "  (inherited)"
-        shape = "reference" if slot.is_reference else "value"
-        required = "required" if slot.required else "optional"
-        lines.append(f"{slot.slot_name} — {shape}, {required}{origin}")
+    # inherited slots are shown so the effective record reads in one place, but
+    # they are edited on the entity that declares them
+    slot_rows = tuple(
+        TableRow(
+            str(slot.uuid),
+            (
+                slot.slot_name,
+                "reference" if slot.is_reference else "value",
+                slot_describes(model, slot),
+                "yes" if slot.required else "no",
+                "" if slot.uuid in own else "inherited",
+            ),
+            tags=() if slot.uuid in own else ("inherited",),
+            removable=slot.uuid in own,
+        )
+        # by position, never alphabetically: the order of slots is stored, it
+        # is what the Up and Down buttons change, and it survives to the
+        # generated table
+        for slot in sorted(effective, key=lambda s: s.position)
+    )
     schemas = [label_of(s) for s in deriver.schemas_containing(item.uuid)]
     return [
         Field(
@@ -544,8 +678,19 @@ def _entity_form(model, item: Entity, library, context, notes) -> list[Field]:
         Field(
             "slots",
             "Slots",
-            "summary",
-            lines or ["none"],
+            "table",
+            None,
+            columns=("Name", "Kind", "Type or target", "Required", "Origin"),
+            rows=slot_rows,
+            actions=(
+                Action("add_value_slot", "Add value\u2026"),
+                Action("add_reference_slot", "Add reference\u2026"),
+                Action("edit_slot", "Edit\u2026", needs_row=True, requires="own"),
+                Action("override_slot", "Override\u2026", needs_row=True, requires="inherited"),
+                Action("remove_slot", "Remove", needs_row=True, requires="own"),
+                Action("move_slot_up", "Up", needs_row=True, requires="own"),
+                Action("move_slot_down", "Down", needs_row=True, requires="own"),
+            ),
             note="inherited slots are shown but edited on the entity that declares them",
             findings=tuple(notes.get("slots", ())),
         ),
@@ -553,7 +698,7 @@ def _entity_form(model, item: Entity, library, context, notes) -> list[Field]:
             "identity",
             "Identity",
             "summary",
-            [_slot_name(slots, u) for u in deriver.effective_identity(item.uuid)] or ["none"],
+            [_slot_name(effective, u) for u in deriver.effective_identity(item.uuid)] or ["none"],
         ),
         Field(
             "validators",
@@ -570,6 +715,13 @@ def _entity_form(model, item: Entity, library, context, notes) -> list[Field]:
             note="editing this entity affects every schema listed",
         ),
     ]
+
+
+def slot_describes(model: Model, slot: Slot) -> str:
+    """A slot's type or target, for a table cell."""
+    from .slots import describes
+
+    return describes(model, slot)
 
 
 def _slot_name(slots, uuid: UUID) -> str:
@@ -599,15 +751,20 @@ def _schema_form(model, item: Schema, library, context, notes) -> list[Field]:
             None,
             columns=("Entity", "Context"),
             rows=tuple(
-                TableRow(
-                    str(uuid),
+                sorted(
                     (
-                        label_of(model.index()[uuid]),
-                        context_label(model, model.index()[uuid].context),
+                        TableRow(
+                            str(uuid),
+                            (
+                                label_of(model.index()[uuid]),
+                                context_label(model, model.index()[uuid].context),
+                            ),
+                        )
+                        for uuid in item.members
+                        if uuid in model.index()
                     ),
+                    key=lambda row: row.cells[0].lower(),
                 )
-                for uuid in item.members
-                if uuid in model.index()
             ),
             actions=(
                 Action("add_member", "Add\u2026", enabled=bool(addable(model, item.uuid))),

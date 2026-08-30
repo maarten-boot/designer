@@ -481,3 +481,70 @@ def test_a_property_below_the_root_is_not_visible_from_it(model) -> None:
     root = rows.default_context(model)
     assert "quantity" not in rows.properties(model, root).labels()
     assert "quantity" in rows.properties(model, ctx(model, "sales")).labels()
+
+
+# --- sorting -----------------------------------------------------------------
+
+
+def test_a_flat_column_is_alphabetical(model) -> None:
+    labels = rows.properties(model, ctx(model, "sales")).labels()
+    assert labels == sorted(labels, key=str.lower)
+
+
+def test_a_flat_column_reverses(model) -> None:
+    """A long list is worth reversing rather than scrolling to the end of."""
+    ascending = rows.properties(model, ctx(model, "sales")).labels()
+    descending = rows.properties(model, ctx(model, "sales"), descending=True).labels()
+    assert descending == list(reversed(ascending))
+
+
+def test_sorting_is_case_insensitive(model) -> None:
+    """Otherwise every capitalised name sorts before every lowercase one, which
+    is not what anybody means by alphabetical."""
+    roots = [r.label for r in rows.types(model, ctx(model, "common")).rows if not r.parent]
+    assert roots == sorted(roots, key=str.lower)
+    assert roots != sorted(roots), "plain ASCII order would put every capital first"
+
+
+def test_a_tree_sorts_siblings_not_the_whole_list(model) -> None:
+    """Reversing must not put children before their parents: the widget inserts
+    in one pass and a forward reference fails."""
+    for descending in (False, True):
+        data = rows.types(model, ctx(model, "common"), descending=descending)
+        seen: set[str] = set()
+        for row in data.rows:
+            assert row.parent == "" or row.parent in seen
+            seen.add(row.id)
+
+
+def test_reversing_a_tree_reverses_each_level(model) -> None:
+    ascending = [r.label for r in rows.types(model, ctx(model, "common")).rows if not r.parent]
+    descending = [r.label for r in rows.types(model, ctx(model, "common"), descending=True).rows if not r.parent]
+    assert descending == list(reversed(ascending))
+
+
+def test_built_ins_stay_last_whichever_way_it_sorts(model) -> None:
+    """That is a grouping, not a sort key: reversing it would bury the model's
+    own validators under forty library entries."""
+    for descending in (False, True):
+        data = rows.validators(
+            model,
+            ctx(model, "sales"),
+            library=standard_library(),
+            show_builtins=True,
+            descending=descending,
+        )
+        first_builtin = next(i for i, r in enumerate(data.rows) if "builtin" in r.tags)
+        assert all("builtin" not in r.tags for r in data.rows[:first_builtin])
+
+
+def test_reversing_still_sorts_within_each_group(model) -> None:
+    data = rows.validators(
+        model,
+        ctx(model, "sales"),
+        library=standard_library(),
+        show_builtins=True,
+        descending=True,
+    )
+    built_in = [r.label.lower() for r in data.rows if "builtin" in r.tags]
+    assert built_in == sorted(built_in, reverse=True)

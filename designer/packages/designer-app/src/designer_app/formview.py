@@ -26,6 +26,7 @@ from .forms import NONE_CHOICE, Action, Field, FormSpec
 # the first thing to become unreadable — this gives it something to sit on.
 PANEL = "#fcfcfc"
 FINDING_COLOUR = "#a01b0b"
+ATTENTION_COLOUR = "#a35a00"
 NOTE_COLOUR = "#4f4f4f"
 READONLY_COLOUR = "#3c3c3c"
 
@@ -34,6 +35,7 @@ LABEL_STYLE = "Form.TLabel"
 NOTE_STYLE = "FormNote.TLabel"
 FINDING_STYLE = "FormFinding.TLabel"
 READONLY_STYLE = "FormReadonly.TLabel"
+ATTENTION_STYLE = "FormAttention.TLabel"
 TITLE_STYLE = "FormTitle.TLabel"
 
 
@@ -46,6 +48,13 @@ def install_styles(widget: tk.Misc) -> None:
     style.configure(NOTE_STYLE, background=PANEL, foreground=NOTE_COLOUR)
     style.configure(FINDING_STYLE, background=PANEL, foreground=FINDING_COLOUR)
     style.configure(READONLY_STYLE, background=PANEL, foreground=READONLY_COLOUR)
+    # amber, not red: true and worth noticing, but not a fault
+    style.configure(
+        ATTENTION_STYLE,
+        background=PANEL,
+        foreground=ATTENTION_COLOUR,
+        font=("TkDefaultFont", 9, "bold"),
+    )
 
 
 class FormView(ttk.Frame):
@@ -128,21 +137,27 @@ class FormView(ttk.Frame):
         builder(entry, row)
         row += 1
         for message in entry.findings:
-            ttk.Label(self, text=message, foreground=FINDING_COLOUR).grid(row=row, column=1, sticky="w", padx=4)
+            ttk.Label(self, text=message, style=FINDING_STYLE).grid(row=row, column=1, sticky="w", padx=4)
             row += 1
         if entry.note:
-            ttk.Label(self, text=entry.note, foreground=NOTE_COLOUR).grid(row=row, column=1, sticky="w", padx=4)
+            ttk.Label(self, text=entry.note, style=NOTE_STYLE, wraplength=520, justify="left").grid(
+                row=row, column=1, sticky="w", padx=4
+            )
             row += 1
         return row
 
     # --- field kinds --------------------------------------------------------
 
     def _readonly(self, entry: Field, row: int) -> None:
-        ttk.Label(self, text=str(entry.value), style=READONLY_STYLE).grid(row=row, column=1, sticky="w", padx=4, pady=2)
+        style = ATTENTION_STYLE if entry.emphasis == "attention" else READONLY_STYLE
+        ttk.Label(self, text=str(entry.value), style=style).grid(row=row, column=1, sticky="w", padx=4, pady=2)
 
     def _summary(self, entry: Field, row: int) -> None:
         lines = entry.value if isinstance(entry.value, list) else [str(entry.value)]
-        ttk.Label(self, text="\n".join(lines), justify="left").grid(row=row, column=1, sticky="w", padx=4, pady=2)
+        style = ATTENTION_STYLE if entry.emphasis == "attention" else LABEL_STYLE
+        ttk.Label(self, text="\n".join(lines), style=style, justify="left").grid(
+            row=row, column=1, sticky="w", padx=4, pady=2
+        )
 
     def _table(self, entry: Field, row: int) -> None:
         """A list with buttons.
@@ -164,6 +179,7 @@ class FormView(ttk.Frame):
         for index, heading in enumerate(entry.columns):
             tree.heading(f"c{index}", text=heading)
             tree.column(f"c{index}", width=140, stretch=True)
+        tags_of = {r.id: r.tags for r in entry.rows}
         for table_row in entry.rows:
             tree.insert("", "end", iid=table_row.id, values=table_row.cells, tags=table_row.tags)
         for tag, style in TAG_STYLES.items():
@@ -184,9 +200,17 @@ class FormView(ttk.Frame):
             widgets.append((button, action))
 
         def update_enabled(_event: object = None) -> None:
-            has_row = bool(tree.selection())
+            chosen = tree.selection()
+            row = chosen[0] if chosen else None
+            tags = tags_of.get(row, ()) if row else ()
             for button, action in widgets:
-                allowed = action.enabled and (has_row or not action.needs_row)
+                allowed = action.enabled and (row is not None or not action.needs_row)
+                if allowed and action.requires == "own":
+                    # an inherited slot is edited on the entity that declares it
+                    allowed = "inherited" not in tags
+                if allowed and action.requires == "inherited":
+                    # overriding a slot the entity already declares is meaningless
+                    allowed = "inherited" in tags
                 button.state(["!disabled"] if allowed else ["disabled"])
 
         tree.bind("<<TreeviewSelect>>", update_enabled)

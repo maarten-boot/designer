@@ -49,8 +49,18 @@ each a single undo step. Adding one entity names the cascade before it happens �
 adding `OrderLine` to an empty schema pulls in `Order` and `Customer`, and says
 so first.
 
-Not yet built: the slot table, cross-entity rules, and Delete with its impact
-dialog. Those are still read-only summaries.
+Delete shows what it would do first: grouped by consequence rather than by
+referencing item, with the destructive case — an entity losing everything it
+inherits — called out, and the whole JSON subtree shown when a Context goes. No
+delete is refused; it is one undo step either way.
+
+Entities have an editable slot table: add value and reference slots, edit,
+remove, reorder, and override an inherited one. Inherited slots are shown so the
+effective record reads in one place, marked, and not removable — they are edited
+on the entity that declares them.
+
+Not yet built: cross-entity rules on a Schema. Those are still a read-only
+summary.
 
 `mypy.ini` is a narrow net rather than a typing campaign: attribute and call
 errors only, with the noisy rules switched off. It exists because four bugs
@@ -92,11 +102,14 @@ It clicks every entry in the menu bar with the dialogs stubbed, collapses and
 restores every column, and drives selection through each list. That is how the
 reset-layout crash should have been found.
 
-`pyproject.toml` requires Python 3.14, but ruff's `target-version` is pinned to
-`py312` so the source stays runnable on older interpreters during development.
-That pin is load-bearing: left to infer from `requires-python`, ruff applies
-PEP 758 and rewrites `except (A, B):` to `except A, B:`, which 3.14 accepts and
-3.12 rejects.
+**Python 3.12 is the floor**, declared once in each `pyproject.toml` and nowhere
+else — ruff infers its target from `requires-python`, and mypy is told the same.
+
+The three agreeing matters more than the number. When they did not — the floor
+at 3.14 while development ran on 3.12 — ruff correctly applied PEP 758 and
+rewrote `except (A, B):` to `except A, B:`, which 3.14 accepts and 3.12 rejects,
+and the build broke. Raise `requires-python` only when the interpreter in use
+has moved too.
 
 ## Two acceptance tests
 
@@ -126,6 +139,78 @@ or without installing:
 
 tkinter is standard library but packaged separately on Debian and Ubuntu
 (`python3-tk`); the app checks and says so rather than throwing an ImportError.
+
+## Sorting
+
+Every browser column is alphabetical and case-insensitive, and its heading
+toggles the direction — a long list is worth reversing rather than scrolling to
+the end of. The direction is remembered per column.
+
+Reversing a tree sorts the siblings at each level; it does not turn the tree
+upside down, which would put children before their parents and break the
+single-pass insert. Built-in validators stay after the authored ones either way:
+that is a grouping, not a sort key. Slots are the exception that is never
+sorted — their order is stored, it is what the Up and Down buttons change, and
+it survives to the generated table.
+
+## The breadcrumb
+
+Text, and nothing else: `Context:  common › sales`. It is not decoration — the
+active Context filters every column and decides where a new item is created, so
+with the Context column collapsed it is the only indicator of both. But saying
+where you are and being a way to move are different jobs, and the Context column
+already does the second. The clickable ancestors and the dropdown on the last
+segment are gone: a label that looks like a control is worse than either.
+
+## Which selection is current
+
+Several columns hold a selection at once, and the editor shows one of them: the
+one chosen **most recently**, not the rightmost. The columns run from primitives
+to deliverable, so choosing a Type after a Property would otherwise leave the
+Property in the form and nothing would appear to have happened.
+
+The active column's selection is amber; the others keep a muted grey, so an
+earlier choice still reads as chosen without competing with the current one. A
+selection made in code — the context chosen at startup — goes through the same
+path as a click, or it would be selected without being current. Clicking a row
+that is *already* selected is handled separately: it changes nothing in the
+widget, so no select event fires.
+
+## Highlighting, not filtering
+
+One thing filters: the active **Context**, because an item outside it is not
+merely unrelated but unreachable. Everything else highlights, and scrolls the
+related row into view.
+
+Two filters were built and removed. A follow-selection toggle turning highlights
+into filters reduced a fourteen-row Type column to the one row it had already
+highlighted. And a schema selection narrowing the Entity column to its members
+hid exactly the entities somebody adding one is looking for. In both cases the
+highlight already said everything the filter did, while taking away what you
+might compare against or switch to.
+
+## Findings
+
+**Model ▸ Check model and list findings…**, or F5, or click the status line.
+The status line names the counts and says how many would block an export; the
+window says which, about what, and in words. Double-clicking a finding takes the
+selection to the item — including its context, since the item may well be
+somewhere the columns are not currently looking.
+
+A list left open follows the model rather than going stale.
+
+**View ▸ Findings shown** sets how much appears: errors only, warnings and
+errors (the default), unfinished items too, or everything including notes. The
+default is warnings because a model under construction is full of unfinished
+items and unreferenced types — every new type is referenced by nothing until
+something references it — and a list that is mostly noise trains people to
+ignore it.
+
+Whatever is filtered out is counted in the status line, and anything that would
+block an export is named at every level. Those are mostly `incomplete` findings,
+which a low level hides — so without that rule a model could reach an export
+with a fault nobody had been shown. `tools/check_model.py --level` takes the
+same four values.
 
 ## The editor
 
@@ -164,6 +249,19 @@ operand *names* while the file holds identities, so renaming a validator cannot
 break an expression that uses it — and a test asserts the round trip is exact. A
 Type is never offered its own descendants as a parent, so a cycle cannot be
 built and then complained about.
+
+## Slots
+
+The rules live in `slots.py`, tkinter-free: an override must narrow and may not
+make a required slot optional or change its kind; a required reference cannot be
+set null when its target goes; a default is read as the slot's base type, so
+`0.10` on a decimal stays exact. They are checked before anything happens, so a
+refusal names the mistake rather than turning up later as a finding.
+
+The override picker offers only Types that narrow the inherited one, so a
+widening override cannot be built and then refused. Reference targets are
+restricted to concrete entities with an identity — an abstract one has no table
+to point at, and one without an identity has no column to point at.
 
 ## Tables in the form
 
@@ -221,7 +319,11 @@ base type by name, and only references to built-ins are stored — which is why
 looking either up in the document finds nothing.
 
 Selecting a built-in shows it read-only, with a note saying so and a button to
-copy it into the model. It used to report the item as *gone*, because built-ins
+copy it into the model. Copying leaves the built-in list showing: the copy does
+not replace the original, and every rule already bound to it keeps using it.
+What changes is that the *name* now resolves to the copy in that context and
+below — which both forms say in amber, the copy naming what it takes precedence
+over and the built-in naming where it has been taken over. It used to report the item as *gone*, because built-ins
 are global and never written to the model file — only references to them are —
 so looking one up in the model found nothing. The item was there; it simply
 could not be edited.

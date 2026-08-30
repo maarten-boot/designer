@@ -281,6 +281,8 @@ class Checker:
     def _check_validators(self) -> Iterator[Diagnostic]:
         for v in self.model.validators:
             at = self._subject(v)
+            if v.name and v.name in self.library.names:
+                yield Diagnostic("MOD304", at.then("name"), {"name": v.name})
             if v.is_composite:
                 for operand in operand_uuids(v.expression):
                     if not self._exists(operand):
@@ -553,10 +555,6 @@ class Checker:
                     yield Diagnostic(
                         "MOD404", at.then("slots", s.uuid), {"slot": s.slot_name, "target": ItemRef(s.target)}
                     )
-        builtin_names = self.library.names
-        for v in self.model.validators:
-            if v.name in builtin_names:
-                yield Diagnostic("MOD304", self._subject(v).then("name"), {"name": v.name})
         # Orphan reporting covers only the kinds where being unreferenced is a
         # signal. A Schema is a deliverable — nothing refers to it by design —
         # and a concrete Entity in no schema is better said by MOD604.

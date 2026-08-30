@@ -13,6 +13,7 @@ from collections.abc import Callable
 from tkinter import ttk
 
 from .rows import ColumnData, Row
+from .tooltip import attach
 
 # Row styling. Kept here rather than scattered through the code so the palette
 # is one thing to change, and so the relationship colours stay distinguishable
@@ -66,6 +67,7 @@ class ColumnView(ttk.Frame):
         parent: tk.Misc,
         title: str,
         on_select: Callable[[str, str | None], None],
+        on_sort: Callable[[str], None] | None = None,
         on_new: Callable[[str], None] | None = None,
         on_duplicate: Callable[[str], None] | None = None,
         on_delete: Callable[[str], None] | None = None,
@@ -82,24 +84,34 @@ class ColumnView(ttk.Frame):
 
         header = ttk.Frame(self)
         header.pack(fill="x", padx=2, pady=(2, 0))
-        ttk.Label(header, text=title, font=("TkDefaultFont", 9, "bold")).pack(side="left")
+        # the heading is the sort control: a long list is worth reversing
+        # rather than scrolling to the end of, and there is nowhere else
+        # obvious to put it in a column with no table headings
+        self._heading = ttk.Label(header, text=title, font=("TkDefaultFont", 9, "bold"))
+        self._heading.pack(side="left")
+        if on_sort is not None:
+            self._heading.configure(cursor="hand2")
+            self._heading.bind("<Button-1>", lambda _e: on_sort(title))
+            attach(self._heading, "Click to reverse the order")
 
         # New, Duplicate and Delete sit on the column, not in the editor: a
         # button that appears and disappears inside the form makes the pane jump
         self._buttons: dict[str, ttk.Button] = {}
-        for name, command in (
-            ("+", on_new),
-            ("=", on_duplicate),
-            ("-", on_delete),
+        for name, command, hint in (
+            ("+", on_new, f"New {title.lower()}, empty, in the current context"),
+            ("=", on_duplicate, f"Copy the selected {title.lower()}, without its name"),
+            ("-", on_delete, f"Delete the selected {title.lower()}, after showing the impact"),
         ):
             if command is None:
                 continue
             button = ttk.Button(header, text=name, width=2, command=lambda c=command: c(title))
             button.pack(side="right")
+            attach(button, hint)
             self._buttons[name] = button
 
         entry = ttk.Entry(self, textvariable=self._filter)
         entry.pack(fill="x", padx=2, pady=2)
+        attach(entry, f"Show only {title.lower()}s whose name contains this")
         self._filter.trace_add("write", lambda *_: self.event_generate("<<FilterChanged>>"))
 
         install_tree_styles(self)
@@ -171,6 +183,11 @@ class ColumnView(ttk.Frame):
         if reveal is not None and str(reveal) in self._rows:
             self.tree.see(str(reveal))
         self._set_delete_enabled(bool(self.selected_id))
+
+    def set_sort(self, descending: bool) -> None:
+        """Show which way the column runs."""
+        arrow = "\u25be" if descending else "\u25b4"
+        self._heading.configure(text=f"{self.title} {arrow}")
 
     def set_active(self, active: bool) -> None:
         """Mark this column as the one the editor is showing."""

@@ -161,11 +161,14 @@ _ALL = [
         blocks_export=True,
     ),
     _d(
+        # item scope, not model: it compares a name against the standard
+        # library, which does not change, so it can be reported the moment the
+        # name is set rather than waiting for a full check
         "MOD304",
-        Severity.WARNING,
-        Scope.MODEL,
+        Severity.INFO,
+        Scope.ITEM,
         "Shadows a built-in",
-        "{name} hides the standard-library validator of the same name",
+        "{name} takes precedence over the built-in of that name in this context",
     ),
     # --- MOD4xx  entities and slots -----------------------------------------
     _d(

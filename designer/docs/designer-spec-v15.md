@@ -1096,7 +1096,12 @@ model file `schema_version`, and `library_version`.
 
 ### 14.2 Python and tooling
 
-- **Python 3.14** (3.14.7 current as of August 2026). `requires-python = ">=3.14"`.
+- **Python 3.12** `[CHANGED]`. The floor was 3.14, the current release at the
+  time; it is now 3.12, which is what the code is developed and run on.
+  Nothing in the codebase needs anything newer, and a floor above the
+  interpreter in use is not a floor — it let ruff introduce PEP 758 syntax
+  that the running interpreter rejected. `requires-python`, ruff's target
+  and mypy's `python_version` are one number, stated once.
 - **ruff** for lint and format over every Python file. `line-length = 120`,
   4-space indent.
 - ruff will flag the `eval` in the expressions module (S307). Suppress it there,

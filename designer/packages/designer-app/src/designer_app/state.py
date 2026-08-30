@@ -61,6 +61,14 @@ class Settings:
     sash_positions: list[int] = field(default_factory=list)
     column_widths: dict[str, int] = field(default_factory=dict)
     collapsed_columns: list[str] = field(default_factory=list)
+    sort_descending: list[str] = field(default_factory=list)
+    finding_level: str = "warning"
+    """How much of the model check to show.
+
+    Warnings and above by default: a model under construction is full of
+    unfinished items and unreferenced types, and a list that is mostly noise
+    trains people to ignore it.
+    """
     show_builtins: bool = False
     undo_limit: int = 100
     autosave_delay_ms: int = 250
@@ -101,6 +109,7 @@ class Settings:
         known = {f for f in cls.__dataclass_fields__}
         settings = cls(**{k: v for k, v in raw.items() if k in known})
         settings.collapsed_columns = [c for c in settings.collapsed_columns if c in COLUMNS]
+        settings.sort_descending = [c for c in settings.sort_descending if c in COLUMNS]
         settings.column_widths = {k: v for k, v in settings.column_widths.items() if k in COLUMNS}
         return settings
 

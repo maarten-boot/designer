@@ -66,7 +66,7 @@ def walk_commands(menu: tk.Menu, path: tuple[str, ...] = ()) -> list[tuple[tuple
         # was not built with tearoff=False
         if kind in {"separator", "tearoff"}:
             continue
-        label = menu.entrycget(index, "label")
+        label = str(menu.entrycget(index, "label"))
         if kind == "cascade":
             child = menu.nametowidget(menu.entrycget(index, "menu"))
             found += walk_commands(child, (*path, label))
@@ -360,7 +360,7 @@ def test_every_menu_command_survives_being_invoked(app, quiet) -> None:
             child_index = next(
                 i
                 for i in range(menu.index("end") + 1)
-                if menu.type(i) == "cascade" and menu.entrycget(i, "label") == label
+                if menu.type(i) == "cascade" and str(menu.entrycget(i, "label")) == label
             )
             menu = menu.nametowidget(menu.entrycget(child_index, "menu"))
         try:
@@ -380,30 +380,45 @@ def test_undo_and_redo_with_no_history_are_harmless(app) -> None:
 def test_check_model_updates_the_status_line(app) -> None:
     app.full_check()
     settle(app)
-    assert app.status.cget("text")
+    assert str(app.status.cget("text"))
 
 
 def test_the_status_line_names_the_file(app) -> None:
-    assert "sales.json" in app.status.cget("text")
+    assert "sales.json" in str(app.status.cget("text"))
 
 
 # --- the breadcrumb ---------------------------------------------------------
 
 
-def test_the_breadcrumb_fills_in_once_a_context_is_chosen(app) -> None:
-    contexts = app.columns["context"].tree
-    contexts.selection_set(_all_rows(contexts)[0])
-    settle(app)
-    assert app.breadcrumb.winfo_children()
+def test_the_breadcrumb_names_a_context_from_the_start(app) -> None:
+    """With the Context column collapsed this is the only indicator of which
+    context filters the columns and where a new item would go."""
+    assert app.breadcrumb.text.startswith("Context:")
+    assert "common" in app.breadcrumb.text
 
 
-def test_navigating_by_breadcrumb_changes_the_context(app) -> None:
-    model = app.session.model
-    deepest = next(c for c in model.contexts if c.parent is not None)
-    app._navigate(deepest.uuid)
-    settle(app)
-    assert app.selection.context == deepest.uuid
-    assert app.breadcrumb.winfo_children()
+def test_the_breadcrumb_reads_the_whole_path(app) -> None:
+    """Text, and nothing else: saying where you are and being a way to move are
+    different jobs, and the Context column already does the second."""
+    select_named(app, "context", "sales")
+    assert app.breadcrumb.text == "Context:  common \u203a sales"
+
+
+def test_the_breadcrumb_follows_the_context(app) -> None:
+    select_named(app, "context", "support")
+    assert "support" in app.breadcrumb.text
+    select_named(app, "context", "common")
+    assert app.breadcrumb.text == "Context:  common"
+
+
+def test_the_breadcrumb_holds_no_controls(app) -> None:
+    """A label that looks like a control is worse than either."""
+    from tkinter import ttk
+
+    select_named(app, "context", "sales")
+    for child in app.breadcrumb.winfo_children():
+        assert isinstance(child, ttk.Label)
+        assert not isinstance(child, ttk.Menubutton | ttk.Button)
 
 
 # --- the editor -------------------------------------------------------------
@@ -943,7 +958,7 @@ def test_the_form_fills_the_width(app) -> None:
     app.update()
     canvas = app._editor_area.canvas
     window = canvas.find_all()[0]
-    assert canvas.itemcget(window, "width") in ("", str(canvas.winfo_width()))
+    assert str(canvas.itemcget(window, "width")) in ("", str(canvas.winfo_width()))
 
 
 # --- built-in validators -----------------------------------------------------
@@ -1096,3 +1111,463 @@ def test_the_cascade_prompt_says_what_declining_does(app, quiet) -> None:
     app.apply_membership(membership.plan_add(app.session.model, schema_uuid, order_line.uuid))
     asked = [message for _title, message in quiet["ask"]]
     assert asked and "leaving the schema unclosed" in asked[0]
+
+
+# --- deleting ----------------------------------------------------------------
+
+
+def test_delete_shows_the_impact_before_acting(app, quiet) -> None:
+    quiet["answer"] = False  # look, then cancel
+    select_named(app, "context", "sales")
+    select_named(app, "entity", "Order")
+    before = len(app.session.model.entities)
+    app._delete_item("Entity")
+    settle(app)
+    assert quiet["delete"], "no impact was shown"
+    assert len(app.session.model.entities) == before, "cancelling still deleted"
+    assert len(app.session.stack) == 0
+
+
+def test_confirming_deletes_in_one_undo_step(app, quiet) -> None:
+    quiet["answer"] = True
+    select_named(app, "context", "sales")
+    select_named(app, "entity", "OrderLine")
+    victim = app._current_item()
+    app._delete_item("Entity")
+    settle(app)
+    assert victim not in app.session.model.index()
+    assert len(app.session.stack) == 1
+    app.undo()
+    settle(app)
+    assert victim in app.session.model.index()
+
+
+def test_deleting_clears_the_selection_it_came_from(app, quiet) -> None:
+    quiet["answer"] = True
+    select_named(app, "context", "sales")
+    select_named(app, "entity", "OrderLine")
+    app._delete_item("Entity")
+    settle(app)
+    assert app.selection.entity is None
+
+
+def test_deleting_fixes_up_what_referred_to_it(app, quiet) -> None:
+    quiet["answer"] = True
+    select_named(app, "context", "sales")
+    order = next(e for e in app.session.model.entities if e.name == "Order")
+    slot = next(s for s in order.slots if s.slot_name == "customer")
+    select_named(app, "entity", "Customer")
+    app._delete_item("Entity")
+    settle(app)
+    assert slot.target is None
+    app.undo()
+    settle(app)
+    assert slot.target is not None
+
+
+def test_the_impact_names_the_destructive_case(app, quiet) -> None:
+    quiet["answer"] = False
+    select_named(app, "context", "sales")
+    select_named(app, "entity", "Auditable")
+    app._delete_item("Entity")
+    settle(app)
+    assert quiet["delete"][0].destructive
+
+
+def test_a_built_in_validator_cannot_be_deleted(app, quiet) -> None:
+    quiet["answer"] = True
+    show_builtins(app)
+    select_named(app, "validator", "max_length")
+    app._delete_item("Validator")
+    settle(app)
+    assert not quiet["delete"], "it offered to delete a built-in"
+    assert quiet["info"], "no explanation was offered"
+    assert len(app.session.stack) == 0
+
+
+def test_a_base_type_cannot_be_deleted(app, quiet) -> None:
+    quiet["answer"] = True
+    types = app.columns["type"].tree
+    row = next(i for i in _all_rows(types) if types.item(i, "text") == "string")
+    types.selection_set(row)
+    settle(app)
+    app._delete_item("Type")
+    settle(app)
+    assert not quiet["delete"]
+    assert quiet["info"]
+
+
+def test_deleting_a_context_takes_its_subtree(app, quiet) -> None:
+    quiet["answer"] = True
+    select_named(app, "context", "support")
+    before = len(app.session.model.index())
+    app._delete_item("Context")
+    settle(app)
+    assert len(app.session.model.index()) < before
+    assert quiet["delete"][0].subtree is not None
+    app.undo()
+    settle(app)
+    assert len(app.session.model.index()) == before
+
+
+def test_deleting_nothing_selected_does_nothing(app, quiet) -> None:
+    quiet["answer"] = True
+    select_named(app, "context", "sales")
+    app._delete_item("Schema")
+    settle(app)
+    assert not quiet["delete"]
+    assert len(app.session.stack) == 0
+
+
+# --- the slot table ----------------------------------------------------------
+
+
+def select_entity(app, name: str):
+    select_named(app, "context", "sales")
+    return select_named(app, "entity", name)
+
+
+def test_the_slot_table_shows_inherited_rows_too(app) -> None:
+    """The effective record reads in one place."""
+    select_entity(app, "OrderLine")
+    assert "slots" in app.editor.tables
+    tree = app.editor.tables["slots"]
+    names = {tree.item(i, "values")[0] for i in tree.get_children()}
+    assert {"line_total", "order", "quantity"} <= names
+    assert "created_at" in names, "an inherited slot is missing"
+
+
+def test_an_inherited_row_is_marked(app) -> None:
+    select_entity(app, "OrderLine")
+    tree = app.editor.tables["slots"]
+    inherited = [i for i in tree.get_children() if "inherited" in tree.item(i, "tags")]
+    assert inherited
+    assert tree.item(inherited[0], "values")[4] == "inherited"
+
+
+def test_adding_a_slot_goes_through_the_dialog(app, quiet) -> None:
+    from uuid import UUID
+
+    from designer_app import slots
+
+    entity_row = select_entity(app, "Order")
+    entity_uuid = UUID(entity_row)
+    amount = next(p for p in app.session.model.properties if p.name == "amount")
+    quiet["slot"] = slots.SlotDraft(slot_name="discount", property=amount.uuid, required=False)
+    before = len(app.session.model.index()[entity_uuid].slots)
+    app._add_value_slot(entity_uuid)
+    settle(app)
+    assert len(app.session.model.index()[entity_uuid].slots) == before + 1
+    assert len(app.session.stack) == 1
+
+
+def test_cancelling_the_dialog_adds_nothing(app, quiet) -> None:
+    from uuid import UUID
+
+    entity_uuid = UUID(select_entity(app, "Order"))
+    quiet["slot"] = None  # Cancel
+    before = len(app.session.model.index()[entity_uuid].slots)
+    app._add_value_slot(entity_uuid)
+    settle(app)
+    assert len(app.session.model.index()[entity_uuid].slots) == before
+    assert len(app.session.stack) == 0
+
+
+def test_a_refused_slot_says_why_and_changes_nothing(app, quiet) -> None:
+    """The rules are checked before anything happens, so the refusal names the
+    mistake rather than appearing later as a finding."""
+    from uuid import UUID
+
+    from designer_app import slots
+
+    entity_uuid = UUID(select_entity(app, "Order"))
+    quiet["slot"] = slots.SlotDraft(slot_name="total")  # already taken
+    app._add_value_slot(entity_uuid)
+    settle(app)
+    assert quiet["warning"], "no reason was given"
+    assert "already has a slot" in quiet["warning"][0][1]
+    assert len(app.session.stack) == 0
+
+
+def test_the_override_dialog_offers_only_narrowing_types(app, quiet) -> None:
+    from uuid import UUID
+
+    entity_row = select_entity(app, "OrderLine")
+    tree = app.editor.tables["slots"]
+    inherited_row = next(i for i in tree.get_children() if "inherited" in tree.item(i, "tags"))
+    quiet["slot"] = None
+    app._override_slot(UUID(entity_row), inherited_row)
+    settle(app)
+    assert quiet["slot_dialogs"], "no dialog was opened"
+    _title, _draft, choices = quiet["slot_dialogs"][-1]
+    assert "type_choices" in choices
+
+
+def test_removing_a_slot_is_one_undo_step(app, quiet) -> None:
+    from uuid import UUID
+
+    entity_uuid = UUID(select_entity(app, "Order"))
+    entity = app.session.model.index()[entity_uuid]
+    victim = entity.slots[-1]
+    tree = app.editor.tables["slots"]
+    app._remove_slot(entity_uuid, str(victim.uuid))
+    settle(app)
+    assert victim not in entity.slots
+    assert len(app.session.stack) == 1
+    app.undo()
+    settle(app)
+    assert victim in entity.slots
+    assert tree is not None
+
+
+def test_an_inherited_slot_cannot_be_removed(app, quiet) -> None:
+    """It is edited on the entity that declares it."""
+    from uuid import UUID
+
+    entity_row = select_entity(app, "OrderLine")
+    tree = app.editor.tables["slots"]
+    inherited_row = next(i for i in tree.get_children() if "inherited" in tree.item(i, "tags"))
+    app._remove_slot(UUID(entity_row), inherited_row)
+    settle(app)
+    assert len(app.session.stack) == 0
+
+
+def test_moving_a_slot_changes_the_order(app, quiet) -> None:
+    from uuid import UUID
+
+    entity_uuid = UUID(select_entity(app, "Order"))
+    entity = app.session.model.index()[entity_uuid]
+    ordered = sorted(entity.slots, key=lambda s: s.position)
+    first = ordered[0]
+    app._move_slot_down(entity_uuid, str(first.uuid))
+    settle(app)
+    assert sorted(entity.slots, key=lambda s: s.position)[0] is not first
+    app.undo()
+    settle(app)
+    assert sorted(entity.slots, key=lambda s: s.position)[0] is first
+
+
+def test_copying_a_built_in_leaves_the_list_showing(app, quiet) -> None:
+    """Hiding the built-ins the moment somebody copies from one is
+    disorienting: the copy does not replace the original."""
+    from uuid import UUID
+
+    show_builtins(app)
+    row = select_named(app, "validator", "is_uuid")
+    app._fork_builtin(UUID(row))
+    settle(app)
+    assert app._show_builtins.get(), "the built-ins were hidden"
+    labels = {app.columns["validator"].tree.item(i, "text") for i in _all_rows(app.columns["validator"].tree)}
+    assert "max_length" in labels, "the built-in list vanished"
+
+
+def test_the_copy_and_the_original_are_both_listed(app, quiet) -> None:
+    from uuid import UUID
+
+    show_builtins(app)
+    row = select_named(app, "validator", "is_uuid")
+    app._fork_builtin(UUID(row))
+    settle(app)
+    tree = app.columns["validator"].tree
+    both = [i for i in _all_rows(tree) if tree.item(i, "text") == "is_uuid"]
+    assert len(both) == 2, "the copy and the built-in should both appear"
+    tags = {("builtin" in tree.item(i, "tags")) for i in both}
+    assert tags == {True, False}, "one greyed as built in, one not"
+
+
+def test_the_copy_says_it_takes_precedence(app, quiet) -> None:
+    from uuid import UUID
+
+    show_builtins(app)
+    row = select_named(app, "validator", "is_uuid")
+    app._fork_builtin(UUID(row))
+    settle(app)
+    field = app.editor._spec.by_key("overrides")
+    assert field is not None and field.emphasis == "attention"
+
+
+# --- sorting -----------------------------------------------------------------
+
+
+def test_clicking_a_heading_reverses_the_column(app) -> None:
+    select_named(app, "context", "sales")
+    tree = app.columns["property"].tree
+    before = [tree.item(i, "text") for i in _all_rows(tree)]
+    app._toggle_sort("Property")
+    settle(app)
+    after = [tree.item(i, "text") for i in _all_rows(app.columns["property"].tree)]
+    assert after == list(reversed(before))
+
+
+def test_the_heading_shows_which_way_it_runs(app) -> None:
+    heading = app.columns["property"]._heading
+    assert "\u25b4" in str(heading.cget("text"))
+    app._toggle_sort("Property")
+    settle(app)
+    assert "\u25be" in str(app.columns["property"]._heading.cget("text"))
+
+
+def test_the_direction_is_remembered(app) -> None:
+    app._toggle_sort("Type")
+    settle(app)
+    assert "type" in app.settings.sort_descending
+    app._toggle_sort("Type")
+    settle(app)
+    assert "type" not in app.settings.sort_descending
+
+
+def test_reversing_keeps_the_selection(app) -> None:
+    select_named(app, "context", "sales")
+    chosen = select_named(app, "property", "amount")
+    app._toggle_sort("Property")
+    settle(app)
+    assert app.columns["property"].selected_id == chosen
+
+
+# --- the findings window -----------------------------------------------------
+
+
+def test_checking_the_model_opens_a_list(app) -> None:
+    """The status line can say how many; only a list says which."""
+    app.show_findings()
+    settle(app)
+    window = app._findings_window
+    assert window is not None and window.winfo_exists()
+    assert window.tree.get_children(), "the list is empty"
+
+
+def test_the_list_shows_every_finding(app) -> None:
+    """At `everything`. Any test that counts findings has to say which level it
+    counts at, or it is really testing the default."""
+    app.settings.finding_level = "everything"
+    app.show_findings()
+    settle(app)
+    assert len(app._findings_window.tree.get_children()) == len(app.session.report.findings)
+
+
+def test_opening_it_twice_reuses_the_window(app) -> None:
+    app.show_findings()
+    settle(app)
+    first = app._findings_window
+    app.show_findings()
+    settle(app)
+    assert app._findings_window is first
+
+
+def test_going_to_a_finding_selects_what_it_is_about(app) -> None:
+    """A list that points at something unreachable is only half a list."""
+    from designer_app import findings as findingview
+
+    app.show_findings()
+    settle(app)
+    row = next(
+        r for r in findingview.summarise(app.session.model, app.session.report, app.library) if r.code == "MOD101"
+    )
+    app._go_to_finding(row)
+    settle(app)
+    assert app.selection.type == row.item
+    assert app.editor._spec.title == "Weight"
+
+
+def test_going_to_a_finding_moves_the_context_too(app) -> None:
+    """The item may be somewhere the columns are not currently looking."""
+    from designer_app import findings as findingview
+
+    select_named(app, "context", "support")
+    app.show_findings()
+    settle(app)
+    row = next(
+        r for r in findingview.summarise(app.session.model, app.session.report, app.library) if r.code == "MOD101"
+    )
+    app._go_to_finding(row)
+    settle(app)
+    assert app.selection.context is not None
+    assert app.selection.type == row.item
+
+
+def test_the_list_follows_the_model(app, quiet) -> None:
+    """A list open while the model changes must not go stale.
+
+    At `everything`: the findings that go with Weight are an unfinished item
+    and a note, both hidden at the default level, so at `warning` nothing would
+    appear to change.
+    """
+    app.settings.finding_level = "everything"
+    app.show_findings()
+    settle(app)
+    before = len(app._findings_window.tree.get_children())
+    weight = next(t for t in app.session.model.types if t.name == "Weight")
+    select_named(app, "context", "common")
+    select_named(app, "type", "Weight")
+    quiet["answer"] = True
+    app._delete_item("Type")
+    settle(app)
+    app.show_findings()
+    settle(app)
+    assert len(app._findings_window.tree.get_children()) < before
+    assert weight.uuid not in app.session.model.index()
+
+
+def test_the_status_line_names_the_counts(app) -> None:
+    app.settings.finding_level = "everything"
+    app.show_findings()
+    settle(app)
+    text = str(app.status.cget("text"))
+    assert "warning" in text and "note" in text
+    assert "Severity." not in text, "an enum leaked into the status line"
+
+
+def test_the_status_line_says_what_it_is_hiding(app) -> None:
+    """Filtering must not silently swallow findings."""
+    app.settings.finding_level = "warning"
+    app.show_findings()
+    settle(app)
+    assert "hidden" in str(app.status.cget("text"))
+
+
+def test_an_export_blocker_is_named_however_low_the_level(app) -> None:
+    """Those are mostly unfinished items, which is exactly what a low level
+    hides — so without this a model could reach an export with a fault nobody
+    had been shown."""
+    for level in ("error", "warning", "unfinished", "everything"):
+        app.settings.finding_level = level
+        app.show_findings()
+        settle(app)
+        assert "would block an export" in str(app.status.cget("text")), level
+
+
+def test_the_status_line_opens_the_list(app) -> None:
+    # str(): cget hands back a Tcl object for some options, not a Python string
+    assert str(app.status.cget("cursor")) == "hand2"
+    app.status.event_generate("<Button-1>")
+    settle(app)
+    assert app._findings_window is not None
+
+
+def test_the_findings_list_respects_the_level(app) -> None:
+    app.settings.finding_level = "warning"
+    app.show_findings()
+    settle(app)
+    fewer = len(app._findings_window.tree.get_children())
+    app.settings.finding_level = "everything"
+    app.show_findings()
+    settle(app)
+    assert len(app._findings_window.tree.get_children()) > fewer
+
+
+def test_changing_the_level_updates_the_status_line(app) -> None:
+    app._finding_level.set("everything")
+    app._set_finding_level()
+    settle(app)
+    assert "note" in str(app.status.cget("text"))
+    app._finding_level.set("warning")
+    app._set_finding_level()
+    settle(app)
+    assert "hidden" in str(app.status.cget("text"))
+
+
+def test_the_level_is_remembered(app) -> None:
+    app._finding_level.set("unfinished")
+    app._set_finding_level()
+    settle(app)
+    assert app.settings.finding_level == "unfinished"

@@ -95,7 +95,11 @@ def _matches(row_label: str, text: str) -> bool:
     return text.lower() in row_label.lower() if text else True
 
 
-def contexts(model: Model, filter_text: str = "") -> ColumnData:
+def _by_label(rows: list[Row], descending: bool = False) -> list[Row]:
+    return sorted(rows, key=lambda r: r.label.lower(), reverse=descending)
+
+
+def contexts(model: Model, filter_text: str = "", descending: bool = False) -> ColumnData:
     """The context tree. Never filtered by the active context — it *is* the
     active context's navigator."""
     rows = [
@@ -108,20 +112,20 @@ def contexts(model: Model, filter_text: str = "") -> ColumnData:
         )
         for c in model.contexts
     ]
-    return ColumnData("Context", _keep_tree(rows, filter_text))
+    return ColumnData("Context", _keep_tree(rows, filter_text, descending))
 
 
-def schemas(model: Model, context: UUID | None, filter_text: str = "") -> ColumnData:
+def schemas(model: Model, context: UUID | None, filter_text: str = "", descending: bool = False) -> ColumnData:
     deriver = Deriver(model)
     rows = [
         Row(str(s.uuid), label_of(s), "Schema", "", () if s.name else ("unnamed",))
         for s in _visible(deriver, model.schemas, context)
         if _matches(label_of(s), filter_text)
     ]
-    return ColumnData("Schema", sorted(rows, key=lambda r: r.label.lower()))
+    return ColumnData("Schema", _by_label(rows, descending))
 
 
-def entities(model: Model, context: UUID | None, filter_text: str = "", members: set[UUID] | None = None) -> ColumnData:
+def entities(model: Model, context: UUID | None, filter_text: str = "", descending: bool = False) -> ColumnData:
     """An extension tree, with abstract entities styled apart since they never
     materialise. A parent outside the visible set is dropped, so the row
     reparents to the root rather than vanishing."""
@@ -137,20 +141,20 @@ def entities(model: Model, context: UUID | None, filter_text: str = "", members:
             tags.append("unnamed")
         parent = str(entity.extends) if entity.extends in ids else ""
         rows.append(Row(str(entity.uuid), label_of(entity), "Entity", parent, tuple(tags)))
-    return ColumnData("Entity", _keep_tree(rows, filter_text))
+    return ColumnData("Entity", _keep_tree(rows, filter_text, descending))
 
 
-def properties(model: Model, context: UUID | None, filter_text: str = "") -> ColumnData:
+def properties(model: Model, context: UUID | None, filter_text: str = "", descending: bool = False) -> ColumnData:
     deriver = Deriver(model)
     rows = [
         Row(str(p.uuid), label_of(p), "Property", "", () if p.name else ("unnamed",))
         for p in _visible(deriver, model.properties, context)
         if _matches(label_of(p), filter_text)
     ]
-    return ColumnData("Property", sorted(rows, key=lambda r: r.label.lower()))
+    return ColumnData("Property", _by_label(rows, descending))
 
 
-def types(model: Model, context: UUID | None, filter_text: str = "") -> ColumnData:
+def types(model: Model, context: UUID | None, filter_text: str = "", descending: bool = False) -> ColumnData:
     """A forest rooted at the BaseTypes, which are global and read-only.
 
     A Type with no parent yet has nowhere to hang, so it sits at the root — an
@@ -171,7 +175,7 @@ def types(model: Model, context: UUID | None, filter_text: str = "") -> ColumnDa
         if item.parent is None:
             tags = (*tags, "incomplete")
         rows.append(Row(str(item.uuid), label_of(item), "Type", parent, tags))
-    return ColumnData("Type", _keep_tree(rows, filter_text))
+    return ColumnData("Type", _keep_tree(rows, filter_text, descending))
 
 
 def validators(
@@ -180,6 +184,7 @@ def validators(
     filter_text: str = "",
     library: Library | None = None,
     show_builtins: bool = False,
+    descending: bool = False,
 ) -> ColumnData:
     """Authored validators, and optionally the built-ins.
 
@@ -194,17 +199,22 @@ def validators(
     if show_builtins and library is not None:
         rows += [Row(str(library.by_name(n).uuid), n, "Validator", "", ("builtin",)) for n in sorted(library.names)]
     rows = [r for r in rows if _matches(r.label, filter_text)]
-    return ColumnData("Validator", sorted(rows, key=lambda r: (("builtin" in r.tags), r.label.lower())))
+    # built-ins stay after the authored ones whichever way the sort runs: that
+    # is a grouping, not a sort key, and reversing it would bury the model's
+    # own validators under forty library entries
+    authored = _by_label([r for r in rows if "builtin" not in r.tags], descending)
+    built_in = _by_label([r for r in rows if "builtin" in r.tags], descending)
+    return ColumnData("Validator", authored + built_in)
 
 
-def _keep_tree(rows: list[Row], filter_text: str) -> list[Row]:
+def _keep_tree(rows: list[Row], filter_text: str, descending: bool = False) -> list[Row]:
     """Filter a tree without orphaning matches.
 
     A row survives if it matches or has a surviving descendant; an ancestor kept
     only to hold a match is tagged so the interface can grey it.
     """
     if not filter_text:
-        return _in_tree_order(rows)
+        return _in_tree_order(rows, descending)
     by_id = {r.id: r for r in rows}
     keep: set[str] = set()
     for row in rows:
@@ -220,12 +230,17 @@ def _keep_tree(rows: list[Row], filter_text: str) -> list[Row]:
         for r in rows
         if r.id in keep
     ]
-    return _in_tree_order(kept)
+    return _in_tree_order(kept, descending)
 
 
-def _in_tree_order(rows: list[Row]) -> list[Row]:
+def _in_tree_order(rows: list[Row], descending: bool = False) -> list[Row]:
     """Parents before children, siblings alphabetical, so a tree widget can
-    insert rows in one pass without forward references."""
+    insert rows in one pass without forward references.
+
+    Reversing sorts the siblings at each level; it does not turn the tree
+    upside down, which would put children before their parents and break the
+    single-pass insert.
+    """
     children: dict[str, list[Row]] = {}
     for row in rows:
         children.setdefault(row.parent, []).append(row)
@@ -233,7 +248,7 @@ def _in_tree_order(rows: list[Row]) -> list[Row]:
     ordered: list[Row] = []
 
     def walk(parent: str) -> None:
-        for row in sorted(children.get(parent, []), key=lambda r: r.label.lower()):
+        for row in _by_label(children.get(parent, []), descending):
             ordered.append(row)
             walk(row.id)
 

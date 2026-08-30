@@ -198,10 +198,41 @@ def test_built_ins_can_be_named_in_an_expression(model, library) -> None:
 
 
 def test_an_entity_lists_inherited_slots_and_says_so(model, library) -> None:
-    spec = spec_for(model, library, "Order")
-    lines = spec.by_key("slots").value
-    assert any("created_at" in line and "inherited" in line for line in lines)
-    assert any("order_number" in line and "inherited" not in line for line in lines)
+    """Inherited slots are shown so the effective record reads in one place,
+    marked so it is clear they are edited elsewhere."""
+    field = spec_for(model, library, "Order").by_key("slots")
+    assert field.kind == "table"
+    rows = {row.cells[0]: row for row in field.rows}
+    assert "inherited" in rows["created_at"].tags
+    assert not rows["created_at"].removable
+    assert rows["order_number"].tags == ()
+    assert rows["order_number"].removable
+
+
+def test_the_slot_table_offers_the_actions_that_apply(model, library) -> None:
+    field = spec_for(model, library, "Order").by_key("slots")
+    by_name = {a.name: a for a in field.actions}
+    assert by_name["add_value_slot"].requires == ""
+    assert by_name["remove_slot"].requires == "own"
+    assert by_name["override_slot"].requires == "inherited"
+
+
+def test_the_slot_table_shows_the_type_or_the_target(model, library) -> None:
+    rows = {r.cells[0]: r.cells for r in spec_for(model, library, "Order").by_key("slots").rows}
+    assert rows["total"][2] == "Money"
+    assert rows["customer"][2] == "\u2192 Customer"
+
+
+def test_a_narrowed_slot_shows_the_narrowed_type(model, library) -> None:
+    rows = {r.cells[0]: r.cells for r in spec_for(model, library, "OrderLine").by_key("slots").rows}
+    assert rows["line_total"][2] == "PositiveMoney"
+
+
+def test_slots_are_listed_in_their_stored_order(model, library) -> None:
+    """Order is stored, so the table has to honour it rather than sort."""
+    field = spec_for(model, library, "Order").by_key("slots")
+    positions = [r.cells[0] for r in field.rows]
+    assert positions.index("order_number") < positions.index("total")
 
 
 def test_an_entity_lists_the_schemas_holding_it(model, library) -> None:
@@ -475,3 +506,99 @@ def test_a_base_type_identity_is_stable_but_never_stored(model) -> None:
     assert forms.base_type_uuid("string") == forms.base_type_uuid("string")
     assert forms.base_type_uuid("string") != forms.base_type_uuid("integer")
     assert forms.base_type_uuid("string") not in model.index()
+
+
+# --- copies of built-ins -----------------------------------------------------
+
+
+def copy_of_builtin(model, library, name, context_name="common"):
+    from designer_app import factory
+
+    context = next(c for c in model.contexts if c.name == context_name)
+    copy = factory.duplicate(library.by_name(name))
+    copy.name, copy.context = name, context.uuid
+    model.validators.append(copy)
+    return copy
+
+
+def test_a_copy_says_it_takes_precedence(model, library) -> None:
+    """The point of copying is that the name now means yours — which is not a
+    fault, and is worth seeing without hunting for it."""
+    copy = copy_of_builtin(model, library, "is_uuid")
+    field = forms.describe(model, copy.uuid, library, copy.context).by_key("overrides")
+    assert field is not None
+    assert field.value == "the built-in is_uuid"
+    assert field.emphasis == "attention"
+
+
+def test_the_note_says_the_built_in_is_unchanged(model, library) -> None:
+    """Every rule already bound to it still uses it."""
+    copy = copy_of_builtin(model, library, "is_uuid")
+    field = forms.describe(model, copy.uuid, library, copy.context).by_key("overrides")
+    assert "still uses it" in field.note
+
+
+def test_a_validator_of_its_own_name_says_nothing_of_the_sort(model, library) -> None:
+    assert spec_for(model, library, "is_order_number").by_key("overrides") is None
+
+
+def test_the_built_in_says_where_it_was_taken_over(model, library) -> None:
+    copy_of_builtin(model, library, "is_uuid")
+    field = forms.describe(model, library.by_name("is_uuid").uuid, library).by_key("shadowed")
+    assert field is not None
+    assert field.value == ["is_uuid in common"]
+    assert field.emphasis == "attention"
+
+
+def test_an_untouched_built_in_says_nothing(model, library) -> None:
+    assert forms.describe(model, library.by_name("max_length").uuid, library).by_key("shadowed") is None
+
+
+def test_shadowing_is_reported_as_soon_as_the_name_is_set(model, library) -> None:
+    """It compares a name against the standard library, which does not change,
+    so it does not need a whole-model pass."""
+    from designer_model import Checker
+    from designer_model.diagnostics import Scope
+
+    copy = copy_of_builtin(model, library, "is_uuid")
+    incremental = Checker(model, library).run(frozenset({Scope.ITEM, Scope.CONTEXT}))
+    found = [f for f in incremental.findings if f.code == "MOD304"]
+    assert found and found[0].subject.item_uuid == copy.uuid
+
+
+def test_every_label_in_the_form_carries_a_style() -> None:
+    """The form sits on a near-white panel; a label without a style keeps the
+    theme's grey and sits on it like a patch.
+
+    Three labels lost theirs at once when a batch of edits stopped at a failure
+    and the rest silently did not run — which no behavioural test would see.
+    """
+    import ast
+    import pathlib
+
+    source = pathlib.Path(__file__).resolve().parents[1] / "src" / "designer_app" / "formview.py"
+    tree = ast.parse(source.read_text())
+    unstyled = [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "Label"
+        and "style" not in {keyword.arg for keyword in node.keywords}
+    ]
+    assert unstyled == [], f"labels without a style at lines {unstyled}"
+
+
+def test_schema_members_read_alphabetically(model, library) -> None:
+    field = spec_for(model, library, "sales_schema").by_key("members")
+    names = [row.cells[0] for row in field.rows]
+    assert names == sorted(names, key=str.lower)
+
+
+def test_slots_keep_their_stored_order(model, library) -> None:
+    """Never alphabetical: the order of slots is stored, it is what the Up and
+    Down buttons change, and it survives to the generated table."""
+    field = spec_for(model, library, "Order").by_key("slots")
+    names = [row.cells[0] for row in field.rows]
+    assert names != sorted(names, key=str.lower)
+    assert names.index("order_number") < names.index("customer")

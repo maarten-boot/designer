@@ -86,6 +86,9 @@ def quiet(monkeypatch):
         "error": [],
         "warning": [],
         "ask": [],
+        "delete": [],
+        "slot_dialogs": [],
+        "slot": None,
         "answer": False,
     }
 
@@ -121,8 +124,19 @@ def quiet(monkeypatch):
         def asksaveasfilename(**_kw):
             return ""
 
+    def confirm_delete(_parent, impact):
+        calls["delete"].append(impact)
+        return calls["answer"]
+
+    def edit_slot(_parent, title, draft, **choices):
+        """Return whatever the test put in `slot`, or nothing (Cancel)."""
+        calls["slot_dialogs"].append((title, draft, choices))
+        return calls["slot"]
+
     monkeypatch.setattr(app_module, "messagebox", Boxes)
     monkeypatch.setattr(app_module, "filedialog", Files)
+    monkeypatch.setattr(app_module, "confirm_delete", confirm_delete)
+    monkeypatch.setattr(app_module, "edit_slot", edit_slot)
     return calls
 
 

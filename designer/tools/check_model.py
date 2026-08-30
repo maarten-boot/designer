@@ -52,7 +52,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("model", type=pathlib.Path)
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     parser.add_argument(
-        "--quiet", action="store_true", help="report errors and warnings only"
+        "--level",
+        choices=["error", "warning", "unfinished", "everything"],
+        default="warning",
+        help=(
+            "how much to report; warnings and above by default, because a model "
+            "under construction is full of unfinished items and unreferenced types"
+        ),
+    )
+    parser.add_argument(
+        "--quiet", action="store_true", help="same as --level warning (kept for habit)"
     )
     arguments = parser.parse_args(argv)
 
@@ -105,10 +114,19 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  standard library: {len(library)} built-ins, version {library.version}")
     print()
 
+    order = [Severity.ERROR, Severity.WARNING, Severity.INCOMPLETE, Severity.INFO]
+    ceiling = order.index(
+        {
+            "error": Severity.ERROR,
+            "warning": Severity.WARNING,
+            "unfinished": Severity.INCOMPLETE,
+            "everything": Severity.INFO,
+        }[arguments.level]
+    )
     shown = 0
     for finding in report.findings:
         severity = definition(finding.code).severity
-        if arguments.quiet and severity in {Severity.INCOMPLETE, Severity.INFO}:
+        if order.index(severity) > ceiling:
             continue
         shown += 1
         owner = kinds.get(finding.subject.item_uuid, "?")
@@ -125,8 +143,9 @@ def main(argv: list[str] | None = None) -> int:
         ", ".join(f"{n} {k}" for k, n in counts.items() if n) or "nothing to report"
     )
     print(f"\n  {summary}")
-    if not shown and (counts[Severity.INCOMPLETE] or counts[Severity.INFO]):
-        print("  (run without --quiet to see incomplete items and notes)")
+    hidden = len(report.findings) - shown
+    if hidden:
+        print(f"  {hidden} not shown at --level {arguments.level}")
     if report.export_blockers:
         print(f"  {len(report.export_blockers)} of these would block an export")
 

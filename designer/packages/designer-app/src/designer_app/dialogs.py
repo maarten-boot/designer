@@ -52,6 +52,299 @@ class Chooser(tk.Toplevel):
         return self.result
 
 
+class FindingsWindow(tk.Toplevel):
+    """Every finding, in a list you can act on.
+
+    Not modal: it is something to work alongside, and double-clicking a row
+    takes the selection to what the finding is about, which is the whole reason
+    to show it rather than a count.
+    """
+
+    def __init__(self, parent: tk.Misc, rows, on_open) -> None:
+        super().__init__(parent)
+        self.title("Model findings")
+        self.geometry("900x420")
+        self._on_open = on_open
+
+        top = ttk.Frame(self, padding=(10, 10, 10, 4))
+        top.pack(fill="x")
+        self._summary = ttk.Label(top, text="")
+        self._summary.pack(side="left")
+        ttk.Label(top, text="double-click a finding to go to it", foreground="#4f4f4f").pack(side="right")
+
+        holder = ttk.Frame(self, padding=(10, 0, 10, 10))
+        holder.pack(fill="both", expand=True)
+        self.tree = ttk.Treeview(
+            holder,
+            columns=("severity", "code", "where", "message"),
+            show="headings",
+            selectmode="browse",
+        )
+        for name, heading, width in (
+            ("severity", "", 90),
+            ("code", "Code", 80),
+            ("where", "Item", 240),
+            ("message", "What it says", 460),
+        ):
+            self.tree.heading(name, text=heading)
+            self.tree.column(name, width=width, stretch=(name == "message"))
+        bar = ttk.Scrollbar(holder, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=bar.set)
+        bar.pack(side="right", fill="y")
+        self.tree.pack(side="left", fill="both", expand=True)
+
+        self.tree.tag_configure("error", foreground="#a01b0b")
+        self.tree.tag_configure("warning", foreground="#a35a00")
+        self.tree.tag_configure("unfinished", foreground="#4f4f4f")
+        self.tree.tag_configure("note", foreground="#4f4f4f")
+
+        self.tree.bind("<Double-1>", self._open)
+        self.tree.bind("<Return>", self._open)
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self.show(rows, "")
+
+    def show(self, rows, headline: str) -> None:
+        self._rows = {row.id: row for row in rows}
+        self.tree.delete(*self.tree.get_children())
+        for row in rows:
+            self.tree.insert("", "end", iid=row.id, values=row.cells, tags=(row.marker,))
+        self._summary.configure(text=headline or ("nothing to report" if not rows else f"{len(rows)} findings"))
+
+    def _open(self, _event: object = None) -> None:
+        chosen = self.tree.selection()
+        if chosen and chosen[0] in self._rows:
+            self._on_open(self._rows[chosen[0]])
+
+
+class SlotDialog(tk.Toplevel):
+    """Build or edit one slot.
+
+    A dialog rather than an editable cell: inline editing in a Treeview is
+    fiddly, and a sub-form that appears and disappears makes the pane jump. The
+    cost is a modal for every change, which is bearable because slots are
+    usually added rather than tweaked.
+
+    Everything it offers — which properties, which targets, which types may
+    narrow an inherited one — is computed elsewhere and handed in.
+    """
+
+    def __init__(
+        self,
+        parent: tk.Misc,
+        title: str,
+        draft,
+        property_choices=(),
+        target_choices=(),
+        type_choices=(),
+        editing_name: bool = True,
+    ) -> None:
+        super().__init__(parent)
+        self.title(title)
+        self.transient(parent)
+        self.result = None
+        self._draft = draft
+        self._error = tk.StringVar()
+
+        body = ttk.Frame(self, padding=12)
+        body.pack(fill="both", expand=True)
+        body.columnconfigure(1, weight=1)
+        row = 0
+
+        self._name = tk.StringVar(value=draft.slot_name)
+        ttk.Label(body, text="Name").grid(row=row, column=0, sticky="w", pady=2)
+        name_entry = ttk.Entry(body, textvariable=self._name, width=32)
+        name_entry.grid(row=row, column=1, sticky="ew", pady=2)
+        if not editing_name:
+            name_entry.state(["readonly"])
+        row += 1
+
+        self._pickers: dict[str, tuple[tk.StringVar, dict[str, str | None]]] = {}
+
+        def picker(label: str, key: str, choices, current) -> None:
+            nonlocal row
+            by_label = {c.label: c.id for c in choices}
+            shown = next((c.label for c in choices if c.id == current), "\u2014 none \u2014")
+            variable = tk.StringVar(value=shown)
+            ttk.Label(body, text=label).grid(row=row, column=0, sticky="w", pady=2)
+            ttk.Combobox(body, textvariable=variable, values=[c.label for c in choices], state="readonly").grid(
+                row=row, column=1, sticky="ew", pady=2
+            )
+            self._pickers[key] = (variable, by_label)
+            row += 1
+
+        if draft.kind == "value":
+            picker("Property", "property", property_choices, str(draft.property) if draft.property else None)
+            if type_choices:
+                picker(
+                    "Narrow to",
+                    "type_override",
+                    type_choices,
+                    str(draft.type_override) if draft.type_override else None,
+                )
+        else:
+            picker("Points at", "target", target_choices, str(draft.target) if draft.target else None)
+
+        self._required = tk.BooleanVar(value=draft.required)
+        ttk.Label(body, text="Required").grid(row=row, column=0, sticky="w", pady=2)
+        ttk.Checkbutton(body, variable=self._required).grid(row=row, column=1, sticky="w", pady=2)
+        row += 1
+
+        if draft.kind == "value":
+            self._default = tk.StringVar(value=draft.default_text)
+            ttk.Label(body, text="Default").grid(row=row, column=0, sticky="w", pady=2)
+            ttk.Entry(body, textvariable=self._default).grid(row=row, column=1, sticky="ew", pady=2)
+            row += 1
+        else:
+            self._inverse = tk.StringVar(value=draft.inverse_name)
+            ttk.Label(body, text="Reverse name").grid(row=row, column=0, sticky="w", pady=2)
+            ttk.Entry(body, textvariable=self._inverse).grid(row=row, column=1, sticky="ew", pady=2)
+            row += 1
+            self._on_delete = tk.StringVar(value=draft.on_delete)
+            ttk.Label(body, text="When the target goes").grid(row=row, column=0, sticky="w", pady=2)
+            ttk.Combobox(
+                body,
+                textvariable=self._on_delete,
+                values=["restrict", "cascade", "set_null"],
+                state="readonly",
+            ).grid(row=row, column=1, sticky="ew", pady=2)
+            row += 1
+
+        ttk.Label(body, textvariable=self._error, foreground="#a01b0b", wraplength=340).grid(
+            row=row, column=0, columnspan=2, sticky="w", pady=(6, 0)
+        )
+
+        buttons = ttk.Frame(self, padding=(12, 0, 12, 12))
+        buttons.pack(fill="x")
+        ttk.Button(buttons, text="Cancel", command=self.destroy).pack(side="right")
+        ttk.Button(buttons, text="Save", command=self._accept).pack(side="right", padx=(0, 6))
+        self.bind("<Escape>", lambda _e: self.destroy())
+        name_entry.focus_set()
+
+    def _collect(self):
+        from dataclasses import replace
+        from uuid import UUID
+
+        values = {"slot_name": self._name.get(), "required": self._required.get()}
+        for key, (variable, by_label) in self._pickers.items():
+            chosen = by_label.get(variable.get())
+            values[key] = UUID(chosen) if chosen else None
+        if self._draft.kind == "value":
+            values["default_text"] = self._default.get()
+        else:
+            values["inverse_name"] = self._inverse.get()
+            values["on_delete"] = self._on_delete.get()
+        return replace(self._draft, **values)
+
+    def _accept(self) -> None:
+        self.result = self._collect()
+        self.destroy()
+
+    def ask(self):
+        self.grab_set()
+        self.wait_window(self)
+        return self.result
+
+
+def edit_slot(parent: tk.Misc, title: str, draft, **choices):
+    return SlotDialog(parent, title, draft, **choices).ask()
+
+
+class DeleteConfirmation(tk.Toplevel):
+    """What a delete would do, before it does it.
+
+    No delete is refused, so this is not a gate — it is the only chance to see
+    the damage. It is one undo step either way, which the dialog says, because
+    a reversible action is a different decision from an irreversible one.
+    """
+
+    def __init__(self, parent: tk.Misc, impact) -> None:
+        super().__init__(parent)
+        self.title(impact.title)
+        self.transient(parent)
+        self.result = False
+
+        head = ttk.Frame(self, padding=12)
+        head.pack(fill="x")
+        ttk.Label(head, text=impact.title, font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
+        if impact.removing:
+            ttk.Label(head, text="Removing " + ", ".join(impact.removing)).pack(anchor="w")
+        ttk.Label(head, text=impact.summary(), wraplength=520, justify="left").pack(anchor="w", pady=(4, 0))
+
+        if impact.destructive:
+            warning = ttk.Frame(self, padding=(12, 0))
+            warning.pack(fill="x")
+            ttk.Label(
+                warning,
+                text=(
+                    "This changes the shape of other entities, not just their "
+                    "references: they lose every slot they inherit."
+                ),
+                foreground="#a01b0b",
+                wraplength=520,
+                justify="left",
+            ).pack(anchor="w", pady=(6, 0))
+
+        if impact.groups:
+            body = ttk.Frame(self, padding=12)
+            body.pack(fill="both", expand=True)
+            detail = tk.Text(
+                body,
+                height=min(14, 2 + impact.affected + len(impact.groups)),
+                width=72,
+                wrap="none",
+                background="#ffffff",
+                relief="solid",
+                borderwidth=1,
+            )
+            for group in impact.groups:
+                detail.insert("end", f"{group.heading}\n")
+                for line in group.lines:
+                    detail.insert("end", f"    {line}\n")
+                detail.insert("end", "\n")
+            detail.configure(state="disabled")
+            detail.pack(fill="both", expand=True)
+
+        if impact.subtree:
+            preview = ttk.Frame(self, padding=(12, 0, 12, 12))
+            preview.pack(fill="both", expand=True)
+            ttk.Label(
+                preview,
+                text="The whole subtree goes. This is the part of the file that would be removed:",
+                wraplength=520,
+                justify="left",
+            ).pack(anchor="w", pady=(0, 4))
+            box = tk.Text(
+                preview, height=10, width=72, wrap="none", background="#ffffff", relief="solid", borderwidth=1
+            )
+            box.insert("1.0", impact.subtree)
+            box.configure(state="disabled")
+            bar = ttk.Scrollbar(preview, orient="vertical", command=box.yview)
+            box.configure(yscrollcommand=bar.set)
+            bar.pack(side="right", fill="y")
+            box.pack(side="left", fill="both", expand=True)
+
+        buttons = ttk.Frame(self, padding=(12, 0, 12, 12))
+        buttons.pack(fill="x")
+        ttk.Label(buttons, text="One undo step.", foreground="#4f4f4f").pack(side="left")
+        ttk.Button(buttons, text="Cancel", command=self.destroy).pack(side="right")
+        ttk.Button(buttons, text="Delete", command=self._accept).pack(side="right", padx=(0, 6))
+
+        self.bind("<Escape>", lambda _e: self.destroy())
+
+    def _accept(self) -> None:
+        self.result = True
+        self.destroy()
+
+    def ask(self) -> bool:
+        self.grab_set()
+        self.wait_window(self)
+        return self.result
+
+
+def confirm_delete(parent: tk.Misc, impact) -> bool:
+    return DeleteConfirmation(parent, impact).ask()
+
+
 def choose(parent: tk.Misc, title: str, prompt: str, options: list[tuple[str, str]]) -> str | None:
     if not options:
         return None

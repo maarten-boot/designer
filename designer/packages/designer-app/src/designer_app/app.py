@@ -16,22 +16,26 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from uuid import UUID
 
-from designer_model import Session, membership
+from designer_model import Deriver, Session, membership
 from designer_model.commands import AddItem, SetField
 from designer_model.expressions import tokens
 from designer_model.stdlib import standard_library
 
+from . import findings as findingview
 from . import forms
 from . import rows as rowbuild
+from . import slots as slotedit
 from .breadcrumb import Breadcrumb
 from .columns import ColumnView
-from .dialogs import choose
+from .dialogs import FindingsWindow, choose, confirm_delete, edit_slot
 from .factory import duplicate, new_item
 from .formview import FRAME_STYLE, PANEL, FormView
+from .impact import summarise
 from .layout import CollapseManager
 from .scrolling import ScrollingArea
 from .selection import Selection, choose_base_type, focus, reveal_target, tags_for, updated
 from .state import COLUMNS, TITLES, Settings, config_dir
+from .tooltip import attach
 
 MIN_WIDTH, MIN_HEIGHT = 1024, 768
 
@@ -115,11 +119,26 @@ class DesignerApp(tk.Tk):
         self._show_builtins = tk.BooleanVar(value=self.settings.show_builtins)
         view_menu.add_checkbutton(label="Show built-in validators", variable=self._show_builtins, command=self.refresh)
         view_menu.add_separator()
+        findings_menu = tk.Menu(view_menu, tearoff=False)
+        self._finding_level = tk.StringVar(value=self.settings.finding_level)
+        for name, label in findingview.LEVEL_LABELS.items():
+            findings_menu.add_radiobutton(
+                label=label,
+                value=name,
+                variable=self._finding_level,
+                command=self._set_finding_level,
+            )
+        view_menu.add_cascade(label="Findings shown", menu=findings_menu)
+        view_menu.add_separator()
         view_menu.add_command(label="Reset layout", command=self._reset_layout)
         menubar.add_cascade(label="View", menu=view_menu)
 
         model_menu = tk.Menu(menubar, tearoff=False)
-        model_menu.add_command(label="Check model", command=self.full_check)
+        model_menu.add_command(
+            label="Check model and list findings\u2026",
+            accelerator="F5",
+            command=self.show_findings,
+        )
         menubar.add_cascade(label="Model", menu=model_menu)
 
         self.configure(menu=menubar)
@@ -127,6 +146,7 @@ class DesignerApp(tk.Tk):
         self.bind_all("<Control-s>", lambda _e: self.save())
         self.bind_all("<Control-z>", lambda _e: self.undo())
         self.bind_all("<Control-y>", lambda _e: self.redo())
+        self.bind_all("<F5>", lambda _e: self.show_findings())
         self._refresh_recent()
 
     def _refresh_recent(self) -> None:
@@ -156,18 +176,20 @@ class DesignerApp(tk.Tk):
                 self._upper,
                 TITLES[name],
                 on_select=self._on_select,
+                on_sort=self._toggle_sort,
                 on_new=self._new_item,
                 on_duplicate=self._duplicate_item,
-                on_delete=lambda _t: self._not_yet("Delete"),
+                on_delete=self._delete_item,
             )
             view.bind("<<FilterChanged>>", lambda _e: self.refresh())
+            view.set_sort(name in self.settings.sort_descending)
             self.columns[name] = view
             self._upper.add(view, weight=1)
 
         lower = ttk.Frame(outer)
         outer.add(lower, weight=2)
 
-        self.breadcrumb = Breadcrumb(lower, on_navigate=self._navigate)
+        self.breadcrumb = Breadcrumb(lower)
         self.breadcrumb.pack(fill="x", padx=6, pady=(6, 2))
         ttk.Separator(lower, orient="horizontal").pack(fill="x", padx=6)
         self._editor_area = ScrollingArea(lower, background=PANEL, style=FRAME_STYLE)
@@ -181,6 +203,10 @@ class DesignerApp(tk.Tk):
 
         self.status = ttk.Label(self, anchor="w", relief="sunken", padding=(6, 2))
         self.status.pack(fill="x", side="bottom")
+        self.status.configure(cursor="hand2")
+        self.status.bind("<Button-1>", lambda _e: self.show_findings())
+        attach(self.status, "Click to list every finding, or press F5")
+        self._findings_window: FindingsWindow | None = None
 
         self.collapse = CollapseManager(
             self._upper, list(COLUMNS), dict(self.columns), dict(self.settings.column_widths)
@@ -197,6 +223,24 @@ class DesignerApp(tk.Tk):
                 self._upper.sashpos(index, position)
             except tk.TclError:
                 break
+
+    def _set_finding_level(self) -> None:
+        self.settings.finding_level = self._finding_level.get()
+        self._update_status()
+        if self._findings_window is not None and self._findings_window.winfo_exists():
+            self.show_findings()
+
+    def _toggle_sort(self, title: str) -> None:
+        column = next(key for key, value in TITLES.items() if value == title)
+        if column in self.settings.sort_descending:
+            self.settings.sort_descending.remove(column)
+        else:
+            self.settings.sort_descending.append(column)
+        self.columns[column].set_sort(column in self.settings.sort_descending)
+        self.refresh()
+
+    def _descending(self, column: str) -> bool:
+        return column in self.settings.sort_descending
 
     def _toggle_column(self, name: str) -> None:
         self.collapse.toggle(name)
@@ -221,18 +265,22 @@ class DesignerApp(tk.Tk):
         def extra(ids) -> dict[str, tuple[str, ...]]:
             return {str(i): tags_for(i, result) for i in ids if tags_for(i, result)}
 
+        def text(column: str) -> str:
+            return self.columns[column].filter_text
+
         data = {
-            "context": rowbuild.contexts(model, self.columns["context"].filter_text),
-            "schema": rowbuild.schemas(model, context, self.columns["schema"].filter_text),
-            "entity": rowbuild.entities(model, context, self.columns["entity"].filter_text),
-            "property": rowbuild.properties(model, context, self.columns["property"].filter_text),
-            "type": rowbuild.types(model, context, self.columns["type"].filter_text),
+            "context": rowbuild.contexts(model, text("context"), self._descending("context")),
+            "schema": rowbuild.schemas(model, context, text("schema"), self._descending("schema")),
+            "entity": rowbuild.entities(model, context, text("entity"), self._descending("entity")),
+            "property": rowbuild.properties(model, context, text("property"), self._descending("property")),
+            "type": rowbuild.types(model, context, text("type"), self._descending("type")),
             "validator": rowbuild.validators(
                 model,
                 context,
-                self.columns["validator"].filter_text,
+                text("validator"),
                 library=self.library,
                 show_builtins=self._show_builtins.get(),
+                descending=self._descending("validator"),
             ),
         }
         for name, column in data.items():
@@ -331,6 +379,13 @@ class DesignerApp(tk.Tk):
             "remove_member": self._remove_member,
             "close_schema": self._close_schema,
             "fork_builtin": self._fork_builtin,
+            "add_value_slot": self._add_value_slot,
+            "add_reference_slot": self._add_reference_slot,
+            "edit_slot": self._edit_slot,
+            "override_slot": self._override_slot,
+            "remove_slot": self._remove_slot,
+            "move_slot_up": self._move_slot_up,
+            "move_slot_down": self._move_slot_down,
         }.get(action)
         if handler is not None:
             handler(uuid, row_id)
@@ -426,7 +481,147 @@ class DesignerApp(tk.Tk):
         copy.context = where
         self.session.execute(AddItem(copy, label=f"copy {built_in.name}"))
         self.selection = updated(self.selection, "validator", copy.uuid)
-        self._show_builtins.set(False)
+        # the built-ins stay listed: the copy does not replace the original,
+        # every rule already bound to it keeps using it, and hiding the list
+        # the moment somebody copies from it is disorienting
+        self.refresh()
+
+    # --- slots --------------------------------------------------------------
+
+    def _entity_and_slot(self, entity_uuid: UUID, row: str | None):
+        entity = self.session.model.index().get(entity_uuid)
+        if entity is None:
+            return None, None
+        if row is None:
+            return entity, None
+        wanted = UUID(row)
+        found = next(
+            (s for s in Deriver(self.session.model).effective_slots(entity_uuid) if s.uuid == wanted),
+            None,
+        )
+        return entity, found
+
+    def _slot_choices(self, entity, inherited=None) -> dict:
+        return {
+            "property_choices": forms.slot_property_choices(self.session.model, entity),
+            "target_choices": forms.slot_target_choices(self.session.model, entity),
+            "type_choices": (
+                forms.narrowing_type_choices(self.session.model, entity, inherited) if inherited is not None else ()
+            ),
+        }
+
+    def _apply_slot(self, build) -> None:
+        """Run a slot change, showing the reason if it is refused.
+
+        The rules — an override must narrow, a required slot may not be set
+        null — are checked before anything happens, so the refusal names the
+        mistake rather than appearing later as a finding.
+        """
+        try:
+            command = build()
+        except slotedit.SlotError as error:
+            messagebox.showwarning("That slot cannot be saved", str(error))
+            return
+        self.session.execute(command)
+        self.refresh()
+
+    def _new_slot(self, entity_uuid: UUID, kind: str) -> None:
+        entity, _ = self._entity_and_slot(entity_uuid, None)
+        if entity is None:
+            return
+        draft = slotedit.SlotDraft(kind=kind)
+        collected = edit_slot(self, f"Add a {kind} slot", draft, **self._slot_choices(entity))
+        if collected is None:
+            return
+        self._apply_slot(lambda: slotedit.add(self.session.model, entity, collected))
+
+    def _add_value_slot(self, entity_uuid: UUID, _row: str | None = None) -> None:
+        self._new_slot(entity_uuid, slotedit.VALUE)
+
+    def _add_reference_slot(self, entity_uuid: UUID, _row: str | None = None) -> None:
+        self._new_slot(entity_uuid, slotedit.REFERENCE)
+
+    def _edit_slot(self, entity_uuid: UUID, row: str | None) -> None:
+        entity, slot = self._entity_and_slot(entity_uuid, row)
+        if entity is None or slot is None:
+            return
+        inherited = Deriver(self.session.model).inherited_slot(entity_uuid, slot.slot_name)
+        collected = edit_slot(
+            self,
+            f"Edit {slot.slot_name}",
+            slotedit.SlotDraft.of(slot),
+            **self._slot_choices(entity, inherited),
+        )
+        if collected is None:
+            return
+        self._apply_slot(lambda: slotedit.edit(self.session.model, entity, slot, collected))
+
+    def _override_slot(self, entity_uuid: UUID, row: str | None) -> None:
+        """Narrow an inherited slot rather than copying it.
+
+        The type picker offers only Types that narrow the inherited one, so a
+        widening override cannot be built and then refused.
+        """
+        entity, inherited = self._entity_and_slot(entity_uuid, row)
+        if entity is None or inherited is None:
+            return
+        draft = slotedit.SlotDraft.of(inherited)
+        collected = edit_slot(
+            self,
+            f"Override {inherited.slot_name}",
+            draft,
+            **self._slot_choices(entity, inherited),
+        )
+        if collected is None:
+            return
+        self._apply_slot(lambda: slotedit.add(self.session.model, entity, collected, inherited=inherited))
+
+    def _remove_slot(self, entity_uuid: UUID, row: str | None) -> None:
+        entity, slot = self._entity_and_slot(entity_uuid, row)
+        if entity is None or slot is None or slot not in entity.slots:
+            return
+        self._apply_slot(lambda: slotedit.remove(entity, slot))
+
+    def _move_slot(self, entity_uuid: UUID, row: str | None, delta: int) -> None:
+        entity, slot = self._entity_and_slot(entity_uuid, row)
+        if entity is None or slot is None or slot not in entity.slots:
+            return
+        self._apply_slot(lambda: slotedit.move(entity, slot, delta))
+
+    def _move_slot_up(self, entity_uuid: UUID, row: str | None) -> None:
+        self._move_slot(entity_uuid, row, -1)
+
+    def _move_slot_down(self, entity_uuid: UUID, row: str | None) -> None:
+        self._move_slot(entity_uuid, row, 1)
+
+    def _delete_item(self, title: str) -> None:
+        """Show what would happen, then do it if asked.
+
+        No delete is refused. Once the model is designed to hold incomplete
+        states and describe them, a dangling reference is a diagnostic rather
+        than a corruption, and refusing only forces the user to dismantle the
+        references by hand for the same end state.
+        """
+        column = next(key for key, value in TITLES.items() if value == title)
+        if column == "type" and self.selection.base_type is not None:
+            messagebox.showinfo("Built in", "Base types are fixed and cannot be deleted.")
+            return
+        chosen = getattr(self.selection, column, None)
+        if chosen is None:
+            return
+        if self.library.get(chosen) is not None:
+            messagebox.showinfo(
+                "Built in",
+                "Validators from the standard library are shared by every model "
+                "and cannot be deleted. Copy one into the model to make a "
+                "version you can change.",
+            )
+            return
+        plan = self.session.plan_delete(chosen)
+        if not confirm_delete(self, summarise(self.session.model, plan)):
+            return
+        self.session.apply(plan)
+        self.selection = updated(self.selection, column, None)
         self.refresh()
 
     def _new_item(self, title: str) -> None:
@@ -481,10 +676,6 @@ class DesignerApp(tk.Tk):
         self.selection = new
         self.refresh()
 
-    def _navigate(self, context: UUID) -> None:
-        self.selection = Selection(context=context)
-        self.refresh()
-
     # --- actions ------------------------------------------------------------
 
     def open_file(self) -> None:
@@ -530,6 +721,43 @@ class DesignerApp(tk.Tk):
         self.session.full_check()
         self._update_status()
 
+    def show_findings(self) -> None:
+        """Run every rule and list what it found.
+
+        The status line can say how many; only a list can say which, about
+        what, and in words.
+        """
+        report = self.session.full_check()
+        rows = findingview.at_least(
+            findingview.summarise(self.session.model, report, self.library),
+            self.settings.finding_level,
+        )
+        headline = findingview.headline(report, self.settings.finding_level)
+        if self._findings_window is None or not self._findings_window.winfo_exists():
+            self._findings_window = FindingsWindow(self, rows, self._go_to_finding)
+        self._findings_window.show(rows, headline)
+        self._findings_window.deiconify()
+        self._findings_window.lift()
+        self._update_status()
+
+    def _go_to_finding(self, row) -> None:
+        """Take the selection to what a finding is about.
+
+        Including its context: the item may well be somewhere the columns are
+        not currently looking, and a list that points at something unreachable
+        is only half a list.
+        """
+        item = self.session.model.index().get(row.item)
+        if item is None:
+            return
+        column = {value: key for key, value in TITLES.items()}.get(type(item).__name__)
+        if column is None:
+            return
+        where = item.uuid if column == "context" else getattr(item, "context", None)
+        self.selection = updated(Selection(context=where), column, item.uuid)
+        self.refresh()
+        self.lift()
+
     def _not_yet(self, what: str) -> None:
         messagebox.showinfo("Not yet", f"{what} arrives with the forms, in the next round.")
 
@@ -537,11 +765,14 @@ class DesignerApp(tk.Tk):
 
     def _update_status(self) -> None:
         report = self.session.report
-        counts = report.counts()
-        parts = [f"{count} {level!s}" for level, count in counts.items() if count]
         where = self.session.path.name if self.session.path else "(unsaved)"
-        dirty = " •" if self.session.dirty else ""
-        self.status.configure(text=f"{where}{dirty}    " + ("  ".join(parts) or "no findings"))
+        dirty = " \u2022" if self.session.dirty else ""
+        level = self.settings.finding_level
+        self.status.configure(text=f"{where}{dirty}    {findingview.headline(report, level)}")
+        # a list already open follows the model rather than going stale
+        if self._findings_window is not None and self._findings_window.winfo_exists():
+            rows = findingview.at_least(findingview.summarise(self.session.model, report, self.library), level)
+            self._findings_window.show(rows, findingview.headline(report, level))
         self._schedule_autosave()
 
     def _schedule_autosave(self) -> None:

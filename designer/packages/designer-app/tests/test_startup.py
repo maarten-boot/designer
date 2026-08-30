@@ -59,3 +59,32 @@ def test_the_headless_modules_never_import_tkinter(module) -> None:
         else:
             continue
         assert not any(n.split(".")[0] == "tkinter" for n in names), f"{module}:{node.lineno}"
+
+
+def test_widget_tests_never_compare_a_raw_cget_result() -> None:
+    """`cget` returns a Tcl object for some options, not a Python string.
+
+    `cget("text") == "x"` happens to work and `cget("cursor") == "hand2"` does
+    not, which makes the mistake look correct until it is not. Since the widget
+    tests skip on a machine with no display, this catches it there instead.
+    """
+    import ast
+    import pathlib
+
+    source = pathlib.Path(__file__).with_name("test_widgets.py")
+    tree = ast.parse(source.read_text())
+
+    def is_cget(node: ast.AST) -> bool:
+        return (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"cget", "itemcget", "entrycget"}
+        )
+
+    bare = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Compare):
+            for side in (node.left, *node.comparators):
+                if is_cget(side):
+                    bare.append(node.lineno)
+    assert bare == [], f"wrap cget in str() at lines {sorted(set(bare))}"

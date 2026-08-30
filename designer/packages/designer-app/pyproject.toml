@@ -2,7 +2,7 @@
 name = "designer-app"
 version = "0.1.0"
 description = "The Designer desktop application."
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = ["designer-model"]
 
 [project.scripts]
@@ -18,12 +18,8 @@ packages = ["src/designer_app"]
 [tool.ruff]
 line-length = 120
 indent-width = 4
-# The package requires 3.14, but the formatter is pinned lower on purpose.
-# Left to infer from requires-python, ruff targets 3.14 and applies PEP 758,
-# rewriting `except (A, B):` to `except A, B:` — valid on 3.14 and a syntax
-# error on anything older, which silently ends development on 3.12/3.13.
-# requires-python is the floor for users; this is the floor for source syntax.
-target-version = "py312"
+# No target-version here: ruff infers it from requires-python, and the two
+# agreeing is the point. See the note in designer-model's pyproject.
 src = ["src", "tests"]
 
 [tool.ruff.lint]
