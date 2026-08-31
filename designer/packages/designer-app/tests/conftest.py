@@ -93,6 +93,7 @@ def quiet(monkeypatch):
         "rule": None,
         "schema_rule_dialogs": [],
         "schema_rule": None,
+        "problems": [],
         "answer": False,
     }
 
@@ -132,19 +133,34 @@ def quiet(monkeypatch):
         calls["delete"].append(impact)
         return calls["answer"]
 
-    def edit_schema_rule(_parent, title, draft, anchors, rules, parameters_for, steps_for, render):
+    def edit_schema_rule(_parent, title, draft, anchors, rules, parameters_for, steps_for, render, problem=""):
+        calls["problems"].append(problem)
         calls["schema_rule_dialogs"].append((title, draft, anchors, rules, steps_for))
-        return calls["schema_rule"]
+        answer = calls["schema_rule"]
+        return (answer.pop(0) if answer else None) if isinstance(answer, list) else answer
 
-    def edit_rule(_parent, title, draft, rules, slots, parameters_for):
-        """Return whatever the test put in `rule`, or nothing (Cancel)."""
+    def edit_rule(_parent, title, draft, rules, slots, parameters_for, problem=""):
+        calls["problems"].append(problem)
         calls["rule_dialogs"].append((title, draft, rules, slots, parameters_for))
-        return calls["rule"]
+        answer = calls["rule"]
+        return (answer.pop(0) if answer else None) if isinstance(answer, list) else answer
 
-    def edit_slot(_parent, title, draft, **choices):
-        """Return whatever the test put in `slot`, or nothing (Cancel)."""
-        calls["slot_dialogs"].append((title, draft, choices))
-        return calls["slot"]
+    def _answer(key, title, draft, extra):
+        """What the stubbed dialog hands back.
+
+        A list is consumed one entry per opening, which is how a refusal and
+        the correction after it are told apart; anything else is returned every
+        time. `None` is Cancel.
+        """
+        calls[f"{key}_dialogs"].append((title, draft, extra))
+        answer = calls[key]
+        if isinstance(answer, list):
+            return answer.pop(0) if answer else None
+        return answer
+
+    def edit_slot(_parent, title, draft, problem="", **choices):
+        calls["problems"].append(problem)
+        return _answer("slot", title, draft, choices)
 
     monkeypatch.setattr(app_module, "messagebox", Boxes)
     monkeypatch.setattr(app_module, "filedialog", Files)

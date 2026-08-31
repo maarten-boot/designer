@@ -656,3 +656,46 @@ def test_a_column_of_short_names_is_not_forced_wide(model) -> None:
 def test_nothing_goes_below_the_absolute_floor(model) -> None:
     assert rows.preferred_width([8], 8) == rows.minimum_width(8)
     assert rows.preferred_width([], 8) == rows.minimum_width(8)
+
+
+# --- sorting a table in the form ---------------------------------------------
+
+
+def test_a_heading_click_cycles_through_three_states(model) -> None:
+    """Three, not two: stored order has to be reachable again, because in the
+    slots table it is the column order of the generated table."""
+    column, direction = rows.next_sort(0, -1, rows.STORED)
+    assert (column, direction) == (0, rows.ASCENDING)
+    column, direction = rows.next_sort(0, column, direction)
+    assert (column, direction) == (0, rows.DESCENDING)
+    column, direction = rows.next_sort(0, column, direction)
+    assert (column, direction) == (-1, rows.STORED)
+
+
+def test_a_different_heading_starts_at_ascending(model) -> None:
+    assert rows.next_sort(2, 0, rows.DESCENDING) == (2, rows.ASCENDING)
+
+
+def test_stored_order_is_returned_unchanged(model) -> None:
+    stored = ["c", "a", "b"]
+    assert rows.sorted_rows(stored, {"c": "z", "a": "y", "b": "x"}, rows.STORED) == stored
+
+
+def test_ascending_sorts_by_the_shown_value(model) -> None:
+    keys = {"1": "total", "2": "amount", "3": "Customer"}
+    assert rows.sorted_rows(["1", "2", "3"], keys, rows.ASCENDING) == ["2", "3", "1"]
+
+
+def test_descending_is_the_reverse(model) -> None:
+    keys = {"1": "total", "2": "amount", "3": "Customer"}
+    assert rows.sorted_rows(["1", "2", "3"], keys, rows.DESCENDING) == ["1", "3", "2"]
+
+
+def test_sorting_ignores_case(model) -> None:
+    """`Customer` belongs between `amount` and `total`, not before both."""
+    keys = {"1": "total", "2": "amount", "3": "Customer"}
+    assert rows.sorted_rows(["1", "2", "3"], keys, rows.ASCENDING)[1] == "3"
+
+
+def test_a_row_with_no_value_still_sorts(model) -> None:
+    assert rows.sorted_rows(["1", "2"], {"1": "a"}, rows.ASCENDING) == ["2", "1"]

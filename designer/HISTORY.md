@@ -617,3 +617,147 @@ FAILED test_widgets.py::test_a_column_asks_for_what_it_will_also_settle_for
 
 </details>
 
+## 82.
+
+> /usage
+
+## 83.
+
+> not its fine to leave it in the log.
+>
+> after the first test run defining items i found this::
+>
+> 1. When creating a item in a context I need to be able to push it up or down the context stack if required. (up: a property made in common.mboot1 that later belongs in common; down: a Type made in common that is only ever used in common.mboot2). apply this in the form window for all columns
+> 2. All text in the form window should be at least copy-able when readonly, sometimes you need to copy and paste fragments in order to send feedback and a screen shot is not always the best format for tools. example: 'an item is moved by changing its context, not from here' — as i want to ask you from where then, as i can see no locations where i can currently change the context of an item
+> 3. When adding a new Property item to the Entity slots you currently have to give it a name, often that will be exactly the name of the property. Pre-populate the name field with the property name but only when that property name does not yet exist in the slots table.
+> 4. When adding a reference to a Entity i can not select all visible Entities in my current context tree. apparently it looks like i can only select Entities that are below my Extends level.
+> 5. In the Entity form the identity is not editable, how do i assign a identity to a new asset via the gui ?
+> 6. After saving modifications on exit (the you have unsaved changes dialog) the screen goes gray and the app never exits. I have to force kill it.
+
+## 84.
+
+> make test shows a few errors:
+
+<details><summary>pasted output (excerpt)</summary>
+
+```
+FAILED test_the_form_names_the_context_the_item_lives_in - assert (None is not None)
+FAILED test_closing_completes_even_when_a_step_fails
+FAILED test_closing_after_saving_ends_the_program
+        - TclError: can't invoke "winfo" command: application has been destroyed
+  and on stderr: invalid command name "..._show" ("after" script)
+```
+
+</details>
+
+## 85.
+
+> when we try to add a new property or reference to a slot table and we get an error popup "a slot needs a name" can we then go back to the slot add window from where the error was generated, the user can always press Cancel there to abort.
+
+## 86.
+
+> note the test session produced issues on stdout or stderr:
+
+<details><summary>pasted output (excerpt)</summary>
+
+```
+running against a real model:
+  dialogs.py:533 in _accept -> self.destroy()
+    TypeError: unhashable type: 'StringVar'          (repeatedly)
+  app.py:1067 in show_findings -> FindingsWindow(...)
+    TclError: Item MOD409:Entity:e0000000.identity already exists
+  app.py:1146 in _on_close -> self.destroy()
+    TypeError: unhashable type: 'StringVar'
+```
+
+</details>
+
+## 87.
+
+> oopsies found::
+
+<details><summary>pasted output (excerpt)</summary>
+
+```
+FAILED test_a_refused_slot_says_why_and_changes_nothing   - no reason was given
+FAILED test_a_refused_rule_says_why                      - no reason was given
+FAILED test_a_refused_cross_entity_rule_says_why         - assert []
+FAILED test_a_refused_slot_reopens_with_the_reason       - the dialog did not come back
+        assert 1 == 2
+```
+
+</details>
+
+## 88.
+
+> 2 items: 
+>
+> 1. when changing any code , allways verify and crosscheck the tests, we have seen this now several times that tests are out of sync with code changes.
+
+## 89.
+
+> 2 items: 
+>
+> 1. when changing any code , allways verify and crosscheck the tests, we have seen this now several times that tests are out of sync with code changes.
+> 2. the spec version is still at v15 is that still correct or did we introduce changes that warrant a version update ?
+
+## 90.
+
+> when running the make check on my machine (ubuntu 24 xfce) i get [...] i have: mypy 1.9.0 (compiled: yes), Python 3.12.3 — is that due to different versions being used ? if not what could be the cause
+
+<details><summary>pasted output (excerpt)</summary>
+
+```
+mypy --config-file mypy.ini
+  model.py:248: error: "object" has no attribute "__iter__" ... (not iterable)
+  factory.py:57: error: PEP 695 generics are not yet supported  [valid-type]
+  factory.py:57: error: Name "ItemT" is not defined  [name-defined]
+Found 3 errors in 2 files (checked 42 source files)
+```
+
+</details>
+
+## 91.
+
+> 1. make the slots table sortable on each column if possible
+> 2. the 'check model and list findings' mentions indexes but i cannot edit indexes on the Entity
+> 3. errors in the Form window don't mention for what item they derive from: i have 'error: Override has nothing to override (MOD408)' and 'warning: Target has descendants (MOD404)' — it would be nice to see to what items these errors relate to (what is the origin field/item of the error).
+> 4. The results of the check model are displayed in the findings window can we make the table lines copy-able so i can do copy/paste.
+
+## 92.
+
+> that gives me a oopsie:
+
+<details><summary>pasted output (excerpt)</summary>
+
+```
+FAILED test_widgets.py::test_reordering_is_disabled_while_a_sort_is_applied
+        - AssertionError: nothing to disable
+          the test selected row 0, which on Order is `created_at` inherited
+          from Auditable, where Up and Down are disabled by design
+```
+
+</details>
+
+## 93.
+
+> i have a error message on one of the items that i do not understand:
+> error: slot total widens the inherited type rather than narrowing it — on total (MOD413)
+
+## 94.
+
+> ok thant explains , next issue i have
+>
+> Severity	Code	Item	What it says
+> error	MOD410	Entity Customer · default_order	default_order names slot a0000000, which is not one of this entity's slots
+>
+> but there is no slot default_order in the slot table
+
+## 95.
+
+> please expain the reason for 
+> Severity	Code	Item	What it says
+> warning	MOD404	Entity OrderLine · slots	slot order reaches only Order (e0000000)'s own rows, not its descendants'
+>
+> the slot OrderLine.order is a reference to Order itself why would we complain about unreachable decendents?
+

@@ -54,29 +54,39 @@ def spec_for(model, library, name, report=None):
 # --- the header -------------------------------------------------------------
 
 
-HEADER = ["name", "description", "context_path", "uuid", "created", "modified"]
+HEADER = ["name", "description", "context", "uuid", "created", "modified"]
 
 
 def test_every_kind_has_the_common_header(model, library) -> None:
-    for name in ["common", "Money", "amount", "order_reference", "Order", "sales_schema"]:
-        spec = spec_for(model, library, name)
-        assert spec.keys()[: len(HEADER)] == HEADER
+    """A Context names its place read-only, because its place is its parent;
+    everything else can be moved from here."""
+    for name in ["Money", "amount", "order_reference", "Order", "sales_schema"]:
+        assert spec_for(model, library, name).keys()[: len(HEADER)] == HEADER
+    assert spec_for(model, library, "common").keys()[:3] == [
+        "name",
+        "description",
+        "context_path",
+    ]
 
 
 def test_every_form_says_where_the_item_lives(model, library) -> None:
-    """Read-only: an item is moved by changing its context, not from here."""
-    spec = spec_for(model, library, "order_reference")
-    where = spec.by_key("context_path")
-    assert where.value == "common \u203a sales"
-    assert not where.editable
+    """And lets it be moved. The note used to say an item was moved by changing
+    its context — while offering nowhere to change it."""
+    where = spec_for(model, library, "order_reference").by_key("context")
+    assert where.editable
+    assert where.value == str(by_name(model.contexts, "sales").uuid)
+    assert {c.label for c in where.choices} >= {"common", "sales", "support"}
 
 
 def test_a_context_shows_its_own_path(model, library) -> None:
     assert spec_for(model, library, "sales").by_key("context_path").value == "common \u203a sales"
 
 
-def test_an_item_in_the_root_context_shows_just_that(model, library) -> None:
-    assert spec_for(model, library, "Money").by_key("context_path").value == "common"
+def test_an_item_may_be_moved_up_or_down_the_tree(model, library) -> None:
+    """Up, to be used more widely; down, when it turns out to be local."""
+    where = spec_for(model, library, "Money").by_key("context")
+    offered = {c.label for c in where.choices}
+    assert "common" in offered and "sales" in offered
 
 
 def test_identity_and_timestamps_are_not_editable(model, library) -> None:
@@ -832,3 +842,244 @@ def test_the_presentations_table_lists_the_bindings(model, library) -> None:
     field = spec_for(model, library, "Money").by_key("interfaces")
     assert field.kind == "table"
     assert field.rows[0].cells == ("money_uk", "#,##0.00", "yes")
+
+
+# --- moving an item between contexts -----------------------------------------
+
+
+def test_an_item_can_be_moved_up_the_tree(model, library) -> None:
+    """Written in a specific context, then wanted more widely."""
+    prop = by_name(model.properties, "quantity")
+    where = forms.describe(model, prop.uuid, library, prop.context).by_key("context")
+    assert where.editable
+    assert str(by_name(model.contexts, "common").uuid) in {c.id for c in where.choices}
+
+
+def test_a_context_cannot_be_moved_from_this_field(model, library) -> None:
+    """Its place is its parent, which is a field of its own."""
+    field = spec_for(model, library, "sales").by_key("context_path")
+    assert not field.editable
+
+
+def test_the_note_no_longer_points_nowhere(model, library) -> None:
+    """It said an item was moved by changing its context, and offered no way."""
+    note = spec_for(model, library, "Money").by_key("context").note
+    assert "not from here" not in note
+    assert "up or down" in note
+
+
+# --- identity ----------------------------------------------------------------
+
+
+def test_identity_is_editable(model, library) -> None:
+    """An entity with none cannot be referenced, so with no way to set one
+    nothing built in the interface could be pointed at."""
+    field = spec_for(model, library, "Customer").by_key("identity")
+    assert field.kind == "table"
+    assert [a.name for a in field.actions][:2] == ["add_identity", "remove_identity"]
+
+
+def test_identity_lists_the_slots_in_order(model, library) -> None:
+    field = spec_for(model, library, "Customer").by_key("identity")
+    assert [row.cells[0] for row in field.rows] == ["id"]
+
+
+def test_an_inherited_identity_says_where_it_came_from(model, library) -> None:
+    field = spec_for(model, library, "OrderLine").by_key("identity")
+    assert "inherited from LineItem" in field.note
+    assert field.emphasis == "attention"
+
+
+def test_an_inherited_identity_is_not_edited_in_place(model, library) -> None:
+    """It is declared once in a chain; changing it here means declaring it
+    here, which is a separate action."""
+    field = spec_for(model, library, "OrderLine").by_key("identity")
+    actions = {a.name: a.enabled for a in field.actions}
+    assert not actions["add_identity"]
+    assert actions["override_identity"]
+
+
+# --- reference targets --------------------------------------------------------
+
+
+def test_an_entity_with_no_identity_yet_can_still_be_referenced(model) -> None:
+    """Requiring one made every new entity unreferenceable — and since an
+    identity could not be set at all, that was everything you built."""
+    import datetime as dt
+    from uuid import uuid4
+
+    from designer_model.model import Entity
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    fresh = Entity(
+        uuid=uuid4(),
+        name="Invoice",
+        description="",
+        created=now,
+        modified=now,
+        context=by_name(model.contexts, "sales").uuid,
+    )
+    model.entities.append(fresh)
+    offered = {c.label for c in forms.slot_target_choices(model, by_name(model.entities, "Order"))}
+    assert "Invoice" in offered
+
+
+def test_an_abstract_entity_is_still_not_a_target(model) -> None:
+    """No table for a foreign key to point at, and filling something in will
+    not change that."""
+    offered = {c.label for c in forms.slot_target_choices(model, by_name(model.entities, "Order"))}
+    assert "Auditable" not in offered
+
+
+def test_extends_does_not_restrict_reference_targets(model) -> None:
+    """It never did — the identity requirement was doing it."""
+    order = by_name(model.entities, "Order")
+    offered = {c.label for c in forms.slot_target_choices(model, order)}
+    assert {"Customer", "Order", "OrderLine"} <= offered
+
+
+# --- findings say what they are about ----------------------------------------
+
+
+def test_a_finding_carries_its_own_message(model, library) -> None:
+    """The form showed only the code's title — "Target has descendants" — which
+    throws away which target and what descendants. The diagnostic carries all
+    of it; the form was not asking."""
+    from designer_model import check
+
+    weight = by_name(model.types, "Weight")
+    notes = forms.findings_by_field(check(model, library), weight.uuid, model)
+    assert any("Weight" in line for lines in notes.values() for line in lines)
+    assert not any(line.startswith("No parent yet") for lines in notes.values() for line in lines)
+
+
+def test_a_finding_keeps_its_code(model, library) -> None:
+    from designer_model import check
+
+    weight = by_name(model.types, "Weight")
+    notes = forms.findings_by_field(check(model, library), weight.uuid, model)
+    assert any("(MOD101)" in line for lines in notes.values() for line in lines)
+
+
+def test_a_finding_without_a_model_still_renders(model, library) -> None:
+    """`findings_by_field` is called before the model is known in some paths."""
+    from designer_model import check
+
+    weight = by_name(model.types, "Weight")
+    assert forms.findings_by_field(check(model, library), weight.uuid)
+
+
+# --- indexes -----------------------------------------------------------------
+
+
+def test_indexes_are_editable(model, library) -> None:
+    """They were stored, persisted and checked, with no control at all: the
+    model check could report an index over a slot that is not there while
+    offering no way to have made one, or to fix it."""
+    field = spec_for(model, library, "Order").by_key("indexes")
+    assert field.kind == "table"
+    assert [a.name for a in field.actions] == [
+        "add_index",
+        "toggle_index_unique",
+        "remove_index",
+    ]
+
+
+def test_an_index_lists_the_slots_it_covers(model, library) -> None:
+    from designer_model.model import Index
+
+    order = by_name(model.entities, "Order")
+    slot = next(s for s in order.slots if s.is_value)
+    order.indexes = (Index((slot.uuid,), unique=True),)
+    field = spec_for(model, library, "Order").by_key("indexes")
+    assert field.rows[0].cells == (slot.slot_name, "unique")
+
+
+def test_an_index_over_a_missing_slot_says_so(model, library) -> None:
+    from uuid import uuid4
+
+    from designer_model.model import Index
+
+    order = by_name(model.entities, "Order")
+    order.indexes = (Index((uuid4(),), unique=False),)
+    assert spec_for(model, library, "Order").by_key("indexes").rows[0].cells[0] == "(missing)"
+
+
+def test_a_message_that_names_its_slot_is_not_told_twice(model, library) -> None:
+    """ "…widens the inherited type — on total" reads as a stutter."""
+    from dataclasses import replace
+    from uuid import uuid4
+
+    from designer_model import check
+
+    line = by_name(model.entities, "LineItem")
+    order_line = by_name(model.entities, "OrderLine")
+    short_text = by_name(model.types, "ShortText")
+    inherited = next(s for s in line.slots if s.is_value)
+    order_line.slots.append(replace(inherited, uuid=uuid4(), type_override=short_text.uuid))
+
+    notes = forms.findings_by_field(check(model, library), order_line.uuid, model)
+    widening = next(m for lines in notes.values() for m in lines if "MOD413" in m)
+    assert f"on {inherited.slot_name}" not in widening
+    assert inherited.slot_name in widening, "it should still say which slot"
+
+
+# --- nothing stored is unreachable -------------------------------------------
+
+
+def test_every_stored_field_can_be_reached_from_a_form(model, library) -> None:
+    """Three fields in a row were stored, persisted and checked with no control
+    at all — identity, then indexes, then the default order. Each time the model
+    check could report a fault the interface offered no way to fix.
+
+    This is the check that stops the fourth.
+    """
+    import dataclasses
+
+    from designer_model import model as domain
+
+    skip = {"uuid", "created", "modified"}
+    unreachable = []
+    for kind, item in (
+        ("Context", by_name(model.contexts, "common")),
+        ("Validator", by_name(model.validators, "is_order_number")),
+        ("Type", by_name(model.types, "Money")),
+        ("Property", by_name(model.properties, "amount")),
+        ("Entity", by_name(model.entities, "Order")),
+        ("Schema", by_name(model.schemas, "sales_schema")),
+    ):
+        # a Context has no context of its own; it has a parent
+        where = getattr(item, "context", item.uuid)
+        keys = set(forms.describe(model, item.uuid, library, where).keys())
+        for field in dataclasses.fields(getattr(domain, kind)):
+            if field.name in skip or field.name in keys:
+                continue
+            # the context is shown as a path on a Context and as a picker on
+            # everything else
+            if field.name == "context" and "context_path" in keys:
+                continue
+            unreachable.append(f"{kind}.{field.name}")
+    assert unreachable == [], f"stored but not editable anywhere: {unreachable}"
+
+
+def test_the_default_order_is_editable(model, library) -> None:
+    field = spec_for(model, library, "Order").by_key("default_order")
+    assert field.kind == "table"
+    assert [a.name for a in field.actions] == [
+        "add_order_term",
+        "flip_order_term",
+        "remove_order_term",
+    ]
+
+
+def test_an_order_term_naming_a_removed_slot_is_marked(model, library) -> None:
+    """Which is how it becomes removable rather than only reportable."""
+    from uuid import uuid4
+
+    from designer_model.model import OrderTerm
+
+    customer = by_name(model.entities, "Customer")
+    customer.default_order = (OrderTerm(uuid4(), True),)
+    row = spec_for(model, library, "Customer").by_key("default_order").rows[0]
+    assert row.cells[0] == "(removed)"
+    assert "error" in row.tags

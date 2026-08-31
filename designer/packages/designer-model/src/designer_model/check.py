@@ -399,7 +399,17 @@ class Checker:
             new, old = self.d.slot_type(s), self.d.slot_type(inherited)
             if isinstance(new, TypeRef) and isinstance(old, TypeRef) and new != old:
                 if not self.d.narrows(new.type_uuid, old.type_uuid):
-                    yield Diagnostic("MOD413", here, args)
+                    # naming both types is the difference between a verdict and
+                    # something the reader can act on
+                    yield Diagnostic(
+                        "MOD413",
+                        here,
+                        {
+                            **args,
+                            "chosen": ItemRef(new.type_uuid),
+                            "inherited": ItemRef(old.type_uuid),
+                        },
+                    )
 
     def _check_identity(self, e: Entity, at: Subject) -> Iterator[Diagnostic]:
         effective = {s.uuid: s for s in self.d.effective_slots(e.uuid)}
@@ -605,9 +615,22 @@ class Checker:
             if not e.abstract and not self.d.schemas_containing(e.uuid):
                 yield Diagnostic("MOD604", at, {"item": ItemRef(e.uuid)})
             for s in e.slots:
-                if s.is_reference and s.target and self.d.concrete_descendants(s.target):
+                if s.is_reference and s.target and (below := self.d.concrete_descendants(s.target)):
+                    # naming them is the whole of the fix: the reader has to
+                    # find which entity extends the target, and the check
+                    # already knows
                     yield Diagnostic(
-                        "MOD404", at.then("slots", s.uuid), {"slot": s.slot_name, "target": ItemRef(s.target)}
+                        "MOD404",
+                        at.then("slots", s.uuid),
+                        {
+                            "slot": s.slot_name,
+                            "target": ItemRef(s.target),
+                            "descendants": ", ".join(
+                                sorted(
+                                    entity.name for uuid in below if (entity := self.d.entities.get(uuid)) is not None
+                                )
+                            ),
+                        },
                     )
         # Orphan reporting covers only the kinds where being unreferenced is a
         # signal. A Schema is a deliverable — nothing refers to it by design —

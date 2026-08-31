@@ -281,3 +281,60 @@ def test_describing_a_slot_names_its_type_or_target(session) -> None:
     customer = next(s for s in order.slots if s.slot_name == "customer")
     assert slots.describes(session.model, total) == "Money"
     assert slots.describes(session.model, customer) == "\u2192 Customer"
+
+
+# --- naming a slot after its property ----------------------------------------
+
+
+def test_a_blank_slot_name_takes_the_property_name(session) -> None:
+    """It is usually the same name, and typing it again is a chore."""
+    order = entity(session, "Order")
+    amount = by_name(session.model.properties, "amount")
+    draft = slots.SlotDraft(property=amount.uuid)
+    assert slots.named_after_its_property(session.model, order, draft).slot_name == "amount"
+
+
+def test_a_name_already_given_is_left_alone(session) -> None:
+    order = entity(session, "Order")
+    amount = by_name(session.model.properties, "amount")
+    draft = slots.SlotDraft(slot_name="discount", property=amount.uuid)
+    assert slots.named_after_its_property(session.model, order, draft).slot_name == "discount"
+
+
+def test_a_name_already_taken_is_not_reused(session) -> None:
+    """Two slots called `amount` cannot both exist, and guessing which was
+    meant is not the interface's business."""
+    order = entity(session, "Order")
+    amount = by_name(session.model.properties, "amount")
+    order.slots[0].slot_name = "amount"
+    draft = slots.SlotDraft(property=amount.uuid)
+    assert slots.named_after_its_property(session.model, order, draft).slot_name == ""
+
+
+def test_a_reference_slot_is_not_named_after_a_property(session) -> None:
+    order = entity(session, "Order")
+    customer = by_name(session.model.entities, "Customer")
+    draft = slots.SlotDraft(kind=slots.REFERENCE, target=customer.uuid)
+    assert slots.named_after_its_property(session.model, order, draft).slot_name == ""
+
+
+def test_a_target_without_an_identity_is_accepted(session) -> None:
+    """The model check reports the missing identity; refusing here made a new
+    entity unreferenceable."""
+    import datetime as dt
+    from uuid import uuid4
+
+    from designer_model.model import Entity
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    fresh = Entity(
+        uuid=uuid4(),
+        name="Invoice",
+        description="",
+        created=now,
+        modified=now,
+        context=entity(session, "Order").context,
+    )
+    session.model.entities.append(fresh)
+    draft = slots.SlotDraft(slot_name="invoice", kind=slots.REFERENCE, target=fresh.uuid)
+    slots.check(session.model, entity(session, "Order"), draft, None)

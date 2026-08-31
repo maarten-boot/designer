@@ -1,6 +1,12 @@
-# Designer — Specification (revision 15)
+# Designer — Specification (revision 16)
 
-Original: 27 August 2026. Revised: 29 August 2026.
+Original: 27 August 2026. Revised: 29 August 2026. Revision 16: 30 August 2026.
+
+Revision 16 is the first revision made *while building*, and every change in it
+came from using the tool rather than from reading the document. Seven columns
+rather than six; the breadcrumb reduced to text; the Schema selection no longer
+filtering; a reference target no longer required to have an identity. Each is
+marked `[CHANGED]` where it sits, with what it replaced.
 
 Markers:
 
@@ -556,7 +562,15 @@ and `one_of` (§5.6) covers the enumeration case that motivates most requests.
 | `inverse_name` | Optional name for the reverse accessor. |
 | `on_delete` | `restrict` / `cascade` / `set_null`. `set_null` requires `required = false`. |
 
-- The target must be concrete and have an identity.
+- The target must be concrete, and must have an identity **for the model to
+  export** `[CHANGED]`. Revision 15 required the identity before the reference
+  could be made at all, which the interface enforced by refusing to offer such a
+  target. In use that made every newly created Entity unreferenceable — and
+  since an identity could not be set from the interface either, it meant nothing
+  built there could be pointed at. The two codes that already covered it do the
+  work instead — `MOD403` where a slot points at a target with no identity, and
+  `MOD406` where a concrete Entity has none — so the reference may be made
+  first and completed after.
 - The target must be **visible** from this Entity's Context (§10).
 - **To-one only.** See §8.4.
 - Reference cycles are allowed, including self-reference.
@@ -867,6 +881,13 @@ The file carries two integers: **`schema_version`** for the format and
 **`library_version`** for the standard library it was authored against (§5.7).
 Both are independent of the package version (§14.1).
 
+`schema_version` is **2** where a document uses Interfaces and **1** where it
+does not `[CHANGED]`. A document declares the lowest version that can represent
+it, so a model that never used the feature keeps loading in an older build —
+and a version 1 document carries no version 2 keys, because the shape has to
+follow the declared version or the file is lying about itself (appendix
+*interfaces* §7.1).
+
 The same flat-per-item JSON shape serves the editor's JSON tab, the
 recursive-delete preview and the autosave file. The JSON tab therefore shows
 composite expressions in their **stored** UUID form, which is a fair trade — it
@@ -910,15 +931,18 @@ interface (`load`, `save`, `items_in_context`, `references_to`).
 - The editor pane has its own minimum height.
 - **Single-document, single-window.**
 
-### 13.2 Layout `[DECIDED]` — six columns
+### 13.2 Layout `[DECIDED]` — seven columns
 
 A vertical `ttk.PanedWindow` with two panes:
 
-- **Upper** — a horizontal `ttk.PanedWindow` with six children, left to right:
-  **Context, Validator, Type, Property, Entity, Schema** `[CHANGED]`. Validator
-  moved ahead of Type: a Type is built from Validators, and a Validator depends
-  on nothing but the base types, so the order is now strictly what things are
-  made of before what is made from them.
+- **Upper** — a horizontal `ttk.PanedWindow` with seven children `[CHANGED]`,
+  left to right: **Context, Validator, Interface, Type, Property, Entity,
+  Schema**. Two changes since revision 15. Validator moved ahead of Type,
+  because a Type is built from Validators and a Validator depends on nothing but
+  the base types. And **Interface** is new — how a value is written down for a
+  person and read back, specified in the appendix *interfaces*. It sits beside
+  Validator for the same reason: a Type binds both, and neither depends on
+  anything but a base type.
 - **Lower** — the editor.
 
 `ttk.Treeview` throughout: hierarchical for Context, Type and Entity, flat for
@@ -959,8 +983,11 @@ It exists because the Context selection filters every other column and determine
 where a new item is created; with the Context column collapsed it is the only
 indicator of both.
 
-- Each segment is clickable and switches the active Context to that ancestor.
-- The final segment carries a dropdown listing child Contexts and siblings.
+- Text, and nothing else `[CHANGED]`. Revision 15 gave each segment a click
+  target and the last one a dropdown of siblings and children. Both are gone:
+  saying where you are and being a way to move are different jobs, the Context
+  column already does the second, and a label that looks like a control is worse
+  than either.
 - Always visible, whether or not the Context column is.
 
 ### 13.5 Path editor
@@ -1017,8 +1044,12 @@ with a copy button. `[V2]` Editable once the form editor settles.
 ### 13.7 Column linkage `[DECIDED]` — hybrid
 
 - The Context selection **filters** all five other columns.
-- The Schema selection **filters** the Entity column to its members, and through
-  it the Property column.
+- The Schema selection **highlights** its members in the Entity column
+  `[CHANGED]`. It filtered them in revision 15, which was wrong in use: the
+  Entity column is where members are chosen from, so hiding the non-members hid
+  exactly the entities somebody adding one was looking for. The active Context
+  is now the only thing that filters, and it filters because an item outside it
+  is unreachable rather than merely unrelated.
 - Selecting an Entity **highlights** its Properties; a Property highlights its
   Type; a Type highlights its Validators.
 - Selecting an Entity also **highlights the Schemas it belongs to**, and the

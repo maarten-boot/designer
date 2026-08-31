@@ -230,3 +230,83 @@ def test_item_refs_are_not_names(model) -> None:
         for value in finding.args.values():
             if isinstance(value, ItemRef):
                 assert value.uuid is not None
+
+
+def test_a_widening_override_names_both_types(model) -> None:
+    """ "Widens the inherited type" is a verdict. Which type was inherited and
+    which was chosen is what lets somebody fix it."""
+    from dataclasses import replace
+    from uuid import uuid4
+
+    from designer_model.codes import definition
+    from designer_model.diagnostics import render
+
+    line = next(e for e in model.entities if e.name == "LineItem")
+    order_line = next(e for e in model.entities if e.name == "OrderLine")
+    short_text = next(t for t in model.types if t.name == "ShortText")
+    inherited = next(s for s in line.slots if s.is_value)
+    order_line.slots.append(replace(inherited, uuid=uuid4(), type_override=short_text.uuid))
+
+    from designer_model import check as run_check
+
+    finding = next(f for f in run_check(model).findings if f.code == "MOD413")
+    names = {i.uuid: getattr(i, "name", "") for i in model.index().values()}
+    message = render(definition("MOD413").template, finding.args, names)
+    assert "ShortText" in message, "the chosen type is not named"
+    assert "Uuid" in message, "the inherited type is not named"
+    assert "parent chain" in message, "it does not say what would make it legal"
+
+
+def test_narrowing_an_override_is_accepted(model) -> None:
+    """PositiveMoney has Money in its chain, so it restricts rather than widens."""
+    from dataclasses import replace
+    from uuid import uuid4
+
+    line = next(e for e in model.entities if e.name == "LineItem")
+    order_line = next(e for e in model.entities if e.name == "OrderLine")
+    money = next(t for t in model.types if t.name == "Money")
+    positive = next(t for t in model.types if t.name == "PositiveMoney")
+    inherited = next(s for s in line.slots if s.is_value)
+    inherited.type_override = money.uuid
+    order_line.slots.append(replace(inherited, uuid=uuid4(), type_override=positive.uuid))
+
+    from designer_model import check as run_check
+
+    assert not [f for f in run_check(model).findings if f.code == "MOD413"]
+
+
+def test_a_reference_to_an_extended_entity_names_what_extends_it(model) -> None:
+    """ "Not its descendants'" leaves the reader hunting for which entity that
+    is. The check already knows."""
+    from dataclasses import replace
+    from uuid import uuid4
+
+    from designer_model import check as run_check
+    from designer_model.codes import definition
+    from designer_model.diagnostics import render
+
+    order = next(e for e in model.entities if e.name == "Order")
+    model.entities.append(replace(order, uuid=uuid4(), name="StandingOrder", extends=order.uuid, slots=[]))
+    finding = next(f for f in run_check(model).findings if f.code == "MOD404")
+    names = {i.uuid: getattr(i, "name", "") for i in model.index().values()}
+    message = render(definition("MOD404").template, finding.args, names)
+    assert "StandingOrder" in message, "the extending entity is not named"
+    assert "flat table" in message, "it does not say why"
+
+
+def test_an_abstract_descendant_does_not_raise_it(model) -> None:
+    """An abstract entity is no table, so nothing is unreachable."""
+    from dataclasses import replace
+    from uuid import uuid4
+
+    from designer_model import check as run_check
+
+    order = next(e for e in model.entities if e.name == "Order")
+    model.entities.append(replace(order, uuid=uuid4(), name="OrderKind", extends=order.uuid, abstract=True, slots=[]))
+    assert not [f for f in run_check(model).findings if f.code == "MOD404"]
+
+
+def test_a_leaf_target_is_not_warned_about(model) -> None:
+    from designer_model import check as run_check
+
+    assert not [f for f in run_check(model).findings if f.code == "MOD404"]

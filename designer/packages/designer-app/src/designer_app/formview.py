@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import tkinter as tk
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from tkinter import ttk
 from uuid import UUID
 
 from .columns import TAG_STYLES
 from .forms import NONE_CHOICE, Action, Field, FormSpec
+from .rows import next_sort, sorted_rows
 
 # The form sits on its own near-white panel rather than the theme's grey. Notes
 # and findings are secondary text, and secondary text on a grey background is
@@ -36,6 +38,8 @@ NOTE_STYLE = "FormNote.TLabel"
 FINDING_STYLE = "FormFinding.TLabel"
 READONLY_STYLE = "FormReadonly.TLabel"
 ATTENTION_STYLE = "FormAttention.TLabel"
+READONLY_ENTRY = "FormReadonly.TEntry"
+ATTENTION_ENTRY = "FormAttention.TEntry"
 TITLE_STYLE = "FormTitle.TLabel"
 
 
@@ -55,6 +59,32 @@ def install_styles(widget: tk.Misc) -> None:
         foreground=ATTENTION_COLOUR,
         font=("TkDefaultFont", 9, "bold"),
     )
+    # entries rather than labels for read-only values, so the text can be
+    # selected and copied; flat and unbordered so they still read as values
+    for name, colour in ((READONLY_ENTRY, READONLY_COLOUR), (ATTENTION_ENTRY, ATTENTION_COLOUR)):
+        style.configure(
+            name,
+            foreground=colour,
+            fieldbackground=PANEL,
+            background=PANEL,
+            borderwidth=0,
+            relief="flat",
+        )
+        style.map(name, fieldbackground=[("readonly", PANEL)], foreground=[("readonly", colour)])
+
+
+@dataclass
+class _Table:
+    """What a rendered table needs to remember to be sortable."""
+
+    tree: ttk.Treeview
+    columns: tuple[str, ...] = ()
+    stored: list[str] = field(default_factory=list)
+    buttons: list = field(default_factory=list)
+    update_enabled: Callable[[], None] = lambda: None
+    column: int = -1
+    direction: int = 0
+    """0 stored order, 1 ascending, 2 descending."""
 
 
 class FormView(ttk.Frame):
@@ -69,6 +99,7 @@ class FormView(ttk.Frame):
         self._on_commit = on_commit
         self._on_action = on_action or (lambda *_: None)
         self.tables: dict[str, ttk.Treeview] = {}
+        self._table_state: dict[str, _Table] = {}
         self._spec: FormSpec | None = None
         self._widgets: dict[str, tk.Misc] = {}
         # Tk holds a variable by its Tcl name, not by a Python reference. A
@@ -136,28 +167,75 @@ class FormView(ttk.Frame):
         }[entry.kind]
         builder(entry, row)
         row += 1
+        # notes and findings are prose about the model, and prose is what gets
+        # quoted back in feedback — a label cannot be selected, so these are
+        # read-only text rather than labels
         for message in entry.findings:
-            ttk.Label(self, text=message, style=FINDING_STYLE).grid(row=row, column=1, sticky="w", padx=4)
+            self._prose(message, FINDING_COLOUR, row)
             row += 1
         if entry.note:
-            ttk.Label(self, text=entry.note, style=NOTE_STYLE, wraplength=520, justify="left").grid(
-                row=row, column=1, sticky="w", padx=4
-            )
+            self._prose(entry.note, NOTE_COLOUR, row)
             row += 1
         return row
 
     # --- field kinds --------------------------------------------------------
 
+    def _prose(self, message: str, colour: str, row: int) -> None:
+        """A line of explanation, selectable so it can be quoted."""
+        widget = tk.Text(
+            self,
+            height=max(1, (len(message) // 78) + 1),
+            wrap="word",
+            width=78,
+            background=PANEL,
+            foreground=colour,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        widget.insert("1.0", message)
+        widget.bind("<Key>", lambda event: None if event.state & 4 else "break")
+        widget.grid(row=row, column=1, sticky="w", padx=4)
+
     def _readonly(self, entry: Field, row: int) -> None:
-        style = ATTENTION_STYLE if entry.emphasis == "attention" else READONLY_STYLE
-        ttk.Label(self, text=str(entry.value), style=style).grid(row=row, column=1, sticky="w", padx=4, pady=2)
+        """A read-only value you can still select and copy.
+
+        A label cannot be selected, so a uuid, a picture or a resolved path
+        could only be retyped or screenshotted. An entry in readonly state
+        looks the same and behaves like text.
+        """
+        variable = tk.StringVar(value=str(entry.value))
+        self._variables[f"readonly:{entry.key}"] = variable
+        ttk.Entry(
+            self,
+            textvariable=variable,
+            state="readonly",
+            style=ATTENTION_ENTRY if entry.emphasis == "attention" else READONLY_ENTRY,
+            width=max(12, min(60, len(str(entry.value)) + 2)),
+        ).grid(row=row, column=1, sticky="w", padx=4, pady=2)
 
     def _summary(self, entry: Field, row: int) -> None:
-        lines = entry.value if isinstance(entry.value, list) else [str(entry.value)]
-        style = ATTENTION_STYLE if entry.emphasis == "attention" else LABEL_STYLE
-        ttk.Label(self, text="\n".join(lines), style=style, justify="left").grid(
-            row=row, column=1, sticky="w", padx=4, pady=2
+        """Several lines, selectable, not editable.
+
+        A Text in `disabled` state cannot be selected either, so it is left
+        editable and every key is refused instead — selection and copying still
+        work, typing does nothing.
+        """
+        lines = [str(line) for line in (entry.value if isinstance(entry.value, list) else [entry.value])]
+        widget = tk.Text(
+            self,
+            height=min(10, max(1, len(lines))),
+            wrap="none",
+            background=PANEL,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            foreground=ATTENTION_COLOUR if entry.emphasis == "attention" else "#000000",
+            width=max(20, min(70, max((len(line) for line in lines), default=20) + 2)),
         )
+        widget.insert("1.0", "\n".join(lines))
+        widget.bind("<Key>", lambda event: None if event.state & 4 else "break")
+        widget.grid(row=row, column=1, sticky="w", padx=4, pady=2)
 
     def _table(self, entry: Field, row: int) -> None:
         """A list with buttons.
@@ -177,7 +255,11 @@ class FormView(ttk.Frame):
             selectmode="browse",
         )
         for index, heading in enumerate(entry.columns):
-            tree.heading(f"c{index}", text=heading)
+            tree.heading(
+                f"c{index}",
+                text=heading,
+                command=lambda k=entry.key, c=index: self._sort_table(k, c),
+            )
             tree.column(f"c{index}", width=140, stretch=True)
         tags_of = {r.id: r.tags for r in entry.rows}
         for table_row in entry.rows:
@@ -203,8 +285,14 @@ class FormView(ttk.Frame):
             chosen = tree.selection()
             row = chosen[0] if chosen else None
             tags = tags_of.get(row, ()) if row else ()
+            existing = self._table_state.get(entry.key)
+            sorted_now = bool(existing.direction) if existing else False
             for button, action in widgets:
                 allowed = action.enabled and (row is not None or not action.needs_row)
+                if allowed and action.name.startswith("move_"):
+                    # the stored order is what these change, and it is not what
+                    # is on screen while a sort is applied
+                    allowed = not sorted_now
                 if allowed and action.requires == "own":
                     # an inherited slot is edited on the entity that declares it
                     allowed = "inherited" not in tags
@@ -214,7 +302,34 @@ class FormView(ttk.Frame):
                 button.state(["!disabled"] if allowed else ["disabled"])
 
         tree.bind("<<TreeviewSelect>>", update_enabled)
+        self._table_state[entry.key] = _Table(tree, entry.columns, [r.id for r in entry.rows], widgets, update_enabled)
         update_enabled()
+
+    def _sort_table(self, key: str, column: int) -> None:
+        """Sort a table for reading, without pretending the order changed.
+
+        Stored order is meaningful in the slots table — it is the column order
+        of the generated table, and Up and Down are how it is set. So a sort is
+        a *view*: while one is active, the buttons that reorder rows are
+        disabled, because a control that moves a row somewhere the eye cannot
+        follow is worse than no control. Clicking the same heading a third time
+        returns to stored order and gives them back.
+        """
+        state = self._table_state.get(key)
+        if state is None:
+            return
+        state.column, state.direction = next_sort(column, state.column, state.direction)
+        order = sorted_rows(
+            state.stored,
+            {row: str(state.tree.set(row, f"c{column}")) for row in state.stored},
+            state.direction,
+        )
+        for position, row in enumerate(order):
+            state.tree.move(row, "", position)
+        for index, heading in enumerate(state.columns):
+            arrow = "" if index != state.column else (" \u25b2", " \u25bc")[state.direction - 1]
+            state.tree.heading(f"c{index}", text=f"{heading}{arrow}")
+        state.update_enabled()
 
     def _text(self, entry: Field, row: int) -> None:
         variable = tk.StringVar(value=str(entry.value or ""))

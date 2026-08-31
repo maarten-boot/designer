@@ -106,6 +106,34 @@ def preferred_width(widths: list[int], em: int, columns: int = 7, screen: int = 
     return max(minimum_width(em), min(int(widest * 0.75), ceiling))
 
 
+STORED, ASCENDING, DESCENDING = 0, 1, 2
+
+
+def next_sort(clicked: int, column: int, direction: int) -> tuple[int, int]:
+    """Which column and direction a heading click produces.
+
+    Three states, not two: stored order has to be reachable again, because in
+    the slots table it is the column order of the generated table and the
+    reordering buttons act on it. Clicking a different heading starts that
+    column at ascending.
+
+    Tkinter-free so it can be tested on a machine with no display, which is
+    where the widget tests skip and where mistakes in this went unnoticed.
+    """
+    if clicked != column:
+        return clicked, ASCENDING
+    if direction == DESCENDING:
+        return -1, STORED
+    return clicked, direction + 1
+
+
+def sorted_rows(stored: list[str], keys: dict[str, str], direction: int) -> list[str]:
+    """Row ids in the order to display them, given the stored order."""
+    if direction == STORED:
+        return list(stored)
+    return sorted(stored, key=lambda row: keys.get(row, "").lower(), reverse=direction == DESCENDING)
+
+
 def minimum_width(em: int, floor_chars: int = FLOOR_CHARS) -> int:
     """The absolute floor, in the interface font rather than in pixels, so it
     follows font size and display scaling."""

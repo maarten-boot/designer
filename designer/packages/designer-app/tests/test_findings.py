@@ -162,3 +162,43 @@ def test_an_unknown_level_shows_everything(session, library) -> None:
     """A settings file from a newer build must not blank the list."""
     rows = rows_for(session, library)
     assert findings.at_least(rows, "nonsense") == rows
+
+
+def test_two_findings_on_look_alike_items_get_different_ids(session, library) -> None:
+    """`str(subject)` shortens a uuid to eight characters, and every entity in
+    a hand-numbered model begins `e0000000`. Building the row id from the
+    display string collapsed distinct findings into one, and the window then
+    refused to open at all."""
+    import datetime as dt
+    from uuid import uuid4
+
+    from designer_model.model import Entity
+
+    model = session.model
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    base = next(e for e in model.entities if e.name == "Auditable")
+    base.identity = (base.slots[0].uuid,)
+    for name in ("Alpha", "Beta"):
+        child = Entity(
+            uuid=uuid4(),
+            name=name,
+            description="",
+            created=now,
+            modified=now,
+            context=base.context,
+            extends=base.uuid,
+            identity=(base.slots[0].uuid,),
+        )
+        model.entities.append(child)
+
+    report = session.full_check()
+    rows = findings.summarise(model, report, library)
+    assert len({str(f.subject) for f in report.findings}) < len(report.findings), (
+        "the display strings should collide, or this is not testing anything"
+    )
+    assert len({row.id for row in rows}) == len(rows)
+
+
+def test_a_row_id_survives_the_same_code_twice_on_one_item(session, library) -> None:
+    rows = findings.summarise(session.model, session.full_check(), library)
+    assert len({row.id for row in rows}) == len(rows)

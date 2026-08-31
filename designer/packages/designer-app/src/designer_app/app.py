@@ -27,7 +27,14 @@ from designer_model.commands import (
     SetField,
 )
 from designer_model.expressions import tokens
-from designer_model.model import InterfaceBinding, Type, Validator
+from designer_model.model import (
+    Entity,
+    Index,
+    InterfaceBinding,
+    OrderTerm,
+    Type,
+    Validator,
+)
 from designer_model.stdlib import standard_library
 
 from . import bindings as bindingedit
@@ -433,6 +440,17 @@ class DesignerApp(tk.Tk):
             "add_rule": self._add_rule,
             "edit_rule": self._edit_rule,
             "remove_rule": self._remove_rule,
+            "add_order_term": self._add_order_term,
+            "flip_order_term": self._flip_order_term,
+            "remove_order_term": self._remove_order_term,
+            "add_index": self._add_index,
+            "toggle_index_unique": self._toggle_index_unique,
+            "remove_index": self._remove_index,
+            "add_identity": self._add_identity,
+            "remove_identity": self._remove_identity,
+            "move_identity_up": self._move_identity_up,
+            "move_identity_down": self._move_identity_down,
+            "override_identity": self._override_identity,
             "add_presentation": self._add_presentation,
             "default_presentation": self._default_presentation,
             "remove_presentation": self._remove_presentation,
@@ -563,17 +581,42 @@ class DesignerApp(tk.Tk):
             ),
         }
 
-    def _apply_slot(self, build) -> None:
-        """Run a slot change, showing the reason if it is refused.
-
-        The rules — an override must narrow, a required slot may not be set
-        null — are checked before anything happens, so the refusal names the
-        mistake rather than appearing later as a finding.
-        """
+    def _run(self, build, refused: type[Exception]) -> None:
+        """A change with no dialog behind it: nothing to reopen, so say why."""
         try:
             command = build()
-        except slotedit.SlotError as error:
-            messagebox.showwarning("That slot cannot be saved", str(error))
+        except refused as error:
+            messagebox.showwarning("That change cannot be saved", str(error))
+            return
+        self.session.execute(command)
+        self.refresh()
+
+    def _collect(self, ask, build, refused: type[Exception] | tuple[type[Exception], ...]):
+        """Ask, and keep asking until it is right or the user gives up.
+
+        A refusal used to close the dialog and throw away everything typed, so
+        a missing name cost you the whole slot. The dialog reopens carrying
+        what was entered and the reason it was refused, shown in the dialog
+        rather than in a box over it — the correction belongs where the mistake
+        is. Cancel still abandons it.
+        """
+        draft, problem = None, ""
+        for _attempt in range(20):  # a person will cancel long before this
+            draft = ask(draft, problem)
+            if draft is None:
+                return None
+            try:
+                return build(draft)
+            except refused as error:
+                problem = str(error)
+        # only reachable if the same refusal comes back twenty times; say so
+        # rather than dropping the work without a word
+        messagebox.showwarning("Still not accepted", problem)
+        return None
+
+    def _apply_slot(self, ask, build) -> None:
+        command = self._collect(ask, build, slotedit.SlotError)
+        if command is None:
             return
         self.session.execute(command)
         self.refresh()
@@ -582,11 +625,21 @@ class DesignerApp(tk.Tk):
         entity, _ = self._entity_and_slot(entity_uuid, None)
         if entity is None:
             return
-        draft = slotedit.SlotDraft(kind=kind)
-        collected = edit_slot(self, f"Add a {kind} slot", draft, **self._slot_choices(entity))
-        if collected is None:
-            return
-        self._apply_slot(lambda: slotedit.add(self.session.model, entity, collected))
+        choices = self._slot_choices(entity)
+
+        def ask(draft, problem):
+            collected = edit_slot(
+                self,
+                f"Add a {kind} slot",
+                draft or slotedit.SlotDraft(kind=kind),
+                problem=problem,
+                **choices,
+            )
+            if collected is None:
+                return None
+            return slotedit.named_after_its_property(self.session.model, entity, collected)
+
+        self._apply_slot(ask, lambda draft: slotedit.add(self.session.model, entity, draft))
 
     def _add_value_slot(self, entity_uuid: UUID, _row: str | None = None) -> None:
         self._new_slot(entity_uuid, slotedit.VALUE)
@@ -599,15 +652,17 @@ class DesignerApp(tk.Tk):
         if entity is None or slot is None:
             return
         inherited = Deriver(self.session.model).inherited_slot(entity_uuid, slot.slot_name)
-        collected = edit_slot(
-            self,
-            f"Edit {slot.slot_name}",
-            slotedit.SlotDraft.of(slot),
-            **self._slot_choices(entity, inherited),
+        choices = self._slot_choices(entity, inherited)
+        self._apply_slot(
+            lambda draft, problem: edit_slot(
+                self,
+                f"Edit {slot.slot_name}",
+                draft or slotedit.SlotDraft.of(slot),
+                problem=problem,
+                **choices,
+            ),
+            lambda draft: slotedit.edit(self.session.model, entity, slot, draft),
         )
-        if collected is None:
-            return
-        self._apply_slot(lambda: slotedit.edit(self.session.model, entity, slot, collected))
 
     def _override_slot(self, entity_uuid: UUID, row: str | None) -> None:
         """Narrow an inherited slot rather than copying it.
@@ -618,28 +673,29 @@ class DesignerApp(tk.Tk):
         entity, inherited = self._entity_and_slot(entity_uuid, row)
         if entity is None or inherited is None:
             return
-        draft = slotedit.SlotDraft.of(inherited)
-        collected = edit_slot(
-            self,
-            f"Override {inherited.slot_name}",
-            draft,
-            **self._slot_choices(entity, inherited),
+        choices = self._slot_choices(entity, inherited)
+        self._apply_slot(
+            lambda draft, problem: edit_slot(
+                self,
+                f"Override {inherited.slot_name}",
+                draft or slotedit.SlotDraft.of(inherited),
+                problem=problem,
+                **choices,
+            ),
+            lambda draft: slotedit.add(self.session.model, entity, draft, inherited=inherited),
         )
-        if collected is None:
-            return
-        self._apply_slot(lambda: slotedit.add(self.session.model, entity, collected, inherited=inherited))
 
     def _remove_slot(self, entity_uuid: UUID, row: str | None) -> None:
         entity, slot = self._entity_and_slot(entity_uuid, row)
         if entity is None or slot is None or slot not in entity.slots:
             return
-        self._apply_slot(lambda: slotedit.remove(entity, slot))
+        self._run(lambda: slotedit.remove(entity, slot), slotedit.SlotError)
 
     def _move_slot(self, entity_uuid: UUID, row: str | None, delta: int) -> None:
         entity, slot = self._entity_and_slot(entity_uuid, row)
         if entity is None or slot is None or slot not in entity.slots:
             return
-        self._apply_slot(lambda: slotedit.move(entity, slot, delta))
+        self._run(lambda: slotedit.move(entity, slot, delta), slotedit.SlotError)
 
     def _move_slot_up(self, entity_uuid: UUID, row: str | None) -> None:
         self._move_slot(entity_uuid, row, -1)
@@ -649,7 +705,7 @@ class DesignerApp(tk.Tk):
 
     # --- rules --------------------------------------------------------------
 
-    def _rule_dialog(self, owner, draft, title: str):
+    def _rule_dialog(self, owner, draft, title: str, problem: str = ""):
         """Offer only rules that fit, and ask only for what they need.
 
         A rule that cannot type-check against the value it would be given is
@@ -689,6 +745,7 @@ class DesignerApp(tk.Tk):
             applicable(draft),
             slots,
             lambda current: bindingedit.parameters_for(self.session.model, self.library, owner, current),
+            problem,
         )
 
     def _rule_owner(self, uuid: UUID):
@@ -699,11 +756,9 @@ class DesignerApp(tk.Tk):
             return None
         return next((b for b in owner.validators if str(b.uuid) == row), None)
 
-    def _apply_rule(self, build) -> None:
-        try:
-            command = build()
-        except bindingedit.BindingError as error:
-            messagebox.showwarning("That rule cannot be saved", str(error))
+    def _apply_rule(self, ask, build) -> None:
+        command = self._collect(ask, build, bindingedit.BindingError)
+        if command is None:
             return
         self.session.execute(command)
         self.refresh()
@@ -712,27 +767,226 @@ class DesignerApp(tk.Tk):
         owner = self._rule_owner(uuid)
         if owner is None:
             return
-        collected = self._rule_dialog(owner, bindingedit.BindingDraft(), "Add a rule")
-        if collected is None:
-            return
-        self._apply_rule(lambda: bindingedit.add(self.session.model, self.library, owner, collected))
+        self._apply_rule(
+            lambda draft, problem: self._rule_dialog(owner, draft or bindingedit.BindingDraft(), "Add a rule", problem),
+            lambda draft: bindingedit.add(self.session.model, self.library, owner, draft),
+        )
 
     def _edit_rule(self, uuid: UUID, row: str | None) -> None:
         owner = self._rule_owner(uuid)
         binding = self._binding(owner, row) if owner else None
         if owner is None or binding is None:
             return
-        collected = self._rule_dialog(owner, bindingedit.BindingDraft.of(binding), "Edit the rule")
-        if collected is None:
-            return
-        self._apply_rule(lambda: bindingedit.edit(self.session.model, self.library, owner, binding, collected))
+        self._apply_rule(
+            lambda draft, problem: self._rule_dialog(
+                owner, draft or bindingedit.BindingDraft.of(binding), "Edit the rule", problem
+            ),
+            lambda draft: bindingedit.edit(self.session.model, self.library, owner, binding, draft),
+        )
 
     def _remove_rule(self, uuid: UUID, row: str | None) -> None:
         owner = self._rule_owner(uuid)
         binding = self._binding(owner, row) if owner else None
         if owner is None or binding is None:
             return
-        self._apply_rule(lambda: bindingedit.remove(owner, binding))
+        self._run(lambda: bindingedit.remove(owner, binding), bindingedit.BindingError)
+
+    # --- default order ----------------------------------------------------------
+
+    def _set_order(self, entity: Entity, terms: tuple, label: str) -> None:
+        self.session.execute(SetField(entity.uuid, "default_order", terms, label=label))
+        self.refresh()
+
+    def _order_at(self, entity, row: str | None) -> int | None:
+        if row is None or not row.isdigit() or int(row) >= len(entity.default_order):
+            return None
+        return int(row)
+
+    def _add_order_term(self, uuid: UUID, _row: str | None = None) -> None:
+        entity = self.session.model.index().get(uuid)
+        if not isinstance(entity, Entity):
+            return
+        taken = {term.slot for term in entity.default_order}
+        candidates = [
+            slot
+            for slot in Deriver(self.session.model).effective_slots(uuid)
+            if slot.is_value and slot.uuid not in taken
+        ]
+        if not candidates:
+            messagebox.showinfo(
+                "Nothing to add",
+                "Every value slot is already in the order, or this entity has none yet.",
+            )
+            return
+        chosen = choose(
+            self,
+            "Order rows by",
+            "A value slot to sort by:",
+            sorted(((str(s.uuid), s.slot_name) for s in candidates), key=lambda p: p[1]),
+        )
+        if chosen:
+            self._set_order(
+                entity,
+                (*entity.default_order, OrderTerm(UUID(chosen), ascending=True)),
+                "add to the default order",
+            )
+
+    def _flip_order_term(self, uuid: UUID, row: str | None) -> None:
+        entity = self.session.model.index().get(uuid)
+        position = self._order_at(entity, row) if isinstance(entity, Entity) else None
+        if not isinstance(entity, Entity) or position is None:
+            return
+        terms = list(entity.default_order)
+        terms[position] = OrderTerm(terms[position].slot, not terms[position].ascending)
+        self._set_order(entity, tuple(terms), "reverse a sort direction")
+
+    def _remove_order_term(self, uuid: UUID, row: str | None) -> None:
+        """Which is how a term naming a removed slot gets cleared."""
+        entity = self.session.model.index().get(uuid)
+        position = self._order_at(entity, row) if isinstance(entity, Entity) else None
+        if not isinstance(entity, Entity) or position is None:
+            return
+        self._set_order(
+            entity,
+            tuple(t for n, t in enumerate(entity.default_order) if n != position),
+            "remove from the default order",
+        )
+
+    # --- indexes ---------------------------------------------------------------
+
+    def _set_indexes(self, entity: Entity, indexes: tuple, label: str) -> None:
+        self.session.execute(SetField(entity.uuid, "indexes", indexes, label=label))
+        self.refresh()
+
+    def _add_index(self, uuid: UUID, _row: str | None = None) -> None:
+        """One or more value slots, chosen in order.
+
+        Order matters to a database, so the picker is asked repeatedly rather
+        than offering a set: each answer adds a column to the index and the
+        next question is what follows it.
+        """
+        entity = self.session.model.index().get(uuid)
+        if not isinstance(entity, Entity):
+            return
+        chosen: list[UUID] = []
+        while True:
+            available = [
+                slot
+                for slot in Deriver(self.session.model).effective_slots(uuid)
+                if slot.is_value and slot.uuid not in chosen
+            ]
+            if not available:
+                break
+            title = "Add an index" if not chosen else "And then?"
+            picked = choose(
+                self,
+                title,
+                "A value slot to index by:" if not chosen else "Another column, or Cancel to stop:",
+                sorted(((str(s.uuid), s.slot_name) for s in available), key=lambda p: p[1]),
+            )
+            if picked is None:
+                break
+            chosen.append(UUID(picked))
+        if not chosen:
+            return
+        self._set_indexes(entity, (*entity.indexes, Index(tuple(chosen), unique=False)), "add an index")
+
+    def _index_at(self, entity, row: str | None):
+        if row is None or not row.isdigit() or int(row) >= len(entity.indexes):
+            return None
+        return int(row)
+
+    def _toggle_index_unique(self, uuid: UUID, row: str | None) -> None:
+        entity = self.session.model.index().get(uuid)
+        position = self._index_at(entity, row) if isinstance(entity, Entity) else None
+        if not isinstance(entity, Entity) or position is None:
+            return
+        indexes = list(entity.indexes)
+        current = indexes[position]
+        indexes[position] = Index(current.slots, unique=not current.unique)
+        self._set_indexes(entity, tuple(indexes), "change an index")
+
+    def _remove_index(self, uuid: UUID, row: str | None) -> None:
+        entity = self.session.model.index().get(uuid)
+        position = self._index_at(entity, row) if isinstance(entity, Entity) else None
+        if not isinstance(entity, Entity) or position is None:
+            return
+        self._set_indexes(
+            entity,
+            tuple(i for n, i in enumerate(entity.indexes) if n != position),
+            "remove an index",
+        )
+
+    # --- identity -------------------------------------------------------------
+
+    def _set_identity(self, entity, chosen: tuple[UUID, ...], label: str) -> None:
+        self.session.execute(SetField(entity.uuid, "identity", chosen, label=label))
+        self.refresh()
+
+    def _add_identity(self, uuid: UUID, _row: str | None = None) -> None:
+        """Choose a value slot to identify a row by.
+
+        Reference slots are not offered: a foreign key identifying the row it
+        points from is a different design, and one the export cannot express.
+        """
+        entity = self.session.model.index().get(uuid)
+        if not isinstance(entity, Entity):
+            return
+        taken = set(Deriver(self.session.model).effective_identity(uuid))
+        candidates = [
+            slot
+            for slot in Deriver(self.session.model).effective_slots(uuid)
+            if slot.is_value and slot.uuid not in taken
+        ]
+        if not candidates:
+            messagebox.showinfo(
+                "Nothing to add",
+                "Every value slot is already part of the identity, or this entity has none yet. Add a slot first.",
+            )
+            return
+        chosen = choose(
+            self,
+            "Add to the identity",
+            "A value slot that helps identify a row:",
+            sorted(((str(s.uuid), s.slot_name) for s in candidates), key=lambda p: p[1]),
+        )
+        if chosen:
+            self._set_identity(entity, (*entity.identity, UUID(chosen)), "add to the identity")
+
+    def _remove_identity(self, uuid: UUID, row: str | None) -> None:
+        entity = self.session.model.index().get(uuid)
+        if not isinstance(entity, Entity) or row is None:
+            return
+        self._set_identity(entity, tuple(u for u in entity.identity if str(u) != row), "remove from the identity")
+
+    def _move_identity(self, uuid: UUID, row: str | None, delta: int) -> None:
+        """Order matters: a composite key's columns are written in this order."""
+        entity = self.session.model.index().get(uuid)
+        if not isinstance(entity, Entity) or row is None:
+            return
+        order = list(entity.identity)
+        current = next((i for i, u in enumerate(order) if str(u) == row), None)
+        target = None if current is None else current + delta
+        if current is None or target is None or not 0 <= target < len(order):
+            return
+        order[current], order[target] = order[target], order[current]
+        self._set_identity(entity, tuple(order), "reorder the identity")
+
+    def _move_identity_up(self, uuid: UUID, row: str | None) -> None:
+        self._move_identity(uuid, row, -1)
+
+    def _move_identity_down(self, uuid: UUID, row: str | None) -> None:
+        self._move_identity(uuid, row, 1)
+
+    def _override_identity(self, uuid: UUID, _row: str | None = None) -> None:
+        """Take the inherited identity and declare it here, so it can be
+        changed without touching the entity it came from."""
+        entity = self.session.model.index().get(uuid)
+        if not isinstance(entity, Entity) or entity.identity:
+            return
+        inherited = Deriver(self.session.model).effective_identity(uuid)
+        if inherited:
+            self._set_identity(entity, tuple(inherited), "declare the identity here")
 
     # --- presentations --------------------------------------------------------
 
@@ -805,7 +1059,7 @@ class DesignerApp(tk.Tk):
 
     # --- cross-entity rules --------------------------------------------------
 
-    def _schema_rule_dialog(self, schema, draft, title: str):
+    def _schema_rule_dialog(self, schema, draft, title: str, problem: str = ""):
         """Anchors, rules, and a path picker for each argument."""
         model = self.session.model
         anchors = tuple(
@@ -825,26 +1079,31 @@ class DesignerApp(tk.Tk):
             lambda current: bindingedit.schema_parameters(model, self.library, current),
             lambda anchor, prefix: pathedit.next_steps(model, schema, anchor, prefix),
             lambda anchor, path: pathedit.render(model, anchor, path),
+            problem,
         )
 
     def _add_schema_rule(self, uuid: UUID, _row: str | None = None) -> None:
         schema = self.session.model.index().get(uuid)
         if schema is None:
             return
-        collected = self._schema_rule_dialog(schema, bindingedit.SchemaDraft(), "Add a cross-entity rule")
-        if collected is None:
-            return
-        self._apply_rule(lambda: bindingedit.schema_add(self.session.model, self.library, schema, collected))
+        self._apply_rule(
+            lambda draft, problem: self._schema_rule_dialog(
+                schema, draft or bindingedit.SchemaDraft(), "Add a cross-entity rule", problem
+            ),
+            lambda draft: bindingedit.schema_add(self.session.model, self.library, schema, draft),
+        )
 
     def _edit_schema_rule(self, uuid: UUID, row: str | None) -> None:
         schema = self.session.model.index().get(uuid)
         binding = self._binding(schema, row) if schema else None
         if schema is None or binding is None:
             return
-        collected = self._schema_rule_dialog(schema, bindingedit.SchemaDraft.of(binding), "Edit the rule")
-        if collected is None:
-            return
-        self._apply_rule(lambda: bindingedit.schema_edit(self.session.model, self.library, schema, binding, collected))
+        self._apply_rule(
+            lambda draft, problem: self._schema_rule_dialog(
+                schema, draft or bindingedit.SchemaDraft.of(binding), "Edit the rule", problem
+            ),
+            lambda draft: bindingedit.schema_edit(self.session.model, self.library, schema, binding, draft),
+        )
 
     def _delete_item(self, title: str) -> None:
         """Show what would happen, then do it if asked.
@@ -1050,13 +1309,44 @@ class DesignerApp(tk.Tk):
         return True
 
     def _on_close(self) -> None:
+        """Close, whatever else fails.
+
+        Every step here is a nicety — remembering the layout, clearing the
+        autosave — and none of them is worth a window that will not shut. An
+        exception anywhere in this handler used to be swallowed by Tk, leaving
+        the window on screen, unresponsive, and needing to be killed.
+        """
         if not self._confirm_discard():
             return
+        self._remember_layout()
+        # quit before destroy: destroy alone leaves mainloop running if a grab
+        # or a pending wait is outstanding, which is the difference between the
+        # process ending and the process appearing to hang
+        self.quit()
+        try:
+            self.destroy()
+        except tk.TclError:
+            pass
+
+    def _remember_layout(self) -> None:
+        for step in (
+            self._cancel_autosave,
+            self._collect_layout,
+            self.settings.save,
+            lambda: self.session.clear_autosave(config_dir()),
+        ):
+            try:
+                step()
+            except Exception as error:
+                print(f"could not complete {step}: {error}", file=sys.stderr)
+
+    def _cancel_autosave(self) -> None:
         if self._autosave_job is not None:
             # otherwise the pending callback fires into a destroyed interpreter
-            # and tk complains about an invalid command name
             self.after_cancel(self._autosave_job)
             self._autosave_job = None
+
+    def _collect_layout(self) -> None:
         collapsed, widths = self.collapse.state()
         self.settings.collapsed_columns = collapsed
         self.settings.column_widths = widths
@@ -1066,6 +1356,3 @@ class DesignerApp(tk.Tk):
             self.settings.sash_positions = [self._upper.sashpos(i) for i in range(len(self.columns) - 1)]
         except tk.TclError:
             pass
-        self.settings.save()
-        self.session.clear_autosave(config_dir())
-        self.destroy()

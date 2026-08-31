@@ -86,7 +86,7 @@ def summarise(model: Model, report: Report, library: Library | None = None) -> l
     known = _names(model, library)
     index = model.index()
     out: list[FindingRow] = []
-    for finding in report.findings:
+    for position, finding in enumerate(report.findings):
         code = definition(finding.code)
         item = index.get(finding.subject.item_uuid)
         field = finding.subject.path[0].field if finding.subject.path else ""
@@ -95,7 +95,13 @@ def summarise(model: Model, report: Report, library: Library | None = None) -> l
             where += f" · {field}"
         out.append(
             FindingRow(
-                id=f"{finding.code}:{finding.subject}",
+                # built from the full uuid, not from `str(subject)`, which
+                # shortens it to eight characters: every entity in a
+                # hand-numbered model begins `e0000000`, so two findings
+                # collapsed to one id and the window refused to open. The
+                # position guards the remaining case of one code raised twice
+                # against the same item.
+                id=f"{position}:{finding.code}:{finding.subject.item_uuid}",
                 severity=code.severity,
                 marker=MARKERS[code.severity],
                 code=finding.code,

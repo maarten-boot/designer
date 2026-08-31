@@ -88,10 +88,21 @@ class FindingsWindow(tk.Toplevel):
         ):
             self.tree.heading(name, text=heading)
             self.tree.column(name, width=width, stretch=(name == "message"))
+        self._headings = ("Severity", "Code", "Item", "What it says")
         bar = ttk.Scrollbar(holder, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=bar.set)
         bar.pack(side="right", fill="y")
         self.tree.pack(side="left", fill="both", expand=True)
+
+        # a treeview cannot be selected as text, and a finding is exactly the
+        # thing somebody wants to paste into a message
+        self.tree.bind("<Control-c>", lambda _e: self.copy(selected_only=True))
+        buttons = ttk.Frame(self, padding=(12, 0, 12, 8))
+        buttons.pack(fill="x")
+        ttk.Button(buttons, text="Copy all", command=self.copy).pack(side="right")
+        ttk.Button(buttons, text="Copy selected", command=lambda: self.copy(selected_only=True)).pack(
+            side="right", padx=(0, 6)
+        )
 
         self.tree.tag_configure("error", foreground="#a01b0b")
         self.tree.tag_configure("warning", foreground="#a35a00")
@@ -102,6 +113,23 @@ class FindingsWindow(tk.Toplevel):
         self.tree.bind("<Return>", self._open)
         self.bind("<Escape>", lambda _e: self.destroy())
         self.show(rows, "")
+
+    def as_text(self, selected_only: bool = False) -> str:
+        """The findings as tab-separated lines, headings included.
+
+        Tabs rather than spaces: it pastes into a message as readable columns
+        and into a spreadsheet as columns proper.
+        """
+        wanted = self.tree.selection() if selected_only else self.tree.get_children()
+        lines = ["\t".join(self._headings)]
+        lines += ["\t".join(str(v) for v in self.tree.item(row, "values")) for row in wanted]
+        return "\n".join(lines)
+
+    def copy(self, selected_only: bool = False) -> str:
+        text = self.as_text(selected_only)
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        return text
 
     def show(self, rows, headline: str) -> None:
         self._rows = {row.id: row for row in rows}
@@ -182,12 +210,15 @@ class SchemaRuleDialog(tk.Toplevel):
     entity it starts from.
     """
 
-    def __init__(self, parent: tk.Misc, title: str, draft, anchors, rules, parameters_for, steps_for, render) -> None:
+    def __init__(
+        self, parent: tk.Misc, title: str, draft, anchors, rules, parameters_for, steps_for, render, problem: str = ""
+    ) -> None:
         super().__init__(parent)
         self.title(title)
         self.transient(parent)
         self.result = None
         self._draft = draft
+        self._problem = problem
         self._parameters_for = parameters_for
         self._steps_for = steps_for
         self._render = render
@@ -228,6 +259,11 @@ class SchemaRuleDialog(tk.Toplevel):
             wraplength=420,
             justify="left",
         ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        self._error = tk.StringVar(value=self._problem)
+        ttk.Label(body, textvariable=self._error, foreground="#a01b0b", wraplength=420).grid(
+            row=5, column=0, columnspan=2, sticky="w", pady=(6, 0)
+        )
 
         buttons = ttk.Frame(self, padding=(12, 0, 12, 12))
         buttons.pack(fill="x")
@@ -291,8 +327,8 @@ class SchemaRuleDialog(tk.Toplevel):
         return self.result
 
 
-def edit_schema_rule(parent, title, draft, anchors, rules, parameters_for, steps_for, render):
-    return SchemaRuleDialog(parent, title, draft, anchors, rules, parameters_for, steps_for, render).ask()
+def edit_schema_rule(parent, title, draft, anchors, rules, parameters_for, steps_for, render, problem: str = ""):
+    return SchemaRuleDialog(parent, title, draft, anchors, rules, parameters_for, steps_for, render, problem).ask()
 
 
 class RuleDialog(tk.Toplevel):
@@ -304,7 +340,7 @@ class RuleDialog(tk.Toplevel):
     same rule on a date asks for two dates. Changing the rule rebuilds them.
     """
 
-    def __init__(self, parent: tk.Misc, title: str, draft, rules, slots, parameters_for) -> None:
+    def __init__(self, parent: tk.Misc, title: str, draft, rules, slots, parameters_for, problem: str = "") -> None:
         super().__init__(parent)
         self.title(title)
         self.transient(parent)
@@ -350,7 +386,7 @@ class RuleDialog(tk.Toplevel):
         ttk.Entry(body, textvariable=self._message).grid(row=row, column=1, sticky="ew", pady=2)
         row += 1
 
-        self._error = tk.StringVar()
+        self._error = tk.StringVar(value=problem)
         ttk.Label(body, textvariable=self._error, foreground="#a01b0b", wraplength=380).grid(
             row=row, column=0, columnspan=2, sticky="w", pady=(6, 0)
         )
@@ -405,8 +441,8 @@ def _text(value) -> str | None:
     return str(value) if value is not None else None
 
 
-def edit_rule(parent: tk.Misc, title: str, draft, rules, slots, parameters_for):
-    return RuleDialog(parent, title, draft, rules, slots, parameters_for).ask()
+def edit_rule(parent: tk.Misc, title: str, draft, rules, slots, parameters_for, problem: str = ""):
+    return RuleDialog(parent, title, draft, rules, slots, parameters_for, problem).ask()
 
 
 class SlotDialog(tk.Toplevel):
@@ -430,22 +466,26 @@ class SlotDialog(tk.Toplevel):
         target_choices=(),
         type_choices=(),
         editing_name: bool = True,
+        problem: str = "",
     ) -> None:
         super().__init__(parent)
         self.title(title)
         self.transient(parent)
         self.result = None
         self._draft = draft
-        self._error = tk.StringVar()
+        self._error = tk.StringVar(value=problem)
 
         body = ttk.Frame(self, padding=12)
         body.pack(fill="both", expand=True)
         body.columnconfigure(1, weight=1)
         row = 0
 
-        self._name = tk.StringVar(value=draft.slot_name)
+        # not `_name`: that is the widget's own name in tkinter, and assigning
+        # over it makes destroy() fail with "unhashable type: 'StringVar'" —
+        # every slot dialog raised on the way out
+        self._slot_name = tk.StringVar(value=draft.slot_name)
         ttk.Label(body, text="Name").grid(row=row, column=0, sticky="w", pady=2)
-        name_entry = ttk.Entry(body, textvariable=self._name, width=32)
+        name_entry = ttk.Entry(body, textvariable=self._slot_name, width=32)
         name_entry.grid(row=row, column=1, sticky="ew", pady=2)
         if not editing_name:
             name_entry.state(["readonly"])
@@ -517,7 +557,7 @@ class SlotDialog(tk.Toplevel):
         from dataclasses import replace
         from uuid import UUID
 
-        values = {"slot_name": self._name.get(), "required": self._required.get()}
+        values = {"slot_name": self._slot_name.get(), "required": self._required.get()}
         for key, (variable, by_label) in self._pickers.items():
             chosen = by_label.get(variable.get())
             values[key] = UUID(chosen) if chosen else None
@@ -538,8 +578,10 @@ class SlotDialog(tk.Toplevel):
         return self.result
 
 
-def edit_slot(parent: tk.Misc, title: str, draft, **choices):
-    return SlotDialog(parent, title, draft, **choices).ask()
+def edit_slot(parent: tk.Misc, title: str, draft, problem: str = "", **choices):
+    """`problem` reopens the dialog carrying the reason the last attempt was
+    refused, so a rejected slot is corrected rather than retyped."""
+    return SlotDialog(parent, title, draft, problem=problem, **choices).ask()
 
 
 class DeleteConfirmation(tk.Toplevel):

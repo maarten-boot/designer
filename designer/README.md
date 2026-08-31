@@ -13,7 +13,7 @@ answer in the specification.
 
 | Document | Covers |
 |---|---|
-| `docs/designer-spec-v15.md` | the model, the application, packaging |
+| `docs/designer-spec-v16.md` | the model, the application, packaging |
 | `docs/designer-signature-table.md` | expression types, operators, functions, `EXP` codes |
 | `docs/designer-validator-library.md` | the built-in Validators |
 | `docs/designer-diagnostics.md` | the diagnostic and consequence records |
@@ -94,15 +94,26 @@ Expect to find things.
 
 ## Working on it
 
-    make deps      # pytest, ruff, mypy
+    make deps      # pytest, ruff, mypy — floors, not pins
+    make versions  # what the checks are actually running
     make check     # lint, types, tests, and the worked example
     make run       # open examples/sales.json
     make help      # the rest
 
-`make check` is five nets and they catch different things. `lint` for style and
+The tool versions matter. `make check` passed here on mypy 2.3 while failing on
+a user's mypy 1.9 with three errors I could not see — so the source avoids
+syntax older tools cannot read (PEP 695 generics, notably) and annotates the
+places where inference differs between versions. `make versions` prints what is
+actually running.
+
+`make check` is six nets and they catch different things. `lint` for style and
 the constructs ruff knows are traps. `types` for attribute and call errors.
 `test` for behaviour. `model` loads `examples/sales.json`, verifies it survives a
-round trip, and runs the model check over it. `docs` checks the specification and
+round trip, and runs the model check over it. `sync` asks whether the tests still call the code the way it is written — type
+checking, so it needs no display. Changing a signature and updating only the
+tests written beside it is the mistake that has reached the user most often, and
+the widget tests skip on a machine without tkinter, so a green `make test` there
+proves nothing about them. `docs` checks the specification and
 its appendices against each other and against the code — section references,
 diagnostic codes, the validator catalogue, file paths and the counts asserted in
 prose. Its first run found seven errors, including a library that still said
@@ -368,6 +379,12 @@ check constraint whatever anyone claims, so a field to claim it would only be a
 way to be wrong.
 
 ## Tables in the form
+
+Every table sorts on a heading click, and the slots table needs care because its
+stored order is the column order of the generated table. So a sort is a **view**:
+while one is applied, Up and Down are disabled, because a control that moves a
+row somewhere the eye cannot follow is worse than no control. A third click on
+the same heading returns to stored order and gives them back.
 
 A table field carries its rows and its buttons as data, so which entities may
 join a schema, which button is enabled, and what an addition would pull in are

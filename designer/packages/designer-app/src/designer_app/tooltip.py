@@ -28,6 +28,10 @@ class Tooltip:
         widget.bind("<Leave>", self._cancel, add="+")
         # a press means the user has decided; the hint has served its purpose
         widget.bind("<ButtonPress>", self._cancel, add="+")
+        # and a widget that goes while a hint is pending takes the hint with
+        # it: otherwise the callback fires into a destroyed interpreter, which
+        # is what printed `invalid command name ..._show` on exit
+        widget.bind("<Destroy>", self._cancel, add="+")
 
     def _schedule(self, _event: object = None) -> None:
         self._cancel()
@@ -35,7 +39,10 @@ class Tooltip:
 
     def _cancel(self, _event: object = None) -> None:
         if self._pending is not None:
-            self.widget.after_cancel(self._pending)
+            try:
+                self.widget.after_cancel(self._pending)
+            except tk.TclError:
+                pass  # the widget is already going; there is nothing to cancel
             self._pending = None
         if self._window is not None:
             self._window.destroy()

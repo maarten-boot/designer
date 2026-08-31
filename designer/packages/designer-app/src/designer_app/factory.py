@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import replace
+from typing import TypeVar
 from uuid import UUID, uuid4
 
 from designer_model.model import (
@@ -54,11 +55,21 @@ def new_item(kind: str, context: UUID | None = None) -> Item:
     return _CLASSES[kind](**common, context=context)
 
 
-def duplicate[ItemT: Item](item: ItemT) -> ItemT:
+ItemT = TypeVar("ItemT", bound=Item)
+
+
+def duplicate(item: ItemT) -> ItemT:  # noqa: UP047
     """A copy, of the same kind as its original.
 
     The kind matters to callers: a copied Validator has a context, and `Item`
     alone does not.
+
+    Written with a `TypeVar` rather than PEP 695's `def duplicate[ItemT: Item]`,
+    which ruff suggests and the 3.12 floor allows. mypy could not parse that
+    syntax until 1.11, so the newer spelling made `make types` fail for anyone
+    on an older mypy — a check that passes here and fails there is worse than
+    no check. One line of older syntax is a cheaper price than a toolchain
+    floor for one function.
 
     The name is left blank rather than made "Copy of X" so it is named
     deliberately — and because a blank name is already a legal, visible,

@@ -62,7 +62,12 @@ def main() -> int:
                     f"{name}:{line} §{match.group(1)} names no section anywhere"
                 )
 
-    # a code the documents name but the registry lacks has to say so where a
+    # A cited code is checked for existence, not for meaning: `MOD408` is a
+    # real code, so citing it for "target has no identity" passed here and had
+    # to be caught by reading. Matching prose against a code's title is too
+    # fuzzy to automate; this catches the citations that name nothing at all.
+    #
+    # A code the documents name but the registry lacks has to say so where a
     # reader would look for it, which is the table rather than the prose
     table = [
         line

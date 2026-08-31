@@ -14,7 +14,7 @@ checking in a test.
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 
@@ -146,8 +146,9 @@ def check(
                 raise SlotError("that entity is not in the model")
             if target.abstract:
                 raise SlotError(f"{target.name} is abstract and has no table for a reference to point at")
-            if not deriver.effective_identity(draft.target):
-                raise SlotError(f"{target.name} has no identity to reference")
+            # no check for an identity on the target: it may not have one yet,
+            # and refusing here made every new entity unreferenceable. The
+            # model check reports it, which is where incompleteness belongs.
         if draft.on_delete == "set_null" and draft.required:
             raise SlotError("a required slot cannot be set null when its target goes")
 
@@ -249,6 +250,24 @@ def move(entity: Entity, slot: Slot, delta: int) -> Command:
             SetSlotField(entity.uuid, other.uuid, "position", slot.position),
         ],
     )
+
+
+def named_after_its_property(model: Model, entity: Entity, draft: SlotDraft) -> SlotDraft:
+    """Fill a blank slot name from the property it takes.
+
+    The name is usually the property's, so typing it again is a chore — but
+    only where that name is free. A second slot on the same property has to be
+    named deliberately, because two slots called `amount` cannot both exist and
+    guessing which one was meant is not the interface's business.
+    """
+    if draft.slot_name.strip() or draft.kind != VALUE or draft.property is None:
+        return draft
+    prop = next((p for p in model.properties if p.uuid == draft.property), None)
+    if prop is None or not prop.name:
+        return draft
+    if any(slot.slot_name == prop.name for slot in Deriver(model).effective_slots(entity.uuid)):
+        return draft
+    return replace(draft, slot_name=prop.name)
 
 
 def describes(model: Model, slot: Slot) -> str:

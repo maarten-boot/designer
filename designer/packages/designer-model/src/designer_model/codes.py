@@ -200,7 +200,10 @@ _ALL = [
         Severity.WARNING,
         Scope.MODEL,
         "Target has descendants",
-        "slot {slot} reaches only {target}'s own rows, not its descendants'",
+        "slot {slot} points at {target}, which {descendants} extends. Each concrete "
+        "entity becomes its own flat table with no shared base, so this foreign key "
+        "can only match rows of {target} itself \u2014 never a {descendants} row. "
+        "Keep concrete entities as leaves, or point the slot at the one you mean",
     ),
     _d(
         "MOD405",
@@ -246,7 +249,8 @@ _ALL = [
         Severity.ERROR,
         Scope.ITEM,
         "Unknown slot referenced",
-        "{field} names slot {slot}, which is not one of this entity's slots",
+        "{field} refers to a slot ({slot}) this entity does not have \u2014 "
+        "most often one that was removed after being referred to here",
         blocks_export=True,
     ),
     _d(
@@ -270,7 +274,9 @@ _ALL = [
         Severity.ERROR,
         Scope.ITEM,
         "Override widens the type",
-        "slot {slot} widens the inherited type rather than narrowing it",
+        "slot {slot} is {chosen}, which does not narrow the inherited "
+        "{inherited} \u2014 an override may only restrict the type it inherits, "
+        "so {chosen} would have to have {inherited} in its parent chain",
         blocks_export=True,
     ),
     _d(

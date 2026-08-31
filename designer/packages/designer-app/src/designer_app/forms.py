@@ -19,7 +19,7 @@ from uuid import NAMESPACE_DNS, UUID, uuid5
 
 from designer_model import Deriver, Model, Report, pictures
 from designer_model.codes import definition
-from designer_model.diagnostics import Severity
+from designer_model.diagnostics import Severity, render
 from designer_model.expressions import tokens
 from designer_model.expressions.types import BASE_TYPES
 from designer_model.membership import addable
@@ -156,24 +156,50 @@ class FormSpec:
 # --- findings ---------------------------------------------------------------
 
 
-def findings_by_field(report: Report | None, uuid: UUID) -> dict[str, list[str]]:
+def findings_by_field(report: Report | None, uuid: UUID, model: Model | None = None) -> dict[str, list[str]]:
     """Group an item's findings by the field they attach to.
 
     The first step of a diagnostic's path names the field, which is what lets
     the form put the message beside the control that caused it rather than only
     in a list at the bottom of the window.
+
+    The message is the diagnostic's own, rendered with its arguments. It used to
+    be only the code's title — "Target has descendants (MOD404)" — which throws
+    away everything that says *which* target and *what* descendants. The
+    diagnostic already carries all of it; the form was simply not asking.
     """
     grouped: dict[str, list[str]] = {}
     if report is None:
         return grouped
+    names = {item.uuid: label_of(item) for item in model.index().values()} if model else {}
     for finding in report.findings:
         if finding.subject.item_uuid != uuid:
             continue
-        where = finding.subject.path[0].field if finding.subject.path else ""
-        severity = definition(finding.code).severity
+        step = finding.subject.path[0] if finding.subject.path else None
+        where = step.field if step else ""
+        definition_ = definition(finding.code)
+        severity = definition_.severity
         prefix = "" if severity is Severity.INCOMPLETE else f"{severity}: "
-        grouped.setdefault(where, []).append(f"{prefix}{definition(finding.code).title} ({finding.code})")
+        message = render(definition_.template, finding.args, names)
+        # which row inside the field, when the diagnostic addresses one and has
+        # not already said so — several templates name the slot themselves, and
+        # "…widens the inherited type — on total" reads as a stutter
+        row = _row_name(model, step.key) if model and step is not None else ""
+        if row and row.removeprefix(" \u2014 on ") in message:
+            row = ""
+        grouped.setdefault(where, []).append(f"{prefix}{message}{row} ({finding.code})")
     return grouped
+
+
+def _row_name(model: Model, key: object) -> str:
+    """Name the slot or binding a finding is about, when it names one by id."""
+    if not isinstance(key, UUID):
+        return ""
+    for entity in model.entities:
+        for slot in entity.slots:
+            if slot.uuid == key:
+                return f" \u2014 on {slot.slot_name}"
+    return ""
 
 
 # --- choices ----------------------------------------------------------------
@@ -280,11 +306,20 @@ def _header(model: Model, item, notes: dict[str, list[str]]) -> list[Field]:
         ),
         Field("description", "Description", "multiline", item.description),
         Field(
-            "context_path",
+            "context_path" if isinstance(item, Context) else "context",
             "In context",
-            "readonly",
-            context_label(model, where),
-            note="an item is moved by changing its context, not from here",
+            "readonly" if isinstance(item, Context) else "choice",
+            context_label(model, where) if isinstance(item, Context) else (str(item.context) if item.context else None),
+            () if isinstance(item, Context) else context_choices(model, exclude=None),
+            PLAIN if isinstance(item, Context) else ITEM_REF,
+            note=(
+                "a context's own place is set by its parent, below"
+                if isinstance(item, Context)
+                else "move the item up or down the tree here. Moving it down may "
+                "put it out of sight of something that uses it, which the model "
+                "check will report"
+            ),
+            findings=tuple(notes.get("context", ())),
         ),
         Field("uuid", "Identity", "readonly", str(item.uuid)),
         Field("created", "Created", "readonly", item.created.isoformat()),
@@ -345,7 +380,7 @@ def describe(
         if built_in is not None:
             return _builtin_form(model, built_in, library)
         return None
-    notes = findings_by_field(report, uuid)
+    notes = findings_by_field(report, uuid, model)
     spec = FormSpec(uuid, type(item).__name__, label_of(item), _header(model, item, notes))
     builder = {
         "Context": _context_form,
@@ -437,11 +472,16 @@ def slot_property_choices(model: Model, entity: Entity) -> tuple[Choice, ...]:
 
 
 def slot_target_choices(model: Model, entity: Entity) -> tuple[Choice, ...]:
-    """Concrete entities with an identity.
+    """Every concrete entity visible from here.
 
-    An abstract entity has no table to point a foreign key at, and one without
-    an identity has no column to point at — so neither is offered rather than
-    offered and then refused.
+    Abstract ones are left out: there is no table for a foreign key to point
+    at, and that will not change by filling something in.
+
+    An entity with **no identity yet** *is* offered, which it was not before.
+    Requiring one made every newly created entity unreferenceable — and since
+    an identity could not be set from the interface at all, that meant nothing
+    you built could be referenced. Incomplete is the normal state of a new
+    item; the model check reports the missing identity, which is its job.
     """
     deriver = Deriver(model)
     return (
@@ -452,7 +492,7 @@ def slot_target_choices(model: Model, entity: Entity) -> tuple[Choice, ...]:
                 _visible(deriver, model.entities, entity.context),
                 key=lambda e: label_of(e).lower(),
             )
-            if not e.abstract and deriver.effective_identity(e.uuid)
+            if not e.abstract
         ),
     )
 
@@ -719,6 +759,133 @@ def _type_form(model, item: Type, library, context, notes) -> list[Field]:
     ]
 
 
+def _identity_field(model: Model, item: Entity, effective, notes) -> Field:
+    """Which slots identify a row.
+
+    Editable, which it was not: an entity with no identity cannot be
+    referenced, so with no way to set one from here nothing you built could be
+    pointed at. Declared once in a chain and inherited below, so a child shows
+    its parent's and says where it came from.
+    """
+    deriver = Deriver(model)
+    chosen = deriver.effective_identity(item.uuid)
+    inherited = bool(chosen) and not item.identity
+    origin = ""
+    if inherited:
+        for ancestor in deriver.ancestors_of(item.uuid):
+            found = deriver.entities.get(ancestor)
+            if found is not None and found.identity:
+                origin = label_of(found)
+                break
+    by_uuid = {slot.uuid: slot for slot in effective}
+    return Field(
+        "identity",
+        "Identity",
+        "table",
+        None,
+        columns=("Slot", "Type"),
+        rows=tuple(
+            TableRow(
+                str(uuid),
+                (
+                    by_uuid[uuid].slot_name if uuid in by_uuid else "(missing)",
+                    slot_describes(model, by_uuid[uuid]) if uuid in by_uuid else "",
+                ),
+                tags=("inherited",) if inherited else (),
+                removable=not inherited,
+            )
+            for uuid in chosen
+        ),
+        actions=(
+            Action("add_identity", "Add\u2026", enabled=not inherited),
+            Action("remove_identity", "Remove", needs_row=True, enabled=not inherited),
+            Action("move_identity_up", "Up", needs_row=True, enabled=not inherited),
+            Action("move_identity_down", "Down", needs_row=True, enabled=not inherited),
+            Action("override_identity", "Declare here", enabled=inherited),
+        ),
+        note=(
+            f"inherited from {origin}; declare one here to override it"
+            if inherited
+            else "the slots that identify a row, in order. An entity with none cannot be referenced"
+        ),
+        emphasis="attention" if inherited else "",
+        findings=tuple(notes.get("identity", ())),
+    )
+
+
+def _indexes_field(model: Model, item: Entity, effective, notes) -> Field:
+    """Indexes over this entity's slots.
+
+    They were stored, persisted and checked, and had no control at all — the
+    model check could report an index over a slot that is not there while the
+    interface offered no way to have made one, or to fix it.
+
+    Not inherited: an index is a decision about one table, and a narrowing
+    entity is a different table.
+    """
+    by_uuid = {slot.uuid: slot for slot in effective}
+    rows = []
+    for position, index in enumerate(item.indexes):
+        named = [by_uuid[uuid].slot_name if uuid in by_uuid else "(missing)" for uuid in index.slots]
+        rows.append(
+            TableRow(
+                str(position),
+                (", ".join(named) or "(empty)", "unique" if index.unique else ""),
+            )
+        )
+    return Field(
+        "indexes",
+        "Indexes",
+        "table",
+        None,
+        columns=("Over", "Kind"),
+        rows=tuple(rows),
+        actions=(
+            Action("add_index", "Add\u2026"),
+            Action("toggle_index_unique", "Unique", needs_row=True),
+            Action("remove_index", "Remove", needs_row=True),
+        ),
+        note="an index over one or more of this entity's value slots",
+        findings=tuple(notes.get("indexes", ())),
+    )
+
+
+def _default_order_field(model: Model, item: Entity, effective, notes) -> Field:
+    """The order rows come back in when nothing else is asked for.
+
+    Stored and checked and, until now, with no control — so `MOD410` could
+    report an order over a slot that is no longer there while offering no way
+    to remove it. The same gap indexes had.
+    """
+    by_uuid = {slot.uuid: slot for slot in effective}
+    rows = tuple(
+        TableRow(
+            str(position),
+            (
+                by_uuid[term.slot].slot_name if term.slot in by_uuid else "(removed)",
+                "ascending" if term.ascending else "descending",
+            ),
+            tags=() if term.slot in by_uuid else ("error",),
+        )
+        for position, term in enumerate(item.default_order)
+    )
+    return Field(
+        "default_order",
+        "Default order",
+        "table",
+        None,
+        columns=("Slot", "Direction"),
+        rows=rows,
+        actions=(
+            Action("add_order_term", "Add\u2026"),
+            Action("flip_order_term", "Reverse", needs_row=True),
+            Action("remove_order_term", "Remove", needs_row=True),
+        ),
+        note="how rows come back when nothing else is asked for; first term first",
+        findings=tuple(notes.get("default_order", ())),
+    )
+
+
 def _presents_with(model: Model, item: Type) -> Field:
     """What this Type actually presents with, and where that came from.
 
@@ -980,12 +1147,9 @@ def _entity_form(model, item: Entity, library, context, notes) -> list[Field]:
             note="inherited slots are shown but edited on the entity that declares them",
             findings=tuple(notes.get("slots", ())),
         ),
-        Field(
-            "identity",
-            "Identity",
-            "summary",
-            [_slot_name(effective, u) for u in deriver.effective_identity(item.uuid)] or ["none"],
-        ),
+        _identity_field(model, item, effective, notes),
+        _indexes_field(model, item, effective, notes),
+        _default_order_field(model, item, effective, notes),
         rules_field(model, library, item, notes, applies_to=True),
         Field(
             "schemas",

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass, field
+from typing import Any
 from uuid import UUID
 
 from .literals import Literal
@@ -236,7 +237,10 @@ class Model:
         """Every item by UUID. Rebuilt on demand rather than cached, since a
         stale index is a worse failure than a repeated walk."""
         out: dict[UUID, Item] = {}
-        for group in (
+        # annotated because the element types differ: mypy 1.9 joins them to
+        # `object` and then objects that it cannot be iterated, while newer
+        # versions infer a union. Saying it outright works on both.
+        groups: tuple[list[Any], ...] = (
             self.contexts,
             self.validators,
             self.interfaces,
@@ -244,7 +248,8 @@ class Model:
             self.properties,
             self.entities,
             self.schemas,
-        ):
+        )
+        for group in groups:
             for item in group:
                 out[item.uuid] = item
         return out

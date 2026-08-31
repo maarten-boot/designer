@@ -129,6 +129,110 @@ def test_a_scrollbar_is_always_packed_before_what_it_scrolls() -> None:
     assert wrong == [], f"scrollbar packed after its widget at {wrong}"
 
 
+def test_widget_tests_only_reach_for_attributes_that_exist() -> None:
+    """A renamed handler leaves the tests calling the old name.
+
+    `make sync` cannot catch this: it turns `attr-defined` off, because
+    `model.index()` returns `Item` and mypy then objects to every legitimate
+    `.slots` and `.identity` in the tests. This looks at one specific thing
+    instead — what the tests reach for on the application and its editor —
+    which is where a rename actually shows.
+
+    It has been run by hand after every rename this session; a check that
+    depends on remembering is not a check.
+    """
+    import ast
+    import pathlib
+    import re
+
+    source = pathlib.Path(__file__).resolve().parents[1] / "src" / "designer_app"
+
+    def members(path: pathlib.Path, classname: str) -> set[str]:
+        found: set[str] = set()
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ClassDef) and node.name == classname:
+                found |= {n.name for n in node.body if isinstance(n, ast.FunctionDef)}
+                for inner in ast.walk(node):
+                    # assignments only. Counting every `self.x` read meant a
+                    # stale reference in the source kept the old name looking
+                    # defined, and the check passed a rename it should catch.
+                    targets = (
+                        inner.targets
+                        if isinstance(inner, ast.Assign)
+                        else [inner.target]
+                        if isinstance(inner, ast.AnnAssign)
+                        else []
+                    )
+                    for target in targets:
+                        if (
+                            isinstance(target, ast.Attribute)
+                            and isinstance(target.value, ast.Name)
+                            and target.value.id == "self"
+                        ):
+                            found.add(target.attr)
+        return found
+
+    app = members(source / "app.py", "DesignerApp")
+    editor = members(source / "formview.py", "FormView")
+    text = pathlib.Path(__file__).with_name("test_widgets.py").read_text()
+
+    inherited = {
+        "update",
+        "update_idletasks",
+        "winfo_exists",
+        "winfo_screenwidth",
+        "destroy",
+        "minsize",
+        "title",
+        "cget",
+        "after_cancel",
+        "geometry",
+        "event_generate",
+        "quit",
+    }
+
+    # tk's whole winfo_ vocabulary, and the module dunder the tests use to
+    # locate files, are not the application's to define
+    def unknown(found: set[str], defined: set[str]) -> list[str]:
+        return sorted(
+            name for name in found - defined - inherited if not name.startswith("winfo_") and name != "__file__"
+        )
+
+    missing = unknown(set(re.findall(r"\bapp\.(_[a-z_]+)", text)), app)
+    missing += unknown(set(re.findall(r"app\.editor\.(_?[a-z_]+)", text)), editor)
+    assert missing == [], f"the tests call these, and nothing defines them: {missing}"
+
+
+def test_no_widget_shadows_a_name_tkinter_owns() -> None:
+    """`self._name = tk.StringVar(...)` in a dialog overwrote the widget's own
+    name, and `destroy()` then failed with "unhashable type: 'StringVar'" every
+    time that dialog closed.
+
+    tkinter keeps its bookkeeping in ordinary attributes on the widget, so a
+    subclass assigning to one of them breaks the widget rather than being
+    caught anywhere.
+    """
+    import ast
+    import pathlib
+
+    reserved = {"_name", "_w", "children", "master", "tk", "widgetName", "_last_child_ids"}
+    offenders = []
+    root = pathlib.Path(__file__).resolve().parents[1] / "src" / "designer_app"
+    for path in sorted(root.glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(node, ast.Assign):
+                continue
+            for target in node.targets:
+                if (
+                    isinstance(target, ast.Attribute)
+                    and isinstance(target.value, ast.Name)
+                    and target.value.id == "self"
+                    and target.attr in reserved
+                ):
+                    offenders.append(f"{path.name}:{node.lineno} self.{target.attr}")
+    assert offenders == [], f"these shadow tkinter's own attributes: {offenders}"
+
+
 def test_widget_tests_never_assert_on_a_stretched_column_width() -> None:
     """`column(..., "width")` reports what tk stretched the column to after
     layout, not what was asked for. Two tests have now been written against it
