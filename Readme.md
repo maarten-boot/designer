@@ -36,8 +36,8 @@ Now with the help of Claude
 and the general notion that:
 `anything you can describe properly with words`,
 can be modeled into code,
-I build the basic data-dicionary designer.
+I build the basic data-dicionary designer in 2 days.
 
 ## How
 
-The conversiation with claude can be found in the conversation [History](./designer/HISTORY.md) i had with Claude.
+For educationsl purposes my beginners conversiation with claude can be found in the conversation [History](./designer/HISTORY.md) i had with Claude.
