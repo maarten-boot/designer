@@ -30,7 +30,7 @@ As it turned out that was Uniface now at [Rocket®Software](https://www.rocketso
 where most of the ideas i had developed during the work at Würth,
 was already encoded as a 4GL application builder.
 
-However the ideas stayed percolated in to ideas of Contexts, Nodes, Attributes, Validators.
+However the ideas stayed and percolated in to ideas of Contexts, Nodes, Attributes, Validators.
 
 Now with the help of Claude
 and the general notion that:
