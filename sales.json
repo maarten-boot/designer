@@ -41,6 +41,14 @@
       "parent": null,
       "created": "2026-08-31T13:08:42Z",
       "modified": "2026-08-31T13:08:42Z"
+    },
+    {
+      "uuid": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "name": "hyper_history",
+      "description": "",
+      "parent": "8af665a3-1c3d-4ca7-ae97-028c41de3911",
+      "created": "2026-09-03T13:21:28Z",
+      "modified": "2026-09-03T13:21:28Z"
     }
   ],
   "validators": [
@@ -286,6 +294,42 @@
       ],
       "created": "2026-08-31T13:18:07Z",
       "modified": "2026-08-31T13:18:07Z"
+    },
+    {
+      "uuid": "425d3cb1-e163-4e57-9675-30949cf5386c",
+      "name": "text_medium",
+      "description": "",
+      "context": "8af665a3-1c3d-4ca7-ae97-028c41de3911",
+      "parent": {
+        "base_type": "string"
+      },
+      "validators": [],
+      "created": "2026-09-03T14:12:44Z",
+      "modified": "2026-09-03T14:12:44Z"
+    },
+    {
+      "uuid": "f180bfa8-e3a1-45f3-828c-84fa2e0feb0e",
+      "name": "text_long",
+      "description": "",
+      "context": "8af665a3-1c3d-4ca7-ae97-028c41de3911",
+      "parent": {
+        "base_type": "string"
+      },
+      "validators": [],
+      "created": "2026-09-03T14:13:09Z",
+      "modified": "2026-09-03T14:13:09Z"
+    },
+    {
+      "uuid": "b75107b7-99c0-415f-b6f5-d9afc3d3272d",
+      "name": "text",
+      "description": "",
+      "context": "8af665a3-1c3d-4ca7-ae97-028c41de3911",
+      "parent": {
+        "base_type": "string"
+      },
+      "validators": [],
+      "created": "2026-09-03T14:17:34Z",
+      "modified": "2026-09-03T14:17:34Z"
     }
   ],
   "properties": [
@@ -409,6 +453,61 @@
       },
       "created": "2026-08-31T09:56:26Z",
       "modified": "2026-08-31T09:56:26Z"
+    },
+    {
+      "uuid": "64eeab7b-8027-4bbc-8e4b-29b38483bc41",
+      "name": "time_span",
+      "description": "The time range of this item",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "type": {
+        "base_type": "string"
+      },
+      "created": "2026-09-03T13:23:24Z",
+      "modified": "2026-09-03T13:23:24Z"
+    },
+    {
+      "uuid": "89bdcae6-3469-45f8-b0dd-a462bf5831b1",
+      "name": "span_start",
+      "description": "",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "type": {
+        "base_type": "string"
+      },
+      "created": "2026-09-03T13:27:03Z",
+      "modified": "2026-09-03T13:27:03Z"
+    },
+    {
+      "uuid": "c599c1d8-ee8c-4d1a-a297-007c9d4bfb19",
+      "name": "span_end",
+      "description": "",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "type": {
+        "base_type": "string"
+      },
+      "created": "2026-09-03T13:27:17Z",
+      "modified": "2026-09-03T13:27:17Z"
+    },
+    {
+      "uuid": "b89a9b01-d7d4-4e8b-a0b2-132fecde13f7",
+      "name": "description",
+      "description": "",
+      "context": "8af665a3-1c3d-4ca7-ae97-028c41de3911",
+      "type": {
+        "base_type": "string"
+      },
+      "created": "2026-09-03T14:11:15Z",
+      "modified": "2026-09-03T14:11:15Z"
+    },
+    {
+      "uuid": "2d828ca0-9839-4151-88cf-ee2f484338f3",
+      "name": "longtext",
+      "description": "a sufficiently long text type to store a story in\n",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "type": {
+        "type": "f180bfa8-e3a1-45f3-828c-84fa2e0feb0e"
+      },
+      "created": "2026-09-03T14:17:52Z",
+      "modified": "2026-09-03T14:17:52Z"
     }
   ],
   "entities": [
@@ -747,12 +846,12 @@
           "property": "f0000000-0000-4000-8000-000000000002"
         },
         {
-          "uuid": "244d8d98-7c9c-478c-83ef-e208500b4e6a",
+          "uuid": "1c7abe85-7be3-41d3-bac2-56033f527b5e",
           "slot_name": "description",
           "kind": "value",
           "required": false,
           "position": 2,
-          "property": "e2db5329-09dd-479d-9003-66f18b90df20"
+          "property": "b89a9b01-d7d4-4e8b-a0b2-132fecde13f7"
         }
       ],
       "validators": [],
@@ -835,6 +934,85 @@
       "default_order": [],
       "created": "2026-08-31T10:46:48Z",
       "modified": "2026-08-31T10:46:48Z"
+    },
+    {
+      "uuid": "6c46fbab-7585-49ff-8451-105c302f8178",
+      "name": "Event",
+      "description": "A event with a time_span a name and a description\nStart and end are derived from the time span.",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "abstract": false,
+      "extends": "34fd0869-71e6-4101-8941-5f7f6476bc27",
+      "slots": [
+        {
+          "uuid": "a0726bf2-63ec-4d07-af95-bd82bdd1c192",
+          "slot_name": "time_span",
+          "kind": "value",
+          "required": true,
+          "position": 0,
+          "property": "64eeab7b-8027-4bbc-8e4b-29b38483bc41"
+        },
+        {
+          "uuid": "296239ae-73fa-402c-80ad-3d7ff8876793",
+          "slot_name": "span_start",
+          "kind": "value",
+          "required": true,
+          "position": 2,
+          "property": "89bdcae6-3469-45f8-b0dd-a462bf5831b1"
+        },
+        {
+          "uuid": "8b62c0d2-e9dc-412c-95e9-44072fc8cd05",
+          "slot_name": "span_end",
+          "kind": "value",
+          "required": true,
+          "position": 1,
+          "property": "c599c1d8-ee8c-4d1a-a297-007c9d4bfb19"
+        },
+        {
+          "uuid": "1ba0dbbe-d81a-42c3-b8cb-f6a806024ce0",
+          "slot_name": "longtext",
+          "kind": "value",
+          "required": true,
+          "position": 3,
+          "property": "2d828ca0-9839-4151-88cf-ee2f484338f3"
+        }
+      ],
+      "validators": [],
+      "identity": [],
+      "indexes": [
+        {
+          "slots": [
+            "7f4e6058-7c47-4788-9588-71ddabf53360"
+          ],
+          "unique": false
+        },
+        {
+          "slots": [
+            "1dfa8112-62d0-427d-b661-f45e236c248e"
+          ],
+          "unique": false
+        },
+        {
+          "slots": [
+            "8b62c0d2-e9dc-412c-95e9-44072fc8cd05"
+          ],
+          "unique": false
+        },
+        {
+          "slots": [
+            "296239ae-73fa-402c-80ad-3d7ff8876793",
+            "8b62c0d2-e9dc-412c-95e9-44072fc8cd05"
+          ],
+          "unique": false
+        }
+      ],
+      "default_order": [
+        {
+          "slot": "7f4e6058-7c47-4788-9588-71ddabf53360",
+          "ascending": true
+        }
+      ],
+      "created": "2026-09-03T13:24:18Z",
+      "modified": "2026-09-03T13:24:18Z"
     }
   ],
   "schemas": [
@@ -901,6 +1079,18 @@
       "validators": [],
       "created": "2026-08-31T10:06:59Z",
       "modified": "2026-08-31T10:06:59Z"
+    },
+    {
+      "uuid": "5b1a66fa-1e6d-4af8-b6c1-c91e5caf2b09",
+      "name": "HyperHistory",
+      "description": "",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "members": [
+        "6c46fbab-7585-49ff-8451-105c302f8178"
+      ],
+      "validators": [],
+      "created": "2026-09-03T13:29:47Z",
+      "modified": "2026-09-03T13:29:47Z"
     }
   ]
 }

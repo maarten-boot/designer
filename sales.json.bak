@@ -41,6 +41,14 @@
       "parent": null,
       "created": "2026-08-31T13:08:42Z",
       "modified": "2026-08-31T13:08:42Z"
+    },
+    {
+      "uuid": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "name": "hyper_history",
+      "description": "",
+      "parent": "8af665a3-1c3d-4ca7-ae97-028c41de3911",
+      "created": "2026-09-03T13:21:28Z",
+      "modified": "2026-09-03T13:21:28Z"
     }
   ],
   "validators": [
@@ -261,6 +269,31 @@
       ],
       "created": "2026-08-31T09:31:29Z",
       "modified": "2026-08-31T09:31:29Z"
+    },
+    {
+      "uuid": "d3a10159-4a68-4861-ba03-548bfd4c5c5d",
+      "name": "ip4_addr",
+      "description": "",
+      "context": "8af665a3-1c3d-4ca7-ae97-028c41de3911",
+      "parent": {
+        "base_type": "string"
+      },
+      "validators": [
+        {
+          "uuid": "9ecb3b4b-6457-44f0-aa55-fcf0308f746e",
+          "validator": "e724952f-c6a3-5f0e-8598-119ae222e4ef",
+          "arguments": {
+            "pattern": {
+              "literal": {
+                "string": "[0-9]{1.3)\\(.[0-9]{1,3}){3}"
+              }
+            }
+          },
+          "message": "that is not a valid ip4 address"
+        }
+      ],
+      "created": "2026-08-31T13:18:07Z",
+      "modified": "2026-08-31T13:18:07Z"
     }
   ],
   "properties": [
@@ -384,6 +417,50 @@
       },
       "created": "2026-08-31T09:56:26Z",
       "modified": "2026-08-31T09:56:26Z"
+    },
+    {
+      "uuid": "520c1af1-eb09-4585-a587-876a28f5f77a",
+      "name": "description",
+      "description": "",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "type": {
+        "base_type": "string"
+      },
+      "created": "2026-09-03T13:23:03Z",
+      "modified": "2026-09-03T13:23:03Z"
+    },
+    {
+      "uuid": "64eeab7b-8027-4bbc-8e4b-29b38483bc41",
+      "name": "time_span",
+      "description": "The time range of this item",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "type": {
+        "base_type": "string"
+      },
+      "created": "2026-09-03T13:23:24Z",
+      "modified": "2026-09-03T13:23:24Z"
+    },
+    {
+      "uuid": "89bdcae6-3469-45f8-b0dd-a462bf5831b1",
+      "name": "span_start",
+      "description": "",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "type": {
+        "base_type": "string"
+      },
+      "created": "2026-09-03T13:27:03Z",
+      "modified": "2026-09-03T13:27:03Z"
+    },
+    {
+      "uuid": "c599c1d8-ee8c-4d1a-a297-007c9d4bfb19",
+      "name": "span_end",
+      "description": "",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "type": {
+        "base_type": "string"
+      },
+      "created": "2026-09-03T13:27:17Z",
+      "modified": "2026-09-03T13:27:17Z"
     }
   ],
   "entities": [
@@ -768,8 +845,20 @@
       ],
       "validators": [],
       "identity": [],
-      "indexes": [],
-      "default_order": [],
+      "indexes": [
+        {
+          "slots": [
+            "7f4e6058-7c47-4788-9588-71ddabf53360"
+          ],
+          "unique": false
+        }
+      ],
+      "default_order": [
+        {
+          "slot": "a871b4e8-ed83-4932-adbc-11b62db4b010",
+          "ascending": true
+        }
+      ],
       "created": "2026-08-31T10:08:01Z",
       "modified": "2026-08-31T10:08:01Z"
     },
@@ -798,6 +887,61 @@
       "default_order": [],
       "created": "2026-08-31T10:46:48Z",
       "modified": "2026-08-31T10:46:48Z"
+    },
+    {
+      "uuid": "6c46fbab-7585-49ff-8451-105c302f8178",
+      "name": "Event",
+      "description": "A event with a time_span a name and a description\nStart and end are derived from the time span.",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "abstract": false,
+      "extends": "34fd0869-71e6-4101-8941-5f7f6476bc27",
+      "slots": [
+        {
+          "uuid": "a0726bf2-63ec-4d07-af95-bd82bdd1c192",
+          "slot_name": "time_span",
+          "kind": "value",
+          "required": true,
+          "position": 0,
+          "property": "64eeab7b-8027-4bbc-8e4b-29b38483bc41"
+        },
+        {
+          "uuid": "296239ae-73fa-402c-80ad-3d7ff8876793",
+          "slot_name": "span_start",
+          "kind": "value",
+          "required": true,
+          "position": 1,
+          "property": "89bdcae6-3469-45f8-b0dd-a462bf5831b1"
+        },
+        {
+          "uuid": "8b62c0d2-e9dc-412c-95e9-44072fc8cd05",
+          "slot_name": "span_end",
+          "kind": "value",
+          "required": true,
+          "position": 2,
+          "property": "c599c1d8-ee8c-4d1a-a297-007c9d4bfb19"
+        }
+      ],
+      "validators": [],
+      "identity": [],
+      "indexes": [
+        {
+          "slots": [
+            "1dfa8112-62d0-427d-b661-f45e236c248e",
+            "7f4e6058-7c47-4788-9588-71ddabf53360",
+            "296239ae-73fa-402c-80ad-3d7ff8876793",
+            "8b62c0d2-e9dc-412c-95e9-44072fc8cd05"
+          ],
+          "unique": false
+        }
+      ],
+      "default_order": [
+        {
+          "slot": "7f4e6058-7c47-4788-9588-71ddabf53360",
+          "ascending": true
+        }
+      ],
+      "created": "2026-09-03T13:24:18Z",
+      "modified": "2026-09-03T13:24:18Z"
     }
   ],
   "schemas": [
@@ -864,6 +1008,18 @@
       "validators": [],
       "created": "2026-08-31T10:06:59Z",
       "modified": "2026-08-31T10:06:59Z"
+    },
+    {
+      "uuid": "5b1a66fa-1e6d-4af8-b6c1-c91e5caf2b09",
+      "name": "HyperHistory",
+      "description": "",
+      "context": "7e8203ff-223f-4a05-9e7d-fbec162b247e",
+      "members": [
+        "6c46fbab-7585-49ff-8451-105c302f8178"
+      ],
+      "validators": [],
+      "created": "2026-09-03T13:29:47Z",
+      "modified": "2026-09-03T13:29:47Z"
     }
   ]
 }
