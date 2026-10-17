@@ -1,0 +1,397 @@
+{
+  "format": "designer-schema-export",
+  "format_version": 1,
+  "source": {
+    "schema_version": 1,
+    "library_version": 1,
+    "expression_language": "designer-1"
+  },
+  "schema": {
+    "uuid": "5c000000-0000-4000-8000-000000000001",
+    "name": "sales_schema",
+    "description": "What ships as the sales database.",
+    "context": "common/sales"
+  },
+  "warnings": [
+    {
+      "code": "MOD602",
+      "table": "Customer",
+      "message": "Auditable binds in_past, which is not deterministic; no check constraint can enforce it"
+    },
+    {
+      "code": "MOD602",
+      "table": "Order",
+      "message": "Auditable binds in_past, which is not deterministic; no check constraint can enforce it"
+    },
+    {
+      "code": "MOD602",
+      "table": "OrderLine",
+      "message": "Auditable binds in_past, which is not deterministic; no check constraint can enforce it"
+    }
+  ],
+  "tables": [
+    {
+      "name": "Customer",
+      "uuid": "e0000000-0000-4000-8000-000000000002",
+      "description": "Someone who places orders. Lives in common so several schemas can use it.",
+      "context": "common",
+      "inherits": ["Auditable"],
+      "columns": [
+        {
+          "name": "created_at",
+          "uuid": "a0000000-0000-4000-8000-000000000001",
+          "declared_on": "Auditable",
+          "property": "created_at",
+          "type": null,
+          "base": "datetime",
+          "nullable": false,
+          "default": null,
+          "check": [],
+          "application": [],
+          "presentation": null
+        },
+        {
+          "name": "id",
+          "uuid": "a0000000-0000-4000-8000-000000000010",
+          "property": "id",
+          "type": "Uuid",
+          "base": "string",
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "is_uuid",
+              "expression": "regex_full_match(value, \"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\")",
+              "message": "must be a UUID",
+              "from": "Uuid"
+            }
+          ],
+          "application": [],
+          "presentation": null
+        },
+        {
+          "name": "name",
+          "uuid": "a0000000-0000-4000-8000-000000000011",
+          "property": "name",
+          "type": "ShortText",
+          "base": "string",
+          "length": 80,
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "max_length",
+              "arguments": {"max": 80},
+              "expression": "len(value) <= 80",
+              "message": "must be 80 characters or fewer",
+              "from": "ShortText"
+            },
+            {
+              "rule": "non_blank",
+              "expression": "(len(value) > 0) and (value == strip(value))",
+              "message": "must not be blank",
+              "from": "ShortText"
+            }
+          ],
+          "application": [],
+          "presentation": null
+        },
+        {
+          "name": "country_code",
+          "uuid": "a0000000-0000-4000-8000-000000000012",
+          "property": "country_code",
+          "type": "CountryCode",
+          "base": "string",
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "is_country_code",
+              "expression": "regex_full_match(value, \"[A-Z]{2}\")",
+              "message": "must be an ISO 3166-1 alpha-2 code",
+              "from": "CountryCode"
+            }
+          ],
+          "application": [],
+          "presentation": null
+        }
+      ],
+      "primary_key": ["id"],
+      "foreign_keys": [],
+      "indexes": [
+        {"columns": ["name"], "unique": false}
+      ],
+      "default_order": [
+        {"column": "name", "ascending": true}
+      ],
+      "check": [],
+      "application": [
+        {
+          "rule": "in_past",
+          "expression": "created_at < current()",
+          "message": "must be in the past",
+          "from": "Auditable",
+          "reason": "not deterministic"
+        }
+      ]
+    },
+    {
+      "name": "Order",
+      "uuid": "e0000000-0000-4000-8000-000000000003",
+      "description": "A customer order.",
+      "context": "common/sales",
+      "inherits": ["Auditable"],
+      "columns": [
+        {
+          "name": "created_at",
+          "uuid": "a0000000-0000-4000-8000-000000000001",
+          "declared_on": "Auditable",
+          "property": "created_at",
+          "type": null,
+          "base": "datetime",
+          "nullable": false,
+          "default": null,
+          "check": [],
+          "application": [],
+          "presentation": null
+        },
+        {
+          "name": "order_number",
+          "uuid": "a0000000-0000-4000-8000-000000000020",
+          "property": "order_number",
+          "type": "OrderNumber",
+          "base": "string",
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "order_reference",
+              "expression": "(regex_full_match(value, \"ORD-[0-9]{6}\")) or (regex_full_match(value, \"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\"))",
+              "message": "must be an order number or a UUID",
+              "from": "OrderNumber"
+            }
+          ],
+          "application": [],
+          "presentation": null
+        },
+        {
+          "name": "customer_id",
+          "uuid": "a0000000-0000-4000-8000-000000000021",
+          "relationship": "customer",
+          "references": "Customer",
+          "type": "Uuid",
+          "base": "string",
+          "nullable": false,
+          "default": null,
+          "check": [],
+          "application": [],
+          "presentation": null
+        },
+        {
+          "name": "ship_to_country",
+          "uuid": "a0000000-0000-4000-8000-000000000022",
+          "property": "country_code",
+          "type": "CountryCode",
+          "base": "string",
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "is_country_code",
+              "expression": "regex_full_match(value, \"[A-Z]{2}\")",
+              "message": "must be an ISO 3166-1 alpha-2 code",
+              "from": "CountryCode"
+            }
+          ],
+          "application": [],
+          "presentation": null
+        },
+        {
+          "name": "total",
+          "uuid": "a0000000-0000-4000-8000-000000000023",
+          "property": "amount",
+          "type": "Money",
+          "base": "decimal",
+          "numeric": {"precision": 12, "scale": 2},
+          "nullable": false,
+          "default": {"decimal": "0.00"},
+          "check": [
+            {
+              "rule": "non_negative",
+              "expression": "value >= 0",
+              "message": "must not be negative",
+              "from": "Money"
+            }
+          ],
+          "application": [],
+          "presentation": null
+        }
+      ],
+      "primary_key": ["order_number"],
+      "foreign_keys": [
+        {
+          "relationship": "customer",
+          "columns": ["customer_id"],
+          "table": "Customer",
+          "target_columns": ["id"],
+          "on_delete": "restrict",
+          "inverse_name": "orders"
+        }
+      ],
+      "indexes": [
+        {"columns": ["order_number"], "unique": true}
+      ],
+      "default_order": [
+        {"column": "order_number", "ascending": false}
+      ],
+      "check": [],
+      "application": [
+        {
+          "rule": "in_past",
+          "expression": "created_at < current()",
+          "message": "must be in the past",
+          "from": "Auditable",
+          "reason": "not deterministic"
+        }
+      ]
+    },
+    {
+      "name": "OrderLine",
+      "uuid": "e0000000-0000-4000-8000-000000000005",
+      "description": "One line of an order. Narrows the inherited line_total.",
+      "context": "common/sales",
+      "inherits": ["LineItem", "Auditable"],
+      "columns": [
+        {
+          "name": "created_at",
+          "uuid": "a0000000-0000-4000-8000-000000000001",
+          "declared_on": "Auditable",
+          "property": "created_at",
+          "type": null,
+          "base": "datetime",
+          "nullable": false,
+          "default": null,
+          "check": [],
+          "application": [],
+          "presentation": null
+        },
+        {
+          "name": "id",
+          "uuid": "a0000000-0000-4000-8000-000000000030",
+          "declared_on": "LineItem",
+          "property": "id",
+          "type": "Uuid",
+          "base": "string",
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "is_uuid",
+              "expression": "regex_full_match(value, \"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\")",
+              "message": "must be a UUID",
+              "from": "Uuid"
+            }
+          ],
+          "application": [],
+          "presentation": null
+        },
+        {
+          "name": "line_total",
+          "uuid": "a0000000-0000-4000-8000-000000000040",
+          "overrides": "LineItem",
+          "property": "amount",
+          "type": "PositiveMoney",
+          "base": "decimal",
+          "numeric": {"precision": 12, "scale": 2},
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "non_negative",
+              "expression": "value >= 0",
+              "message": "must not be negative",
+              "from": "Money"
+            },
+            {
+              "rule": "positive",
+              "expression": "value > 0",
+              "message": "must be positive",
+              "from": "PositiveMoney"
+            }
+          ],
+          "application": [],
+          "presentation": null
+        },
+        {
+          "name": "order_order_number",
+          "uuid": "a0000000-0000-4000-8000-000000000041",
+          "relationship": "order",
+          "references": "Order",
+          "type": "OrderNumber",
+          "base": "string",
+          "nullable": false,
+          "default": null,
+          "check": [],
+          "application": [],
+          "presentation": null
+        },
+        {
+          "name": "quantity",
+          "uuid": "a0000000-0000-4000-8000-000000000042",
+          "property": "quantity",
+          "type": null,
+          "base": "integer",
+          "nullable": false,
+          "default": {"integer": 1},
+          "check": [],
+          "application": [],
+          "presentation": null
+        }
+      ],
+      "primary_key": ["id"],
+      "foreign_keys": [
+        {
+          "relationship": "order",
+          "columns": ["order_order_number"],
+          "table": "Order",
+          "target_columns": ["order_number"],
+          "on_delete": "cascade",
+          "inverse_name": "lines"
+        }
+      ],
+      "indexes": [],
+      "default_order": [],
+      "check": [
+        {
+          "rule": "min_value",
+          "arguments": {"min": 1},
+          "expression": "quantity >= 1",
+          "message": "must be at least 1",
+          "from": "OrderLine"
+        }
+      ],
+      "application": [
+        {
+          "rule": "in_past",
+          "expression": "created_at < current()",
+          "message": "must be in the past",
+          "from": "Auditable",
+          "reason": "not deterministic"
+        }
+      ]
+    }
+  ],
+  "application": [
+    {
+      "rule": "equals",
+      "anchor": "OrderLine",
+      "arguments": {
+        "value": "order.ship_to_country",
+        "other": "order.customer.country_code"
+      },
+      "expression": "order.ship_to_country == order.customer.country_code",
+      "message": "an order line must ship to the customer's own country",
+      "reason": "spans tables"
+    }
+  ]
+}

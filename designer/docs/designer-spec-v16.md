@@ -702,6 +702,41 @@ visible before an edit.
 `[V2]` **Schema composition** — a Schema including another, its members being the
 union. `members` stays a plain list so this stays possible.
 
+### 9.6 The export file `[DECIDED]`
+
+Decided before any of it was built (`HISTORY.md`, turn 103):
+
+- **Gating.** Errors and incomplete findings block; warnings and notes do not —
+  with the one exception `MOD503`, an unclosed Schema, which is a warning and
+  still blocks, because a foreign key leaving the file has nothing to point at.
+  The gate is `blocks_export` on the code definition, as it already is (§11.6).
+- **Constraints are resolved, not referenced.** Each column carries its
+  effective rules: inherited ones collected along the Type chain, composites
+  expanded, built-ins and shadowed names resolved, `max_precision` and
+  `max_scale` mapped to `NUMERIC(p, s)`, and every rule sorted into a database
+  CHECK or application enforcement (§9.4). The Type's name stays on the column
+  as a label. The file needs neither the standard library nor the Context tree
+  to be read, and it is not loadable as a model: it is output, not a document.
+- **One Schema per file.** The Schema is the export unit (§9.5).
+- **JSON now.** YAML later, as a different serialiser over the same structure.
+
+The shape was settled against a hand-written sample,
+`examples/sales_schema.export.json` (turn 105):
+
+- **Expressions stay in the designer's expression language**, not SQL, with
+  literal arguments substituted. In a column's rules `value` is that column; in
+  a table's rules columns are named. Translating them is the consumer's job.
+- **Storage hints.** `max_precision` and `max_scale` become
+  `numeric: {precision, scale}` and are not repeated as checks; `max_length`
+  adds a `length` hint and stays a check. Any other mapping to SQL types is the
+  consumer's job.
+- **Reference columns are named `<slot>_<target key column>`**: `customer_id`,
+  `order_order_number`, one per key column. The slot name is kept as
+  `relationship`, which is what cross-table rule paths walk.
+- **Gating is per Schema.** Only findings about items the Schema reaches block
+  its export; an unfinished Type nothing in it uses does not.
+- **No timestamp.** The same model exports to the same bytes.
+
 ---
 
 ## 10. Context

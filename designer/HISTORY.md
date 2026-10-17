@@ -781,3 +781,27 @@ FAILED test_widgets.py::test_reordering_is_disabled_while_a_sort_is_applied
 
 > fix the remaining stale docs and typos too
 
+## 101.
+
+> i pushed it
+
+## 102.
+
+> explain item 2
+
+## 103.
+
+> B it is and for the other items your reccomendation
+
+## 104.
+
+> yes write the sample file
+
+## 105.
+
+> yes to all, use customer_id naming
+
+## 106.
+
+> yes commit it
+

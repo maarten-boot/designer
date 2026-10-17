@@ -64,8 +64,8 @@ interface: the window and menu bar, the seven columns, the breadcrumb, column
 collapse, the status line and findings window, and a generated, live form per
 kind with findings beside the field that caused them.
 
-**Not built yet:** schema export (four design decisions await confirmation —
-see `HANDOVER.md`); the interface checks `INT202`, `INT401` and `INT402`; and
+**Not built yet:** schema export (its design decisions are settled in spec
+§9.6); the interface checks `INT202`, `INT401` and `INT402`; and
 phase 4 — the test bench, a Preferences dialog, deprecation handling.
 
 Schema membership is editable: add, remove, and add-missing-referenced-entities,

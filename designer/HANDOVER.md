@@ -43,12 +43,13 @@ summaries left in the editor.
 
 **Not built:**
 
-1. **Schema export.** The deliverable, and the reason the project exists. Four
-   decisions were proposed and never confirmed by the user: errors and
-   incomplete items block while warnings do not; constraints resolved rather
-   than referenced; one schema per file; JSON now with YAML as a serialiser
-   swap. *Ask before building* — these are the user's calls, and guesses here
-   are expensive.
+1. **Schema export.** The deliverable, and the reason the project exists. The
+   four design decisions were confirmed in turn 103 and are recorded in spec
+   §9.6: errors and incomplete block, warnings do not (except `MOD503`);
+   constraints resolved rather than referenced, Type name kept as a label; one
+   Schema per file; JSON now, YAML later as a serialiser swap. The file's shape
+   was agreed in turn 105 against `examples/sales_schema.export.json`, which is
+   hand-written and is the target the exporter must reproduce byte for byte.
 2. **`INT202`, `INT401`, `INT402`.** Specified in the interfaces appendix,
    marked there as not implemented. `INT202` is the interesting one: the round
    trip over the values a Type actually admits. `X(3)U` is sound on a Type
