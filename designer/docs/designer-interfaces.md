@@ -286,22 +286,44 @@ date" and "that date is in the future" are different sentences to show somebody.
 
 ## 7. What the checker verifies
 
-New codes, `INT1xx`, in the existing severity scheme. Six of the nine are in the
-registry; `INT202`, `INT401` and `INT402` are steps 5 and 6 of §9 and are marked
-below, because a code table that does not say which codes exist is a table
-somebody will trust.
+New codes, `INT1xx`, in the existing severity scheme. Seven of the nine are in
+the registry; `INT401` and `INT402` are step 6 of §9 and are marked below,
+because a code table that does not say which codes exist is a table somebody
+will trust.
 
 | Code | Severity | Blocks export | Says |
 |---|---|---|---|
 | `INT101` | incomplete | yes | Interface has no base type yet |
 | `INT102` | incomplete | yes | Interface has no picture yet |
 | `INT201` | error | yes | the picture is not valid for `{base_type}` |
-| `INT202` | error | yes | the picture is ambiguous: `{detail}` cannot be parsed back — **specified, not yet implemented** |
+| `INT202` | error | yes | `{interface}` on `{type}` does not read back every value the Type admits: `{detail}` |
 | `INT301` | error | yes | bound to `{type}`, whose base type is `{other}` |
 | `INT302` | error | yes | two Interfaces on `{type}` are both marked default |
 | `INT401` | warning | no | presenting loses precision: `{picture}` shows {n} decimals of a value allowing {m} — **specified, not yet implemented** |
 | `INT402` | note | no | `{picture}` gives {n} positions to a value `{validator}` allows {m} — **specified, not yet implemented** |
 | `INT601` | note | no | Interface is bound to nothing |
+
+### 7.3 How `INT202` finds the values a Type admits `[FOUND WHILE BUILDING]`
+
+There is no way to enumerate what a Type admits, so `INT202` samples it.
+`pictures.PROBES` holds values chosen to break pictures — mixed case and padding
+for strings, one decimal at every scale from 0 to 10, seconds and milliseconds
+for times, other centuries for dates. Each probe is run through every rule along
+the Type's chain (`expressions/evaluate.py`, the first evaluator the project has
+had), and the round trip is asked only of the probes that pass.
+
+Two consequences worth knowing:
+
+- **A probe set is a sample, not a proof.** A lossy pair can hide between
+  probes. What it misses is a gap in the table, and a probe is cheap to add.
+- **A rule that cannot answer counts as refusing.** An unset argument, or a
+  value the rule does not take, drops the probe instead of reporting a round
+  trip over a value the Type may never hold. An `INT202` that is wrong is worse
+  than one that is missed, since it is an error and blocks export.
+
+Only a Type's own bindings are checked. A Type that inherits its presentation
+admits fewer values than the ancestor it inherits from, so a sound pair stays
+sound below it.
 
 `INT402` is a **note**, not a warning. `[DECIDED]` If a Type says
 `max_length(40)` and its Interface says `X(30)`, nothing is wrong with either
@@ -413,8 +435,9 @@ can act on it.
    not read back.
 4. ~~Binding to a Type, with the deepest-wins inheritance of §4 and the
    provenance line.~~ **Built.**
-5. `INT202` against the bound Type — the round trip over the values that Type
-   admits, which is where §6 says the interesting failures are.
+5. ~~`INT202` against the bound Type — the round trip over the values that Type
+   admits, which is where §6 says the interesting failures are.~~ **Built** —
+   see §7.3.
 6. `INT401`/`INT402`, comparing pictures against the Type's rules.
 
 Steps 2 and 3 are enough to find out whether the vocabulary is right before

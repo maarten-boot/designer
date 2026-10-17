@@ -323,3 +323,100 @@ def test_deleting_an_interface_is_one_undo_step(model) -> None:
     session.undo()
     assert face.uuid in model.index()
     assert len(named(model.types, "Money").interfaces) == 1
+
+
+# --- INT202: the round trip over the values the Type admits -----------------
+
+
+def add_type(model, name, base, *bindings):
+    from designer_model.model import BaseTypeRef, Type
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    item = Type(
+        uuid=uuid4(),
+        name=name,
+        description="",
+        created=now,
+        modified=now,
+        context=model.contexts[0].uuid,
+        parent=BaseTypeRef(base),
+        validators=list(bindings),
+    )
+    model.types.append(item)
+    return item
+
+
+def rule(name, **literals):
+    from designer_model.ids import builtin_id
+    from designer_model.literals import ScalarLiteral
+    from designer_model.model import Binding, LiteralArg
+
+    arguments = {k: LiteralArg(ScalarLiteral("integer", v)) for k, v in literals.items()}
+    return Binding(uuid=uuid4(), validator=builtin_id(name), arguments=arguments)
+
+
+def int202(model):
+    return [f for f in check(model).findings if f.code == "INT202"]
+
+
+def test_two_decimals_are_sound_on_a_type_allowing_two(model):
+    bind(model, "Money", add_interface(model, "money", "decimal", "#,##0.00"))
+    assert int202(model) == []
+
+
+def test_two_decimals_are_lossy_on_a_type_allowing_any(model):
+    add_type(model, "Amount", "decimal")
+    bind(model, "Amount", add_interface(model, "money", "decimal", "#,##0.00"))
+    (finding,) = int202(model)
+    assert "1.111 presents as '1.11' and reads back as 1.11" in finding.args["detail"]
+
+
+def test_upper_case_is_sound_only_where_the_type_requires_it(model):
+    face = add_interface(model, "code", "string", "X(3)U")
+    bind(model, "CountryCode", face)  # [A-Z]{2}
+    assert int202(model) == []
+    bind(model, "ShortText", face)
+    (finding,) = int202(model)
+    assert finding.subject.item_uuid == named(model.types, "ShortText").uuid
+
+
+def test_padding_is_sound_only_where_the_type_requires_trimmed_text(model):
+    face = add_interface(model, "padded", "string", "X(6)<")
+    bind(model, "ShortText", face)  # non_blank includes trimmed
+    assert int202(model) == []
+    add_type(model, "Anything", "string")
+    bind(model, "Anything", face)
+    (finding,) = int202(model)
+    assert "' ada '" in finding.args["detail"]
+
+
+def test_a_picture_without_seconds_is_lossy_for_a_time(model):
+    add_type(model, "Clock", "time")
+    bind(model, "Clock", add_interface(model, "short", "time", "HH:mm"))
+    assert len(int202(model)) == 1
+
+
+def test_only_the_binding_type_is_checked_not_its_descendants(model):
+    # PositiveMoney inherits Money's presentation and admits fewer values
+    add_type(model, "Amount", "decimal")
+    bind(model, "Amount", add_interface(model, "money", "decimal", "#,##0.00"))
+    bind(model, "Money", add_interface(model, "money2", "decimal", "#,##0.0"))
+    subjects = {f.subject.item_uuid for f in int202(model)}
+    assert subjects == {named(model.types, "Amount").uuid, named(model.types, "Money").uuid}
+
+
+def test_a_rule_that_cannot_answer_drops_the_probe_rather_than_reporting(model):
+    # max_length with no `max` cannot be evaluated: every probe is dropped,
+    # so the lossy upper-case picture is not reported (MOD108 is, instead)
+    add_type(model, "Unfinished", "string", rule("max_length"))
+    bind(model, "Unfinished", add_interface(model, "code", "string", "X(3)U"))
+    assert int202(model) == []
+    assert "MOD108" in [f.code for f in check(model).findings]
+
+
+def test_int202_is_an_error_that_blocks_export():
+    from designer_model.codes import blocks_export, definition
+    from designer_model.diagnostics import Severity
+
+    assert definition("INT202").severity is Severity.ERROR
+    assert blocks_export("INT202")

@@ -31,6 +31,7 @@ from .diagnostics import (
     TextSpan,
 )
 from .expressions import check_leaf
+from .expressions.evaluate import EvaluationError, evaluate_composite, evaluate_leaf
 from .expressions.types import UNKNOWN, ExprType, ListOf, Scalar
 from .literals import ListLiteral, ScalarLiteral
 from .model import (
@@ -345,9 +346,75 @@ class Checker:
                             "other": base,
                         },
                     )
+                    continue
+                yield from self._check_round_trip(item, binding, face, at)
         for face in self.model.interfaces:
             if face.uuid not in bound:
                 yield Diagnostic("INT601", self._subject(face), {"item": ItemRef(face.uuid)})
+
+    def _check_round_trip(self, item: Type, binding, face, at: Subject) -> Iterator[Diagnostic]:
+        """`parse(present(v)) == v` for every value the Type admits (INT202).
+
+        Against the Type, not the picture alone: `X(3)U` is sound on a Type
+        that requires upper case and lossy on one that does not, and neither the
+        picture nor the rules is wrong — the pair is (appendix *interfaces* §6).
+        Only a Type's own bindings are checked; one that inherits a sound pair
+        admits fewer values, so it is sound too.
+        """
+        from . import pictures
+
+        try:
+            compiled = pictures.compile_picture(face.base_type, face.picture, face.decimal_point, face.group_mark)
+        except pictures.PictureError:
+            return  # INT201 already says so
+        admitted = [v for v in pictures.PROBES.get(face.base_type, ()) if self._admits(item, v)]
+        trip = pictures.check_round_trip(compiled, admitted)
+        if not trip.holds:
+            yield Diagnostic(
+                "INT202",
+                at.then("interfaces", binding.uuid),
+                {"interface": ItemRef(face.uuid), "item": ItemRef(item.uuid), "detail": trip.why()},
+            )
+
+    def _admits(self, item: Type, value) -> bool:
+        """Whether every rule along the Type's chain passes for `value`.
+
+        A rule that cannot answer — an argument unset, a value it does not take
+        — counts as refusing. That drops the probe rather than reporting a
+        round trip over a value the Type might never hold: an INT202 that is
+        wrong is worse than one that is missed.
+        """
+        for uuid in self.d.type_chain(item.uuid):
+            owner = self.d.types.get(uuid)
+            for b in owner.validators if owner else ():
+                validator = self._validator_of(b.validator) if b.validator else None
+                if validator is None:
+                    continue
+                arguments = {
+                    k: list(a.literal.values) if isinstance(a.literal, ListLiteral) else a.literal.value
+                    for k, a in b.arguments.items()
+                    if isinstance(a, LiteralArg)
+                }
+                try:
+                    if not self._verdict(validator, value, arguments, 0):
+                        return False
+                except EvaluationError:
+                    return False
+        return True
+
+    def _verdict(self, validator, value, arguments: dict, depth: int) -> bool:
+        if depth > 16:
+            raise EvaluationError(f"{validator.name} nests too deeply")
+        if not validator.is_composite:
+            return evaluate_leaf(validator.expression, value, arguments)
+
+        def operand(uuid: UUID) -> bool:
+            found = self._validator_of(uuid)
+            if found is None:
+                raise EvaluationError(f"{uuid} does not exist")
+            return self._verdict(found, value, arguments, depth + 1)
+
+        return evaluate_composite(validator.expression, operand)
 
     def _check_validators(self) -> Iterator[Diagnostic]:
         for v in self.model.validators:

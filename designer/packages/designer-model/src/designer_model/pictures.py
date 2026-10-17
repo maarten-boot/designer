@@ -489,7 +489,13 @@ class RoundTrip:
 
     def why(self) -> str:
         value, shown, back = self.failures[0]
-        return f"{value!r} presents as {shown!r} and reads back as {back}"
+        return f"{readable(value)} presents as {shown!r} and reads back as {back}"
+
+
+def readable(value) -> str:
+    """A value as a person would write it: quoted when it is text, so padding
+    shows, and otherwise plain — `1.11`, not `Decimal('1.11')`."""
+    return repr(value) if isinstance(value, str) else str(value)
 
 
 def check_round_trip(picture: Compiled, samples) -> RoundTrip:
@@ -501,12 +507,47 @@ def check_round_trip(picture: Compiled, samples) -> RoundTrip:
     """
     result = RoundTrip()
     for value in samples:
-        shown = present(picture, value)
+        try:
+            shown = present(picture, value)
+        except PresentError as error:
+            result.failures.append((value, "", f"nothing: {error}"))
+            continue
         try:
             back = parse(picture, shown)
         except ParseError as error:
             result.failures.append((value, shown, f"unreadable: {error}"))
             continue
         if back != value:
-            result.failures.append((value, shown, repr(back)))
+            result.failures.append((value, shown, readable(back)))
     return result
+
+
+PROBES: dict[str, tuple] = {
+    "integer": (0, 1, -1, 42, 1234567, -1234567, 10**15),
+    # one value at each scale from 0 to 10, so a Type allowing s decimal places
+    # keeps exactly the probes a picture showing fewer than s would round
+    "decimal": (
+        Decimal("0"),
+        Decimal("-12.5"),
+        Decimal("1234567.5"),
+        *(Decimal("1." + "1" * places) for places in range(11)),
+        *(Decimal("-0." + "0" * places + "5") for places in range(10)),
+    ),
+    "real": (0.0, 0.5, -12.25, 1234.5678, 0.001, 1234567.5),
+    "string": ("Ada", "ada lovelace", "ADA", "Gbp", " ada ", "a", ""),
+    "boolean": (True, False),
+    "date": (dt.date(2026, 8, 30), dt.date(1999, 12, 31), dt.date(1850, 6, 15), dt.date(2099, 1, 2)),
+    "time": (dt.time(14, 22, 5), dt.time(0, 0), dt.time(23, 59, 59, 123000)),
+    "datetime": (
+        dt.datetime(2026, 8, 30, 14, 22, 5, tzinfo=dt.UTC),
+        dt.datetime(1999, 12, 31, 23, 59, 59, 123000, tzinfo=dt.UTC),
+        dt.datetime(2099, 1, 2, 0, 0, tzinfo=dt.UTC),
+    ),
+}
+"""Values chosen to break pictures: mixed case and padding for strings, every
+scale for decimals, seconds and milliseconds for times, centuries for dates.
+
+`INT202` keeps the probes a Type admits and asks the round trip of those. A
+probe set is a sample, not a proof — a lossy pair can hide between probes — so
+what it misses is a gap in this table, and a probe is cheap to add.
+"""

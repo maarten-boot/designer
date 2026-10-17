@@ -382,6 +382,14 @@ _ALL = [
     _d("INT102", Severity.INCOMPLETE, Scope.ITEM, "No picture yet", "{item} has no picture yet", blocks_export=True),
     _d("INT201", Severity.ERROR, Scope.ITEM, "Picture is not valid", "{item}: {detail}", blocks_export=True),
     _d(
+        "INT202",
+        Severity.ERROR,
+        Scope.MODEL,
+        "Picture does not read back",
+        "{interface} on {item} does not read back every value {item} admits: {detail}",
+        blocks_export=True,
+    ),
+    _d(
         "INT301",
         Severity.ERROR,
         Scope.MODEL,

@@ -51,14 +51,14 @@ summaries left in the editor.
    §9.6. What is missing is **File ▸ Export schema…** in the window, and since
    the widget tests skip here, it needs a run on a machine with a display.
    The YAML serialiser is the other open piece.
-2. **`INT202`, `INT401`, `INT402`.** Specified in the interfaces appendix,
-   marked there as not implemented. `INT202` is the interesting one: the round
-   trip over the values a Type actually admits. `X(3)U` is sound on a Type
-   carrying `is_uppercase` and lossy without it — the *pair* is what is wrong,
-   which is why it must be checked against the bound Type rather than the
-   picture alone.
+2. **`INT401`, `INT402`.** Specified in the interfaces appendix, marked there
+   as not implemented. `INT202` is built (appendix §7.3): it samples
+   `pictures.PROBES`, keeps the probes the Type's rules admit, and asks the
+   round trip of those. It brought the project's first evaluator,
+   `expressions/evaluate.py`.
 3. **Phase 4:** the test bench (try a value against a Type and see which rules
-   pass), a Preferences dialog, deprecation handling.
+   pass — `evaluate.py` already answers that per rule), a Preferences dialog,
+   deprecation handling.
 
 ---
 
