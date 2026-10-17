@@ -403,9 +403,15 @@ picture is complete on its own:
 {
   "name": "ordered_on",
   "base_type": "date",
-  "interface": { "name": "european", "picture": "dd-MM-yyyy", "blank": "—" }
+  "interface": { "name": "european", "picture": "dd-MM-yyyy", "parse_lenient": true, "blank": "—" }
 }
 ```
+
+`parse_lenient` is written for every column, not only numeric ones: leniency
+decides how text is read back — whitespace, the case of a `U` or `L` string —
+whatever the base type. The rest of each column's shape, of which these
+examples show only a part, is spec §9.6 and `examples/sales_schema.export.json`;
+a column with no Interface carries `"interface": null`.
 
 Resolved like everything else in the export: the name it was bound under and the
 picture, with no reference to the Interface item. A database generator ignores

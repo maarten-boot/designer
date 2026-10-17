@@ -737,7 +737,7 @@ The shape was settled against a hand-written sample,
   its export; an unfinished Type nothing in it uses does not.
 - **No timestamp.** The same model exports to the same bytes.
 
-Building it (`designer_model/export.py`, turn 108) changed three details of the
+Building it (`designer_model/export.py`, turn 108) changed details of the
 sample, which is now generated rather than hand-written and is what the
 acceptance test compares against byte for byte:
 
@@ -748,6 +748,10 @@ acceptance test compares against byte for byte:
   decimal or a date argument is unambiguous.
 - **A Schema rule's paths are `paths`**, apart from its literal `arguments`, so
   a string argument cannot be mistaken for a route.
+- **The column's Interface is `interface`** (turn 117), as appendix
+  *interfaces* §8 had already decided and the sample had missed: `name`,
+  `picture`, the two separators for numeric columns only, `parse_lenient` and
+  `blank`, or `null` when the column has none.
 
 Building it also found a gap in the model check: a binding that left a
 parameter unset was reported by nothing, and its expression would have named

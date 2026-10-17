@@ -149,27 +149,58 @@ def test_max_length_adds_a_length_hint_and_stays_a_rule(model):
     assert "max_length" in [r["rule"] for r in name["check"]]
 
 
-def test_a_type_with_an_interface_carries_its_presentation(model):
+def add_interface(model, name, base, picture, **kwargs):
     face = Interface(
         uuid=uuid4(),
-        name="money_nl",
+        name=name,
         description="",
         created=NOW,
         modified=NOW,
         context=model.contexts[0].uuid,
-        base_type="decimal",
-        picture="#,##0.00",
-        decimal_point=",",
-        group_mark=".",
+        base_type=base,
+        picture=picture,
+        **kwargs,
     )
     model.interfaces.append(face)
+    return face
+
+
+def test_a_numeric_interface_carries_its_separators(model):
+    face = add_interface(model, "money_nl", "decimal", "#,##0.00", decimal_point=",", group_mark=".")
     named(model.types, "Money").interfaces.append(InterfaceBinding(uuid=uuid4(), interface=face.uuid))
     document = export(model)
-    # inherited along the Type chain: PositiveMoney presents as Money does
+    # inherited along the Type chain: PositiveMoney exports as though declared
     for table_name, column_name in (("Order", "total"), ("OrderLine", "line_total")):
-        presentation = column(document, table_name, column_name)["presentation"]
-        assert presentation["interface"] == "money_nl"
-        assert (presentation["decimal_point"], presentation["group_mark"]) == (",", ".")
+        assert column(document, table_name, column_name)["interface"] == {
+            "name": "money_nl",
+            "picture": "#,##0.00",
+            "decimal_point": ",",
+            "group_mark": ".",
+            "parse_lenient": True,
+            "blank": "",
+        }
+
+
+def test_canonical_separators_are_still_written(model):
+    face = add_interface(model, "money", "decimal", "#,##0.00")
+    named(model.types, "Money").interfaces.append(InterfaceBinding(uuid=uuid4(), interface=face.uuid))
+    block = column(export(model), "Order", "total")["interface"]
+    assert (block["decimal_point"], block["group_mark"]) == (".", ",")
+
+
+def test_a_non_numeric_interface_has_no_separators(model):
+    face = add_interface(model, "code", "string", "X(2)U", blank="\u2014")
+    named(model.types, "CountryCode").interfaces.append(InterfaceBinding(uuid=uuid4(), interface=face.uuid))
+    assert column(export(model), "Customer", "country_code")["interface"] == {
+        "name": "code",
+        "picture": "X(2)U",
+        "parse_lenient": True,
+        "blank": "\u2014",
+    }
+
+
+def test_a_column_without_an_interface_says_so(model):
+    assert column(export(model), "Customer", "name")["interface"] is None
 
 
 # --- rules -------------------------------------------------------------------

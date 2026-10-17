@@ -40,7 +40,7 @@
           "default": null,
           "check": [],
           "application": [],
-          "presentation": null
+          "interface": null
         },
         {
           "name": "id",
@@ -59,7 +59,7 @@
             }
           ],
           "application": [],
-          "presentation": null
+          "interface": null
         },
         {
           "name": "name",
@@ -90,7 +90,7 @@
             }
           ],
           "application": [],
-          "presentation": null
+          "interface": null
         },
         {
           "name": "country_code",
@@ -109,7 +109,7 @@
             }
           ],
           "application": [],
-          "presentation": null
+          "interface": null
         }
       ],
       "primary_key": [
@@ -161,7 +161,7 @@
           "default": null,
           "check": [],
           "application": [],
-          "presentation": null
+          "interface": null
         },
         {
           "name": "order_number",
@@ -180,7 +180,7 @@
             }
           ],
           "application": [],
-          "presentation": null
+          "interface": null
         },
         {
           "name": "customer_id",
@@ -193,7 +193,7 @@
           "default": null,
           "check": [],
           "application": [],
-          "presentation": null
+          "interface": null
         },
         {
           "name": "ship_to_country",
@@ -212,7 +212,7 @@
             }
           ],
           "application": [],
-          "presentation": null
+          "interface": null
         },
         {
           "name": "total",
@@ -237,7 +237,7 @@
             }
           ],
           "application": [],
-          "presentation": null
+          "interface": null
         }
       ],
       "primary_key": [
@@ -303,7 +303,7 @@
           "default": null,
           "check": [],
           "application": [],
-          "presentation": null
+          "interface": null
         },
         {
           "name": "id",
@@ -323,7 +323,7 @@
             }
           ],
           "application": [],
-          "presentation": null
+          "interface": null
         },
         {
           "name": "line_total",
@@ -353,7 +353,7 @@
             }
           ],
           "application": [],
-          "presentation": null
+          "interface": null
         },
         {
           "name": "order_order_number",
@@ -366,7 +366,7 @@
           "default": null,
           "check": [],
           "application": [],
-          "presentation": null
+          "interface": null
         },
         {
           "name": "quantity",
@@ -380,7 +380,7 @@
           },
           "check": [],
           "application": [],
-          "presentation": null
+          "interface": null
         }
       ],
       "primary_key": [

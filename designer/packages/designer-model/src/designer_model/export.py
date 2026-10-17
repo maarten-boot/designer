@@ -49,6 +49,7 @@ from .model import (
     TypeRef,
     Validator,
 )
+from .pictures import NUMERIC
 from .stdlib import Library, operand_uuids, standard_library
 
 FORMAT = "designer-schema-export"
@@ -229,7 +230,7 @@ class _Exporter:
             "default": encode(slot.default) if slot.default is not None else None,
             "check": check,
             "application": application,
-            "presentation": self._presentation(ref),
+            "interface": self._interface(ref),
         }
 
     def _reference(self, entity: Entity, slot: Slot) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -251,7 +252,7 @@ class _Exporter:
                 "default": None,
                 "check": [],
                 "application": [],
-                "presentation": None,
+                "interface": None,
             }
             for name, ref in keys
         ]
@@ -302,7 +303,7 @@ class _Exporter:
                     out.extend(f"{slot.slot_name}_{name}" for name, _ in self._key_columns(target, 0))
         return out
 
-    # --- storage and presentation -------------------------------------------
+    # --- storage and interface ----------------------------------------------
 
     def _storage(self, ref: AnyTypeRef | None) -> dict[str, Any]:
         """The Type as a label, its base type, and the hints a DDL generator
@@ -338,21 +339,25 @@ class _Exporter:
                 found.append(arg.literal.value)
         return min(found) if found else None
 
-    def _presentation(self, ref: AnyTypeRef | None) -> dict[str, Any] | None:
+    def _interface(self, ref: AnyTypeRef | None) -> dict[str, Any] | None:
+        """The column's Interface, resolved (appendix *interfaces* §8): an
+        inherited one exports as though it were declared. The separators are
+        written for numeric columns only — always, even when canonical, since
+        the picture alone does not say how to render a number — and nowhere
+        else, where the picture is complete on its own."""
         if not isinstance(ref, TypeRef):
             return None
         found = self.d.effective_interface(ref.type_uuid)
         interface = self.interfaces.get(found[0]) if found else None
         if interface is None:
             return None
-        return {
-            "interface": interface.name,
-            "picture": interface.picture,
-            "decimal_point": interface.decimal_point,
-            "group_mark": interface.group_mark,
-            "blank": interface.blank,
-            "parse_lenient": interface.parse_lenient,
-        }
+        out: dict[str, Any] = {"name": interface.name, "picture": interface.picture}
+        if interface.base_type in NUMERIC:
+            out["decimal_point"] = interface.decimal_point
+            out["group_mark"] = interface.group_mark
+        out["parse_lenient"] = interface.parse_lenient
+        out["blank"] = interface.blank
+        return out
 
     # --- rules --------------------------------------------------------------
 
