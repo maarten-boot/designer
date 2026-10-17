@@ -6,6 +6,9 @@ fields, record structures and the schemas that group them.
 The specification and its three appendices are the source of truth. Every
 non-obvious decision in this code is there, with the reasoning:
 
+`HANDOVER.md` is the briefing for picking this up cold: what is decided, what is
+left, and the mistakes that have been made more than once.
+
 `HISTORY.md` is every prompt in this project, in order — appended as each turn
 arrives, attachments included, rather than reconstructed afterwards — the design decisions
 as they were actually asked for, which is often more useful than the settled

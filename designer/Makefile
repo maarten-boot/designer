@@ -16,7 +16,6 @@
 PACKAGES := packages/designer-model/src:packages/designer-app/src
 PY       := PYTHONPATH=$(PACKAGES) python3
 EXAMPLE  := examples/sales.json
-EXAMPLE  := ../sales.json
 
 .DEFAULT_GOAL := help
 .PHONY: help deps versions format lint types sync test gui model docs check run clean dist

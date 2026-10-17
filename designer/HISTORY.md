@@ -755,9 +755,25 @@ FAILED test_widgets.py::test_reordering_is_disabled_while_a_sort_is_applied
 
 ## 95.
 
+> excellent, i will continue testing
+
+## 96.
+
 > please expain the reason for 
 > Severity	Code	Item	What it says
 > warning	MOD404	Entity OrderLine · slots	slot order reaches only Order (e0000000)'s own rows, not its descendants'
 >
 > the slot OrderLine.order is a reference to Order itself why would we complain about unreachable decendents?
+
+## 97.
+
+> Write a handover document so a new session can continue with the work we are doing.
+
+## 98.
+
+> ok inspect the current directory tree and evaluate the current state
+
+## 99.
+
+> yes do 1 and 2
 
