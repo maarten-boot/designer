@@ -2476,3 +2476,74 @@ def test_a_blocked_export_opens_the_findings_on_its_blockers(app: DesignerApp, q
     codes = {window.tree.set(row, "code") for row in window.tree.get_children()}
     assert codes == {"MOD503", "MOD509"}
     assert "block the export of sales_schema" in str(window._summary.cget("text"))
+
+
+# --- the test bench ------------------------------------------------------------
+
+
+def _bench_result(app: DesignerApp, text: str, limit: float = 10.0):
+    """Type into the bench, press Try, and wait for the separate process."""
+    import time
+
+    window = app._bench_window
+    assert window is not None
+    window._text.set(text)
+    window.try_now()
+    deadline = time.monotonic() + limit
+    while window._job is not None and time.monotonic() < deadline:
+        app.update()
+        time.sleep(0.02)
+    settle(app)
+    return window
+
+
+def test_the_bench_needs_a_type(app: DesignerApp, quiet: dict) -> None:
+    from dataclasses import replace
+
+    app.selection = replace(app.selection, type=None, property=None, active=None)
+    app.open_bench()
+    settle(app)
+    assert quiet["info"][-1][0] == "Choose a type first"
+    assert app._bench_window is None
+
+
+def test_the_bench_judges_what_is_typed(app: DesignerApp, quiet: dict) -> None:
+    from designer_app.selection import updated
+
+    short = next(t for t in app.session.model.types if t.name == "ShortText")
+    app.selection = updated(app.selection, "type", short.uuid)
+    app.open_bench()
+    window = _bench_result(app, " Ada")
+    assert "ShortText" in window.title()
+    rules = {window.tree.item(row, "text"): window.tree.set(row, "result") for row in window.tree.get_children()}
+    assert rules == {"max_length": "passes", "non_blank": "fails"}
+    (non_blank,) = [r for r in window.tree.get_children() if window.tree.item(r, "text") == "non_blank"]
+    assert [window.tree.item(r, "text") for r in window.tree.get_children(non_blank)] == ["non_empty", "trimmed"]
+    assert "refuses it" in str(window.summary.cget("text"))
+
+
+def test_the_bench_uses_the_model_as_it_is_now(app: DesignerApp, quiet: dict) -> None:
+    from designer_app.selection import updated
+
+    short = next(t for t in app.session.model.types if t.name == "ShortText")
+    app.selection = updated(app.selection, "type", short.uuid)
+    app.open_bench()
+    _bench_result(app, " Ada")
+    short.validators = [b for b in short.validators if b.arguments]  # drop non_blank
+    window = _bench_result(app, " Ada")
+    assert "admits it" in str(window.summary.cget("text"))
+
+
+def test_closing_the_bench_stops_a_running_trial(app: DesignerApp, quiet: dict) -> None:
+    from designer_app.selection import updated
+
+    short = next(t for t in app.session.model.types if t.name == "ShortText")
+    app.selection = updated(app.selection, "type", short.uuid)
+    app.open_bench()
+    window = app._bench_window
+    window._text.set("Ada")
+    window.try_now()
+    job = window._job
+    window.destroy()
+    settle(app)
+    assert job._process.poll() is not None, "the trial's process outlived its window"

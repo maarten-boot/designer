@@ -1254,7 +1254,9 @@ and marked unavailable** rather than dropped.
 
 ## 15. Deferred `[V2]`
 
-- **Test bench** — enter sample values, see which validators pass or fail and
+- ~~**Test bench**~~ `[BUILT]` — **Model ▸ Try a value…**; the text is read through the
+  Type's Interface when it has one, and judging runs in a subprocess stopped
+  after two seconds, since a thread cannot interrupt `re`. Originally: enter sample values, see which validators pass or fail and
   why, evaluated off the UI thread so a pathological regex cannot hang the
   window. Worth pulling into v1 if anything else can be dropped.
 - **Preferences dialog**, exposing `undo_limit`, `autosave_delay_ms` and
@@ -1283,5 +1285,5 @@ built.
 
 Everything through phase 3 is built and editable, and schema export (§9.6) is
 built: **File ▸ Export Schema…**, `tools/export_schema.py` and `make export`.
-Every check the appendices specify is implemented. Not built: phase 4 — the
-test bench, a Preferences dialog, and deprecation handling.
+Every check the appendices specify is implemented, and the test bench (§15)
+is built. Not built: a Preferences dialog, and deprecation handling.

@@ -75,8 +75,11 @@ the only one) and, when something blocks it, opens the findings window on just
 those findings. From the command line it is `make export`, or
 `tools/export_schema.py MODEL SCHEMA`.
 
-**Not built yet:** phase 4 — the test bench, a Preferences dialog,
-deprecation handling.
+**The test bench** is built: **Model ▸ Try a value…** (Ctrl+T), or the button
+on a Type's or a Property's form. See *The test bench* below.
+
+**Not built yet:** the rest of phase 4 — a Preferences dialog, deprecation
+handling.
 
 Schema membership is editable: add, remove, and add-missing-referenced-entities,
 each a single undo step. Adding one entity names the cascade before it happens —
@@ -286,6 +289,26 @@ block an export is named at every level. Those are mostly `incomplete` findings,
 which a low level hides — so without that rule a model could reach an export
 with a fault nobody had been shown. `tools/check_model.py --level` takes the
 same four values.
+
+## The test bench
+
+Type a value as somebody would enter it, and the Type says what it makes of it.
+The text is read the way the application would read it — through the Type's
+Interface when it has one, otherwise as a literal of its base type — and then
+every rule along the chain answers, inherited ones first, a composite with each
+of its operands underneath. A failure carries the rule's own message.
+
+Reading and judging fail differently, and the bench keeps them apart: text that
+cannot be read is reported as unreadable and no rule is run, because there is no
+value to run it on. A rule that cannot answer — an argument unset, a value it
+does not take — says *cannot say* rather than passing or failing.
+
+It judges in a separate process (`designer_model/bench.py`, run as
+`python -m designer_model.bench`). Python's `re` has no timeout and holds the
+interpreter while it matches, so a pattern that backtracks without end would
+freeze a thread and the window with it; a process is stopped after two seconds.
+Every Try uses the model as it is at that moment, so the bench can stay open
+while a rule is changed and tried again.
 
 ## The editor
 

@@ -16,7 +16,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from uuid import UUID, uuid4
 
-from designer_model import Deriver, Session, membership
+from designer_model import Deriver, Session, bench, membership
 from designer_model.commands import (
     AddInterfaceBinding,
     AddItem,
@@ -38,7 +38,7 @@ from designer_model.model import (
 from designer_model.stdlib import standard_library
 
 from . import bindings as bindingedit
-from . import exporting, forms
+from . import exporting, forms, testbench
 from . import findings as findingview
 from . import paths as pathedit
 from . import rows as rowbuild
@@ -47,6 +47,7 @@ from .breadcrumb import Breadcrumb
 from .columns import ColumnView
 from .dialogs import (
     FindingsWindow,
+    TestBenchWindow,
     choose,
     confirm_delete,
     edit_rule,
@@ -166,6 +167,7 @@ class DesignerApp(tk.Tk):
             accelerator="F5",
             command=self.show_findings,
         )
+        model_menu.add_command(label="Try a value\u2026", accelerator="Ctrl+T", command=self.open_bench)
         menubar.add_cascade(label="Model", menu=model_menu)
 
         self.configure(menu=menubar)
@@ -174,6 +176,7 @@ class DesignerApp(tk.Tk):
         self.bind_all("<Control-z>", lambda _e: self.undo())
         self.bind_all("<Control-y>", lambda _e: self.redo())
         self.bind_all("<F5>", lambda _e: self.show_findings())
+        self.bind_all("<Control-t>", lambda _e: self.open_bench())
         self._refresh_recent()
 
     def _refresh_recent(self) -> None:
@@ -234,6 +237,7 @@ class DesignerApp(tk.Tk):
         self.status.bind("<Button-1>", lambda _e: self.show_findings())
         attach(self.status, "Click to list every finding, or press F5")
         self._findings_window: FindingsWindow | None = None
+        self._bench_window: TestBenchWindow | None = None
 
         self.collapse = CollapseManager(
             self._upper, list(COLUMNS), dict(self.columns), dict(self.settings.column_widths)
@@ -459,6 +463,7 @@ class DesignerApp(tk.Tk):
             "add_schema_rule": self._add_schema_rule,
             "edit_schema_rule": self._edit_schema_rule,
             "remove_schema_rule": self._remove_rule,
+            "try_value": self._try_value,
         }.get(action)
         if handler is not None:
             handler(uuid, row_id)
@@ -1263,6 +1268,38 @@ class DesignerApp(tk.Tk):
             messagebox.showerror("Could not export", f"{chosen}\n\n{error}")
             return
         messagebox.showinfo("Exported", f"{schema.name} was written to\n{chosen}")
+
+    def open_bench(self) -> None:
+        """Model ▸ Try a value…: the test bench on the Type in hand."""
+        type_uuid = testbench.target(self.session.model, self.selection)
+        if type_uuid is None:
+            messagebox.showinfo(
+                "Choose a type first",
+                "Select a Type, or a Property with a Type, to try values against.",
+            )
+            return
+        self._bench_on(type_uuid)
+
+    def _try_value(self, uuid: UUID, _row: str | None = None) -> None:
+        """The Try a value… button on a Type's or a Property's form."""
+        type_uuid = testbench.type_of(self.session.model, uuid)
+        if type_uuid is not None:
+            self._bench_on(type_uuid)
+
+    def _bench_on(self, type_uuid: UUID) -> None:
+        # the model as it is when Try is pressed, not when the window opened:
+        # the bench is for trying a rule, changing it, and trying again
+        def start(text: str):
+            return bench.start(self.session.model, type_uuid, text)
+
+        title = self._label(type_uuid)
+        if self._bench_window is None or not self._bench_window.winfo_exists():
+            self._bench_window = TestBenchWindow(self, title, start, bench.timed_out, testbench.rows)
+        else:
+            self._bench_window.retarget(title, start)
+        self._bench_window.deiconify()
+        self._bench_window.lift()
+        self._bench_window.entry.focus_set()
 
     def undo(self) -> None:
         if self.session.undo() is not None:

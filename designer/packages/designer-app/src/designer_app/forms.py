@@ -392,6 +392,8 @@ def describe(
         "Schema": _schema_form,
     }[type(item).__name__]
     spec.fields += builder(model, item, library, context, notes)
+    if isinstance(item, Type) or (isinstance(item, Property) and isinstance(item.type, TypeRef)):
+        spec.actions += (Action("try_value", "Try a value\u2026"),)
     return spec
 
 

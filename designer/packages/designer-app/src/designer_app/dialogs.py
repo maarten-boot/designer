@@ -144,6 +144,107 @@ class FindingsWindow(tk.Toplevel):
             self._on_open(self._rows[chosen[0]])
 
 
+class TestBenchWindow(tk.Toplevel):
+    """Type a value, see what the Type says about it (spec §15).
+
+    Not modal, like the findings window: something to keep open beside the
+    form while rules are adjusted. Judging runs in another process and is
+    polled from here, so a pattern that never finishes leaves the window
+    responsive and is stopped at the deadline.
+    """
+
+    POLL_MS = 40
+
+    def __init__(self, parent: tk.Misc, title: str, start, expire, layout) -> None:
+        super().__init__(parent)
+        self.geometry("760x380")
+        self._start = start
+        self._expire = expire
+        self._layout = layout
+        self._job = None
+
+        top = ttk.Frame(self, padding=(10, 10, 10, 4))
+        top.pack(fill="x")
+        ttk.Label(top, text="Value").pack(side="left")
+        self._text = tk.StringVar(master=self)
+        self.entry = ttk.Entry(top, textvariable=self._text, width=40)
+        self.entry.pack(side="left", padx=(6, 6), fill="x", expand=True)
+        self.button = ttk.Button(top, text="Try", command=self.try_now)
+        self.button.pack(side="left")
+        self.entry.bind("<Return>", lambda _e: self.try_now())
+
+        self.summary = ttk.Label(self, text="type a value as somebody would enter it", padding=(10, 2))
+        self.summary.pack(fill="x")
+
+        holder = ttk.Frame(self, padding=(10, 4, 10, 10))
+        holder.pack(fill="both", expand=True)
+        self.tree = ttk.Treeview(holder, columns=("origin", "result", "why"), show="tree headings")
+        self.tree.heading("#0", text="Rule")
+        self.tree.column("#0", width=200)
+        for name, heading, width in (("origin", "From", 120), ("result", "Result", 90), ("why", "Why", 320)):
+            self.tree.heading(name, text=heading)
+            self.tree.column(name, width=width, stretch=(name == "why"))
+        bar = ttk.Scrollbar(holder, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=bar.set)
+        bar.pack(side="right", fill="y")
+        self.tree.pack(side="left", fill="both", expand=True)
+        self.tree.tag_configure("pass", foreground="#2d6a1f")
+        self.tree.tag_configure("fail", foreground="#a01b0b")
+        self.tree.tag_configure("unanswered", foreground="#4f4f4f")
+
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self.bind("<Destroy>", self._on_destroy, add="+")
+        self.retarget(title, start)
+        self.entry.focus_set()
+
+    def retarget(self, title: str, start) -> None:
+        """Point the bench at another Type, keeping what was typed."""
+        self._stop()
+        self._start = start
+        self.title(f"Test bench \u2014 {title}")
+        self.tree.delete(*self.tree.get_children())
+        self.summary.configure(text="type a value as somebody would enter it")
+        self.button.state(["!disabled"])
+
+    def try_now(self) -> None:
+        self._stop()
+        self.button.state(["disabled"])
+        self.summary.configure(text="checking\u2026")
+        self._job = self._start(self._text.get())
+        self.after(self.POLL_MS, self._poll)
+
+    def _poll(self) -> None:
+        job = self._job
+        if job is None or not self.winfo_exists():
+            return
+        trial = job.poll()
+        if trial is None and job.expired:
+            job.cancel()
+            trial = self._expire(job.text)
+        if trial is None:
+            self.after(self.POLL_MS, self._poll)
+            return
+        self._job = None
+        self.show(trial)
+
+    def show(self, trial) -> None:
+        self.button.state(["!disabled"])
+        self.tree.delete(*self.tree.get_children())
+        for row in self._layout(trial):
+            rule, *rest = row.values
+            self.tree.insert(row.parent, "end", iid=row.id, text=rule, values=rest, tags=(row.tag,), open=True)
+        self.summary.configure(text=trial.summary)
+
+    def _stop(self) -> None:
+        if self._job is not None:
+            self._job.cancel()
+            self._job = None
+
+    def _on_destroy(self, event) -> None:
+        if event.widget is self:
+            self._stop()
+
+
 class PathPicker(ttk.Frame):
     """Build a route one step at a time.
 

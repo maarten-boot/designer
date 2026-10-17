@@ -478,7 +478,19 @@ def test_a_built_in_composite_shows_operand_names(model, library) -> None:
 
 def test_an_authored_form_is_not_read_only(model, library) -> None:
     assert not spec_for(model, library, "Money").read_only
-    assert spec_for(model, library, "Money").actions == ()
+    # nothing to copy: it is already the model's own
+    assert "fork_builtin" not in [a.name for a in spec_for(model, library, "Money").actions]
+
+
+def test_a_type_and_a_typed_property_offer_the_test_bench(model, library) -> None:
+    def actions(item):
+        return [a.name for a in forms.describe(model, item.uuid, library).actions]
+
+    assert actions(next(t for t in model.types if t.name == "Money")) == ["try_value"]
+    assert actions(next(p for p in model.properties if p.name == "amount")) == ["try_value"]
+    # typed by a base type: no rules to try
+    assert actions(next(p for p in model.properties if p.name == "quantity")) == []
+    assert actions(next(e for e in model.entities if e.name == "Order")) == []
 
 
 def test_something_genuinely_absent_still_describes_nothing(model, library) -> None:
