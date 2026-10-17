@@ -15,18 +15,8 @@
   "warnings": [
     {
       "code": "MOD602",
-      "table": "Customer",
-      "message": "Auditable binds in_past, which is not deterministic; no check constraint can enforce it"
-    },
-    {
-      "code": "MOD602",
-      "table": "Order",
-      "message": "Auditable binds in_past, which is not deterministic; no check constraint can enforce it"
-    },
-    {
-      "code": "MOD602",
-      "table": "OrderLine",
-      "message": "Auditable binds in_past, which is not deterministic; no check constraint can enforce it"
+      "item": "Auditable",
+      "message": "Auditable (e0000000) binds in_past (2754a6b3), which is not deterministic; no check constraint can enforce it"
     }
   ],
   "tables": [
@@ -35,7 +25,9 @@
       "uuid": "e0000000-0000-4000-8000-000000000002",
       "description": "Someone who places orders. Lives in common so several schemas can use it.",
       "context": "common",
-      "inherits": ["Auditable"],
+      "inherits": [
+        "Auditable"
+      ],
       "columns": [
         {
           "name": "created_at",
@@ -81,7 +73,11 @@
           "check": [
             {
               "rule": "max_length",
-              "arguments": {"max": 80},
+              "arguments": {
+                "max": {
+                  "integer": 80
+                }
+              },
               "expression": "len(value) <= 80",
               "message": "must be 80 characters or fewer",
               "from": "ShortText"
@@ -116,13 +112,23 @@
           "presentation": null
         }
       ],
-      "primary_key": ["id"],
+      "primary_key": [
+        "id"
+      ],
       "foreign_keys": [],
       "indexes": [
-        {"columns": ["name"], "unique": false}
+        {
+          "columns": [
+            "name"
+          ],
+          "unique": false
+        }
       ],
       "default_order": [
-        {"column": "name", "ascending": true}
+        {
+          "column": "name",
+          "ascending": true
+        }
       ],
       "check": [],
       "application": [
@@ -140,7 +146,9 @@
       "uuid": "e0000000-0000-4000-8000-000000000003",
       "description": "A customer order.",
       "context": "common/sales",
-      "inherits": ["Auditable"],
+      "inherits": [
+        "Auditable"
+      ],
       "columns": [
         {
           "name": "created_at",
@@ -212,9 +220,14 @@
           "property": "amount",
           "type": "Money",
           "base": "decimal",
-          "numeric": {"precision": 12, "scale": 2},
+          "numeric": {
+            "precision": 12,
+            "scale": 2
+          },
           "nullable": false,
-          "default": {"decimal": "0.00"},
+          "default": {
+            "decimal": "0.00"
+          },
           "check": [
             {
               "rule": "non_negative",
@@ -227,22 +240,36 @@
           "presentation": null
         }
       ],
-      "primary_key": ["order_number"],
+      "primary_key": [
+        "order_number"
+      ],
       "foreign_keys": [
         {
           "relationship": "customer",
-          "columns": ["customer_id"],
+          "columns": [
+            "customer_id"
+          ],
           "table": "Customer",
-          "target_columns": ["id"],
+          "target_columns": [
+            "id"
+          ],
           "on_delete": "restrict",
           "inverse_name": "orders"
         }
       ],
       "indexes": [
-        {"columns": ["order_number"], "unique": true}
+        {
+          "columns": [
+            "order_number"
+          ],
+          "unique": true
+        }
       ],
       "default_order": [
-        {"column": "order_number", "ascending": false}
+        {
+          "column": "order_number",
+          "ascending": false
+        }
       ],
       "check": [],
       "application": [
@@ -260,7 +287,10 @@
       "uuid": "e0000000-0000-4000-8000-000000000005",
       "description": "One line of an order. Narrows the inherited line_total.",
       "context": "common/sales",
-      "inherits": ["LineItem", "Auditable"],
+      "inherits": [
+        "LineItem",
+        "Auditable"
+      ],
       "columns": [
         {
           "name": "created_at",
@@ -302,7 +332,10 @@
           "property": "amount",
           "type": "PositiveMoney",
           "base": "decimal",
-          "numeric": {"precision": 12, "scale": 2},
+          "numeric": {
+            "precision": 12,
+            "scale": 2
+          },
           "nullable": false,
           "default": null,
           "check": [
@@ -342,19 +375,27 @@
           "type": null,
           "base": "integer",
           "nullable": false,
-          "default": {"integer": 1},
+          "default": {
+            "integer": 1
+          },
           "check": [],
           "application": [],
           "presentation": null
         }
       ],
-      "primary_key": ["id"],
+      "primary_key": [
+        "id"
+      ],
       "foreign_keys": [
         {
           "relationship": "order",
-          "columns": ["order_order_number"],
+          "columns": [
+            "order_order_number"
+          ],
           "table": "Order",
-          "target_columns": ["order_number"],
+          "target_columns": [
+            "order_number"
+          ],
           "on_delete": "cascade",
           "inverse_name": "lines"
         }
@@ -364,7 +405,11 @@
       "check": [
         {
           "rule": "min_value",
-          "arguments": {"min": 1},
+          "arguments": {
+            "min": {
+              "integer": 1
+            }
+          },
           "expression": "quantity >= 1",
           "message": "must be at least 1",
           "from": "OrderLine"
@@ -385,7 +430,7 @@
     {
       "rule": "equals",
       "anchor": "OrderLine",
-      "arguments": {
+      "paths": {
         "value": "order.ship_to_country",
         "other": "order.customer.country_code"
       },

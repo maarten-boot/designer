@@ -41,6 +41,10 @@ answer in the specification.
     tools/build_matrix.py       regenerates the committed operator matrix.
     tools/check_model.py        loads, round-trips and checks a model file.
     tools/check_docs.py         checks the documents against the code.
+    tools/export_schema.py      exports one Schema of a model file.
+    examples/sales_schema.export.json
+                                the export of sales_schema, which the exporter
+                                must reproduce byte for byte.
 
 ## The columns
 
@@ -64,8 +68,11 @@ interface: the window and menu bar, the seven columns, the breadcrumb, column
 collapse, the status line and findings window, and a generated, live form per
 kind with findings beside the field that caused them.
 
-**Not built yet:** schema export (its design decisions are settled in spec
-§9.6); the interface checks `INT202`, `INT401` and `INT402`; and
+**Schema export** (spec §9.6) is built in `designer_model/export.py` and runs
+from the command line — `make export`, or `tools/export_schema.py MODEL SCHEMA` —
+but has no menu entry yet.
+
+**Not built yet:** the interface checks `INT202`, `INT401` and `INT402`; and
 phase 4 — the test bench, a Preferences dialog, deprecation handling.
 
 Schema membership is editable: add, remove, and add-missing-referenced-entities,

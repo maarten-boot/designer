@@ -10,6 +10,7 @@ from .commands import Command, CommandStack, Macro
 from .deletion import DeletePlan, plan_delete
 from .derive import Deriver
 from .diagnostics import Consequence, Diagnostic, Scope, Severity, Subject
+from .export import ExportError, export_schema
 from .model import (
     BaseTypeRef,
     Binding,
@@ -45,6 +46,7 @@ __all__ = [
     "Diagnostic",
     "DocumentError",
     "Entity",
+    "ExportError",
     "Interface",
     "InterfaceBinding",
     "Library",
@@ -67,6 +69,7 @@ __all__ = [
     "definition",
     "dump",
     "dumps",
+    "export_schema",
     "load",
     "plan_delete",
     "read_autosave",

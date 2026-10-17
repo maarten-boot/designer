@@ -18,9 +18,10 @@
 PACKAGES := packages/designer-model/src:packages/designer-app/src
 PY       := PYTHONPATH=$(PACKAGES) python3
 EXAMPLE  := examples/sales.json
+SCHEMA   := sales_schema
 
 .DEFAULT_GOAL := help
-.PHONY: help deps versions format lint types sync test gui model docs check run clean dist
+.PHONY: help deps versions format lint types sync test gui model export docs check run clean dist
 
 help:  ## show this list
 	@grep -E '^[a-z]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -56,6 +57,9 @@ gui:  ## only the tests that build a real window
 
 model:  ## load, round trip and check the worked example
 	$(PY) tools/check_model.py $(EXAMPLE)
+
+export:  ## export SCHEMA of EXAMPLE (sales_schema of the example) to standard output
+	$(PY) tools/export_schema.py $(EXAMPLE) $(SCHEMA)
 
 docs:  ## the documents against each other and against the code
 	$(PY) tools/check_docs.py

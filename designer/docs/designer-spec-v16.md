@@ -737,6 +737,22 @@ The shape was settled against a hand-written sample,
   its export; an unfinished Type nothing in it uses does not.
 - **No timestamp.** The same model exports to the same bytes.
 
+Building it (`designer_model/export.py`, turn 108) changed three details of the
+sample, which is now generated rather than hand-written and is what the
+acceptance test compares against byte for byte:
+
+- **One warning per finding**, in the model check's own words, naming the item
+  it is about — not one per table the finding affects, which restated the
+  message in words the check never produces.
+- **Literal arguments are tagged** as defaults are (`{"integer": 80}`), so a
+  decimal or a date argument is unambiguous.
+- **A Schema rule's paths are `paths`**, apart from its literal `arguments`, so
+  a string argument cannot be mistaken for a route.
+
+And one rule the model check does not cover: a binding that leaves a parameter
+unset is **refused** by the exporter, since its expression would name something
+nothing supplies.
+
 ---
 
 ## 10. Context
@@ -1254,21 +1270,12 @@ and marked unavailable** rather than dropped.
 
 ## 16. Status
 
-**All four pre-build gaps are closed.** The specification and its three
-appendices — the validator library, the signature table, and the diagnostics —
-are accepted in full, and nothing in any of them is open.
+`[CHANGED]` This section used to describe the state before building began. It
+now only says what is still open; `README.md` and `HANDOVER.md` describe what is
+built.
 
-One deliverable remains before the domain model is written, and it is a piece of
-work rather than a decision:
-
-**A second worked example.** The standard library fragment (§5.7) exercises the
-file format for Validators thoroughly and nothing else. A small companion example
-covering Entities, slots, extension, a Schema with membership and a cross-entity
-rule with a path would exercise the decisions most likely to be wrong in practice
-— nullable references, stored slot-UUID paths, binding UUIDs, and an
-intentionally incomplete item. Writing it before the domain model means the first
-tests have something real to load, rather than fixtures invented alongside the
-code they are meant to check.
-
-After that, phase 1 — domain model, persistence and model check, headless and
-test-driven — has everything it needs.
+Everything through phase 3 is built and editable, and schema export (§9.6) is
+built as a library function and a command-line tool, with no menu entry yet.
+Not built: the interface checks `INT202`, `INT401` and `INT402` (appendix
+*interfaces*), and phase 4 — the test bench, a Preferences dialog, and
+deprecation handling.

@@ -43,13 +43,14 @@ summaries left in the editor.
 
 **Not built:**
 
-1. **Schema export.** The deliverable, and the reason the project exists. The
-   four design decisions were confirmed in turn 103 and are recorded in spec
-   §9.6: errors and incomplete block, warnings do not (except `MOD503`);
-   constraints resolved rather than referenced, Type name kept as a label; one
-   Schema per file; JSON now, YAML later as a serialiser swap. The file's shape
-   was agreed in turn 105 against `examples/sales_schema.export.json`, which is
-   hand-written and is the target the exporter must reproduce byte for byte.
+1. **Schema export: the menu entry.** The exporter itself is built
+   (`designer_model/export.py`, `tools/export_schema.py`, `make export`), with
+   every decision in spec §9.6. `examples/sales_schema.export.json` is its
+   acceptance test, compared byte for byte; it was hand-written and agreed in
+   turn 105, then regenerated with three agreed-in-passing changes listed in
+   §9.6. What is missing is **File ▸ Export schema…** in the window, and since
+   the widget tests skip here, it needs a run on a machine with a display.
+   The YAML serialiser is the other open piece.
 2. **`INT202`, `INT401`, `INT402`.** Specified in the interfaces appendix,
    marked there as not implemented. `INT202` is the interesting one: the round
    trip over the values a Type actually admits. `X(3)U` is sound on a Type
@@ -107,6 +108,7 @@ message has twice shown that the message itself was the defect, not the model.
     make versions   # what the checks are actually running
     make check      # lint, types, sync, test, model, docs
     make run        # open examples/sales.json
+    make export     # export sales_schema to standard output
     make run EXAMPLE=../sales.json    # the user's own working model
 
 `make check` is six nets:

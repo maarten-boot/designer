@@ -805,3 +805,15 @@ FAILED test_widgets.py::test_reordering_is_disabled_while_a_sort_is_applied
 
 > yes commit it
 
+## 107.
+
+> i pushed it
+
+## 108.
+
+> pip is installed now
+
+## 109.
+
+> yes commit it
+
