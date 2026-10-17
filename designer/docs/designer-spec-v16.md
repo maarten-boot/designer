@@ -1282,6 +1282,6 @@ now only says what is still open; `README.md` and `HANDOVER.md` describe what is
 built.
 
 Everything through phase 3 is built and editable, and schema export (§9.6) is
-built as a library function and a command-line tool, with no menu entry yet.
+built: **File ▸ Export Schema…**, `tools/export_schema.py` and `make export`.
 Every check the appendices specify is implemented. Not built: phase 4 — the
 test bench, a Preferences dialog, and deprecation handling.

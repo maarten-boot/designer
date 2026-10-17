@@ -32,7 +32,8 @@ answer in the specification.
                                 and it never imports tkinter.
     packages/designer-app/      the interface. rows.py, selection.py,
                                 state.py, slots.py, bindings.py, paths.py,
-                                forms.py, impact.py and findings.py are
+                                forms.py, impact.py, findings.py and
+                                exporting.py are
                                 deliberately tkinter-free and carry the logic
                                 worth testing; the widget modules are thin
                                 adapters over them.
@@ -68,9 +69,11 @@ interface: the window and menu bar, the seven columns, the breadcrumb, column
 collapse, the status line and findings window, and a generated, live form per
 kind with findings beside the field that caused them.
 
-**Schema export** (spec §9.6) is built in `designer_model/export.py` and runs
-from the command line — `make export`, or `tools/export_schema.py MODEL SCHEMA` —
-but has no menu entry yet.
+**Schema export** (spec §9.6) is built in `designer_model/export.py`. In the
+window it is **File ▸ Export Schema…**, which exports the selected Schema (or
+the only one) and, when something blocks it, opens the findings window on just
+those findings. From the command line it is `make export`, or
+`tools/export_schema.py MODEL SCHEMA`.
 
 **Not built yet:** phase 4 — the test bench, a Preferences dialog,
 deprecation handling.
@@ -107,8 +110,9 @@ caught by this. Run it before believing a green suite.
 
 **The widget layer is tested only where there is a display.** It was written on
 a machine with no tkinter, and most interface bugs so far were found by using
-it, not by the suite. Run `make gui` on a machine with a display after touching
-the interface.
+it, not by the suite. Run `make gui` after touching the interface — on a
+machine without a display, `xvfb-run -a make gui` (or `xvfb-run -a make check`)
+gives it one.
 
 ## Working on it
 

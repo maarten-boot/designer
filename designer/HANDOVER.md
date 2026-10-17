@@ -33,11 +33,11 @@ so the logic worth testing can be tested without a display.
 
 ## Where things stand
 
-`make check` green on 17 October: 735 tests, 1 skipped. That one skip
-matters — see below. Re-run it rather than trusting the number. The machine has
-pip but no system-wide ruff, mypy or pytest, so put them in a virtual
-environment and its `bin` first on `PATH` before `make check`; it has no
-tkinter, so the widget suite is the skip.
+`xvfb-run -a make check` green on 17 October: 931 tests, none skipped — the
+first run here with the widget suite included. Re-run it rather than trusting
+the number. The machine has pip, tkinter and Xvfb but no system-wide ruff, mypy
+or pytest, so put them in a virtual environment and its `bin` first on `PATH`.
+Without `xvfb-run` the widget suite skips and `make check` still says green.
 
 Everything in the specification is built and editable, and every check the
 appendices specify is implemented — `INT202` by sampling (`pictures.PROBES`,
@@ -46,14 +46,11 @@ appendix *interfaces* §7.3), with the project's first evaluator,
 
 **Not built:**
 
-1. **Schema export: the menu entry.** The exporter itself is built
-   (`designer_model/export.py`, `tools/export_schema.py`, `make export`), with
-   every decision in spec §9.6. `examples/sales_schema.export.json` is its
-   acceptance test, compared byte for byte; it was hand-written and agreed in
-   turn 105, then regenerated with three agreed-in-passing changes listed in
-   §9.6. What is missing is **File ▸ Export schema…** in the window, and since
-   the widget tests skip here, it needs a run on a machine with a display.
-   The YAML serialiser is the other open piece.
+1. **Schema export: YAML.** The exporter is built (`designer_model/export.py`,
+   **File ▸ Export Schema…** via `designer_app/exporting.py`,
+   `tools/export_schema.py`, `make export`), with every decision in spec §9.6.
+   `examples/sales_schema.export.json` is its acceptance test, compared byte
+   for byte. The YAML serialiser is the open piece.
 2. **Phase 4:** the test bench (try a value against a Type and see which rules
    pass — `evaluate.py` already answers that per rule), a Preferences dialog,
    deprecation handling.
@@ -146,8 +143,10 @@ alongside the change.
 
 Read this part. Every item is a mistake made more than once.
 
-**The widget tests skip here.** There is no display in the working container,
-so `make test` green says nothing about `test_widgets.py`. Four separate
+**The widget tests skip without a display.** For most of this project they
+never ran where the code was written, and `make test` green said nothing about
+`test_widgets.py`. They run now — `xvfb-run -a make check` — so use it; a plain
+`make check` still skips them silently. Four separate
 failures reached the user this way. Two defences exist — `make sync` type-checks
 the tests, and logic gets extracted into tkinter-free modules so it can be
 tested for real — but neither is complete. When touching a widget test, reason

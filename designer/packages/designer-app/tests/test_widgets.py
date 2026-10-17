@@ -2406,3 +2406,73 @@ def test_an_index_can_be_made_unique(app: DesignerApp) -> None:
     app._toggle_index_unique(UUID(row), "0")
     settle(app)
     assert order.indexes[0].unique
+
+
+# --- File ▸ Export Schema… --------------------------------------------------
+
+
+def _choose_schema(app: DesignerApp, name: str) -> None:
+    from designer_app.selection import updated
+
+    schema = next(s for s in app.session.model.schemas if s.name == name)
+    app.selection = updated(app.selection, "schema", schema.uuid)
+
+
+def _save_to(monkeypatch, target) -> dict:
+    """Answer the save dialog with `target`, keeping what it was asked."""
+    import designer_app.app as app_module
+
+    asked: dict = {}
+
+    def asksaveasfilename(**kwargs):
+        asked.update(kwargs)
+        return str(target)
+
+    monkeypatch.setattr(app_module.filedialog, "asksaveasfilename", asksaveasfilename)
+    return asked
+
+
+def test_export_writes_the_selected_schema(app: DesignerApp, quiet: dict, monkeypatch, tmp_path) -> None:
+    target = tmp_path / "out.json"
+    asked = _save_to(monkeypatch, target)
+    _choose_schema(app, "sales_schema")
+    app.export_schema()
+    settle(app)
+    sample = pathlib.Path(__file__).resolve().parents[3] / "examples" / "sales_schema.export.json"
+    assert target.read_text() == sample.read_text()
+    assert asked["initialfile"] == "sales_schema.export.json"
+    assert quiet["info"][-1][0] == "Exported"
+
+
+def test_export_without_a_schema_chosen_says_what_to_do(app: DesignerApp, quiet: dict) -> None:
+    from dataclasses import replace
+
+    app.selection = replace(app.selection, schema=None)
+    app.export_schema()
+    settle(app)
+    assert quiet["info"][-1][0] == "Choose a schema first"
+
+
+def test_a_declined_save_writes_nothing(app: DesignerApp, quiet: dict) -> None:
+    _choose_schema(app, "sales_schema")
+    app.export_schema()  # the stub declines
+    settle(app)
+    assert not quiet["info"] and not quiet["error"]
+
+
+def test_a_blocked_export_opens_the_findings_on_its_blockers(app: DesignerApp, quiet: dict, monkeypatch, tmp_path):
+    target = tmp_path / "out.json"
+    _save_to(monkeypatch, target)
+    model = app.session.model
+    schema = next(s for s in model.schemas if s.name == "sales_schema")
+    customer = next(e for e in model.entities if e.name == "Customer")
+    schema.members = tuple(m for m in schema.members if m != customer.uuid)
+    _choose_schema(app, "sales_schema")
+    app.export_schema()
+    settle(app)
+    assert not target.exists()
+    window = app._findings_window
+    assert window is not None and window.winfo_exists()
+    codes = {window.tree.set(row, "code") for row in window.tree.get_children()}
+    assert codes == {"MOD503", "MOD509"}
+    assert "block the export of sales_schema" in str(window._summary.cget("text"))

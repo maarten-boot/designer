@@ -38,8 +38,8 @@ from designer_model.model import (
 from designer_model.stdlib import standard_library
 
 from . import bindings as bindingedit
+from . import exporting, forms
 from . import findings as findingview
-from . import forms
 from . import paths as pathedit
 from . import rows as rowbuild
 from . import slots as slotedit
@@ -121,6 +121,8 @@ class DesignerApp(tk.Tk):
         file_menu.add_separator()
         file_menu.add_command(label="Save", accelerator="Ctrl+S", command=self.save)
         file_menu.add_command(label="Save As…", command=lambda: self.save(ask=True))
+        file_menu.add_separator()
+        file_menu.add_command(label="Export Schema…", command=self.export_schema)
         file_menu.add_separator()
         file_menu.add_command(label="Quit", command=self._on_close)
         menubar.add_cascade(label="File", menu=file_menu)
@@ -1219,6 +1221,48 @@ class DesignerApp(tk.Tk):
         self.settings.remember(target)
         self._refresh_recent()
         self._update_status()
+
+    def export_schema(self) -> None:
+        """Write the selected Schema as an export (spec §9.6).
+
+        Blocked, it opens the findings window on what blocks it rather than a
+        message box, so each finding can be double-clicked to the item that has
+        to change — the same list F5 gives, cut down to what stops this export.
+        """
+        model = self.session.model
+        schema = exporting.schema_for_export(model, self.selection)
+        if schema is None:
+            messagebox.showinfo(
+                "Choose a schema first",
+                "Select the Schema to export in the Schema column." if model.schemas else "This model has no Schemas.",
+            )
+            return
+        outcome = exporting.run(model, schema, self.library)
+        if outcome.text is None:
+            if not outcome.blockers:
+                messagebox.showwarning("Cannot export", outcome.headline)
+                return
+            if self._findings_window is None or not self._findings_window.winfo_exists():
+                self._findings_window = FindingsWindow(self, outcome.blockers, self._go_to_finding)
+            self._findings_window.show(outcome.blockers, outcome.headline)
+            self._findings_window.deiconify()
+            self._findings_window.lift()
+            return
+        suggested = exporting.suggested_path(schema, self.session.path)
+        chosen = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            initialdir=str(suggested.parent),
+            initialfile=suggested.name,
+            filetypes=[("Schema export", "*.json"), ("All", "*")],
+        )
+        if not chosen:
+            return
+        try:
+            Path(chosen).write_text(outcome.text)
+        except OSError as error:
+            messagebox.showerror("Could not export", f"{chosen}\n\n{error}")
+            return
+        messagebox.showinfo("Exported", f"{schema.name} was written to\n{chosen}")
 
     def undo(self) -> None:
         if self.session.undo() is not None:

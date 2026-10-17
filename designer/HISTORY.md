@@ -869,3 +869,19 @@ FAILED test_widgets.py::test_reordering_is_disabled_while_a_sort_is_applied
 
 > yes commit it
 
+## 123.
+
+> i pushed it
+
+## 124.
+
+> do the export menu item; no tests with xvfb here ? your remote (where you run) has xvfb installed
+
+## 125.
+
+> python3-tk is installed now
+
+## 126.
+
+> yes commit it
+
