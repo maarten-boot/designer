@@ -310,3 +310,62 @@ def test_a_leaf_target_is_not_warned_about(model) -> None:
     from designer_model import check as run_check
 
     assert not [f for f in run_check(model).findings if f.code == "MOD404"]
+
+
+# --- MOD108: an argument the binding does not set ----------------------------
+
+
+def mod108(model) -> list[str]:
+    return [str(f.args["parameters"]) for f in check(model).findings if f.code == "MOD108"]
+
+
+def test_a_type_binding_without_its_argument_is_incomplete(model) -> None:
+    item = by_name(model.types, "CountryCode")
+    item.validators.append(Binding(uuid=uuid4(), validator=builtin_id("max_length")))
+    assert mod108(model) == ["max"]
+    assert definition("MOD108").severity is Severity.INCOMPLETE
+    assert blocks_export("MOD108")
+
+
+def test_a_composite_needs_what_its_leaves_need(model) -> None:
+    from designer_model.model import Validator
+
+    leaf = by_name(model.validators, "is_order_number")
+    composite = Validator(
+        uuid=uuid4(),
+        name="short_order_number",
+        description="",
+        created=leaf.created,
+        modified=leaf.modified,
+        context=leaf.context,
+        kind="composite",
+        expression=f"{leaf.uuid} AND {builtin_id('max_length')}",
+    )
+    model.validators.append(composite)
+    by_name(model.types, "OrderNumber").validators.append(Binding(uuid=uuid4(), validator=composite.uuid))
+    assert mod108(model) == ["max"]
+
+
+def test_an_entity_binding_must_say_which_value(model) -> None:
+    from designer_model.literals import ScalarLiteral
+    from designer_model.model import LiteralArg
+
+    entity = by_name(model.entities, "OrderLine")
+    entity.validators.append(
+        Binding(
+            uuid=uuid4(),
+            validator=builtin_id("min_value"),
+            arguments={"min": LiteralArg(ScalarLiteral("integer", 1))},
+        )
+    )
+    assert mod108(model) == ["value"]
+
+
+def test_the_message_names_the_binding_and_what_is_missing(model) -> None:
+    by_name(model.types, "CountryCode").validators.append(Binding(uuid=uuid4(), validator=builtin_id("max_length")))
+    finding = next(f for f in check(model).findings if f.code == "MOD108")
+    names = {i.uuid: i.name for i in model.index().values()} | {builtin_id("max_length"): "max_length"}
+    message = render(definition("MOD108").template, finding.args, names)
+    assert message.startswith("CountryCode (")
+    assert "binds max_length (" in message
+    assert message.endswith("without setting max")

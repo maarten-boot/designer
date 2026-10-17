@@ -167,6 +167,13 @@ class Checker:
             return
         if binding.validator in self.library.deprecated:
             yield Diagnostic("LIB102", at, {"item": ItemRef(owner.uuid), "target": ItemRef(binding.validator)})
+        unset = self._unset_arguments(owner, binding)
+        if unset:
+            yield Diagnostic(
+                "MOD108",
+                at,
+                {"item": ItemRef(owner.uuid), "validator": ItemRef(binding.validator), "parameters": ", ".join(unset)},
+            )
         yield from self._check_expression(binding, self._binding_value(owner, binding), at)
         if not self._deterministic(binding.validator):
             yield Diagnostic("MOD602", at, {"item": ItemRef(owner.uuid), "validator": ItemRef(binding.validator)})
@@ -205,6 +212,16 @@ class Checker:
             return
         for operand in operand_uuids(validator.expression):
             yield from self._leaf_expressions(self._validator_of(operand), depth + 1)
+
+    def _unset_arguments(self, owner, binding: Binding) -> list[str]:
+        """The parameters a binding has to supply and does not. A composite
+        needs whatever its leaves need, since every operand gets the same
+        arguments. On an Entity or a Schema `value` is an argument too — only a
+        Type supplies it implicitly."""
+        needed: list[str] = [] if isinstance(owner, Type) else ["value"]
+        for leaf in self._leaf_expressions(self._validator_of(binding.validator)):
+            needed.extend(p for p in leaf.parameters if p not in needed)
+        return [p for p in needed if p not in binding.arguments]
 
     def _binding_value(self, owner, binding: Binding) -> ExprType:
         """What `value` is, at whichever of the three sites this binding sits.

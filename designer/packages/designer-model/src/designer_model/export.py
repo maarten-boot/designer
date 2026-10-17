@@ -453,11 +453,8 @@ class _Exporter:
         if depth > MAX_DEPTH:
             raise ExportError(f"{validator.name} does not resolve")
         if not validator.is_composite:
-            # the model check does not report an unset argument, and an
-            # expression naming a parameter nothing supplies is not a rule
-            unset = [p for p in validator.parameters if p not in substitutions]
-            if unset:
-                raise ExportError(f"{validator.name} is bound without {', '.join(unset)}")
+            # an unset argument would leave its name in the expression; the
+            # model check reports it as MOD108, which blocks before this runs
             return _substitute(validator.expression, substitutions)
 
         # the parser reads identifiers and a stored operand is a UUID, which may

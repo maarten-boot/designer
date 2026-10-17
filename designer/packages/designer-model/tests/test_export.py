@@ -244,13 +244,13 @@ def test_literal_sources():
     assert _source(ScalarLiteral("date", dt.date(2026, 1, 2))) == '"2026-01-02"'
 
 
-def test_a_binding_with_an_unset_argument_is_refused(model):
-    # the model check does not report this, so the exporter must: the
-    # expression would name a parameter nothing supplies
+def test_a_binding_with_an_unset_argument_blocks(model):
+    # the expression would name a parameter nothing supplies (MOD108)
     binding = Binding(uuid=uuid4(), validator=builtin_id("max_length"), arguments={})
     named(model.types, "CountryCode").validators.append(binding)
-    with pytest.raises(ExportError, match="without max"):
+    with pytest.raises(ExportError) as raised:
         export(model)
+    assert [f.code for f in raised.value.blockers] == ["MOD108"]
     binding.arguments = {"max": LiteralArg(ScalarLiteral("integer", 2))}
     rules = column(export(model), "Customer", "country_code")["check"]
     assert named_rule(rules, "max_length")["expression"] == "len(value) <= 2"

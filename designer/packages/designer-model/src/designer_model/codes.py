@@ -85,6 +85,14 @@ _ALL = [
         blocks_export=True,
     ),
     _d(
+        "MOD108",
+        Severity.INCOMPLETE,
+        Scope.ITEM,
+        "Argument not set",
+        "{item} binds {validator} without setting {parameters}",
+        blocks_export=True,
+    ),
+    _d(
         "MOD111",
         Severity.ERROR,
         Scope.ITEM,

@@ -749,9 +749,10 @@ acceptance test compares against byte for byte:
 - **A Schema rule's paths are `paths`**, apart from its literal `arguments`, so
   a string argument cannot be mistaken for a route.
 
-And one rule the model check does not cover: a binding that leaves a parameter
-unset is **refused** by the exporter, since its expression would name something
-nothing supplies.
+Building it also found a gap in the model check: a binding that left a
+parameter unset was reported by nothing, and its expression would have named
+something nothing supplies. That is now `MOD108`, incomplete, and blocks like
+the rest (§11.6).
 
 ---
 
@@ -882,7 +883,9 @@ item did not change. `model`-scope rules run on demand and before export.
 The findings, by severity:
 
 **Incomplete** — unset Type parent, unset Property type, unset slot Property or
-target, unset validator anchor, blank names, bindings whose type cannot resolve.
+target, unset validator anchor, blank names, bindings whose type cannot resolve,
+bindings that leave an argument unset (`MOD108`; on an Entity or a Schema that
+includes `value`).
 
 **Errors** — dangling references; Type parent cycles, Entity extension cycles,
 Validator cycles; expression parse failures; unresolved or deleted composite
