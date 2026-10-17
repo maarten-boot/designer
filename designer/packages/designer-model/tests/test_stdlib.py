@@ -97,3 +97,76 @@ def test_every_built_in_has_a_message(library) -> None:
     for name in library.names:
         assert library.by_name(name).message
         assert library.by_name(name).description
+
+
+# --- deprecation (spec §5.7) -------------------------------------------------
+
+
+def _with_deprecated(name: str, replacement: str | None = None, reason: str = ""):
+    """The shipped library, with one built-in deprecated — nothing is yet."""
+    from designer_model.stdlib import Deprecation, Library
+
+    shipped = standard_library()
+    validators = [shipped.by_name(n) for n in shipped.names]
+    marked = Deprecation(since=2, replacement=builtin_id(replacement) if replacement else None, reason=reason)
+    return Library(validators, 2, {builtin_id(name): marked})
+
+
+def test_every_shipped_deprecation_names_a_built_in_and_a_live_replacement(library) -> None:
+    for uuid, found in library.deprecations.items():
+        assert uuid in library, f"{uuid} is deprecated but not a built-in"
+        assert found.since <= library.version
+        if found.replacement is not None:
+            assert found.replacement in library
+            assert found.replacement not in library.deprecated, "a replacement that is itself deprecated"
+
+
+def test_a_deprecated_built_in_still_resolves() -> None:
+    library = _with_deprecated("is_uuid")
+    assert library.by_name("is_uuid") is not None
+    assert library.get(builtin_id("is_uuid")) is not None
+
+
+def test_pickers_leave_it_out_unless_it_is_already_chosen() -> None:
+    library = _with_deprecated("is_uuid")
+    assert "is_uuid" not in library.offered()
+    assert "is_uuid" in library.offered(keep=builtin_id("is_uuid"))
+    assert len(library.offered()) == len(library) - 1
+
+
+def test_the_advice_says_since_when_what_instead_and_why() -> None:
+    library = _with_deprecated("is_uuid", "is_email", "a bad example")
+    assert library.advice(builtin_id("is_uuid")) == "since library v2; use is_email instead; a bad example"
+    assert library.advice(builtin_id("is_email")) == ""
+
+
+def test_using_one_is_a_note_with_the_advice() -> None:
+    from designer_model.check import check
+    from designer_model.codes import definition
+    from designer_model.diagnostics import Severity, render
+
+    model = load(DATA.parents[5] / "examples" / "sales.json")
+    library = _with_deprecated("max_length", "is_email")
+    findings = [f for f in check(model, library).findings if f.code == "LIB102"]
+    assert len(findings) == 1  # ShortText binds it
+    assert definition("LIB102").severity is Severity.INFO
+    names = {i.uuid: i.name for i in model.index().values()} | {builtin_id("max_length"): "max_length"}
+    message = render(definition("LIB102").template, findings[0].args, names)
+    assert message.endswith("which is deprecated (since library v2; use is_email instead)")
+
+
+def test_a_composite_operand_counts_as_a_use() -> None:
+    from designer_model.check import check
+
+    model = load(DATA.parents[5] / "examples" / "sales.json")
+    library = _with_deprecated("is_uuid")  # order_reference is is_order_number OR is_uuid
+    subjects = {str(f.subject) for f in check(model, library).findings if f.code == "LIB102"}
+    assert any("expression" in s for s in subjects)
+
+
+def test_a_deprecated_built_in_does_not_block_export() -> None:
+    from designer_model.export import export_schema
+
+    model = load(DATA.parents[5] / "examples" / "sales.json")
+    schema = next(s for s in model.schemas if s.name == "sales_schema")
+    export_schema(model, schema.uuid, _with_deprecated("max_length"))

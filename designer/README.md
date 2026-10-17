@@ -82,7 +82,15 @@ on a Type's or a Property's form. See *The test bench* below.
 recent files are listed, each with its range. A change applies at once — a lower
 undo limit forgets the oldest steps immediately — and is saved at once.
 
-**Not built yet:** the rest of phase 4 — deprecation handling.
+**Deprecated built-ins** (spec §5.7) are listed beside the library in
+`designer_model/data/deprecations.json`, written by `tools/build_stdlib.py` from
+its `DEPRECATED` list. A deprecated built-in still resolves and still works; the
+Validator column marks it, its form says since when and what to use instead,
+the rule pickers stop offering it (except to the rule already using it), and a
+model that uses it gets the note `LIB102`. None is deprecated yet.
+
+**Not built yet:** YAML export. Everything else the specification describes is
+built.
 
 Schema membership is editable: add, remove, and add-missing-referenced-entities,
 each a single undo step. Adding one entity names the cascade before it happens —

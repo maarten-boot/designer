@@ -742,7 +742,9 @@ class DesignerApp(tk.Tk):
                     self.session.model, self.library, owner, current, validator.uuid
                 ):
                     names.append(forms.Choice(str(validator.uuid), validator.name))
-            for name in sorted(self.library.names):
+            # deprecated built-ins are not offered, except the one this rule
+            # already uses: editing it must not silently change it (spec §5.7)
+            for name in self.library.offered(keep=current.validator):
                 built_in = self.library.by_name(name)
                 if bindingedit.fits(self.session.model, self.library, owner, current, built_in.uuid):
                     names.append(forms.Choice(str(built_in.uuid), name))
@@ -1079,7 +1081,9 @@ class DesignerApp(tk.Tk):
             draft.anchor = UUID(anchors[0].id)
         rules = tuple(
             forms.Choice(str(v.uuid), v.name) for v in sorted(model.validators, key=lambda v: v.name.lower()) if v.name
-        ) + tuple(forms.Choice(str(self.library.by_name(n).uuid), n) for n in sorted(self.library.names))
+        ) + tuple(
+            forms.Choice(str(self.library.by_name(n).uuid), n) for n in self.library.offered(keep=draft.validator)
+        )
         return edit_schema_rule(
             self,
             title,

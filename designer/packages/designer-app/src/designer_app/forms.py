@@ -583,6 +583,20 @@ def _builtin_form(model: Model, item: Validator, library: Library) -> FormSpec:
             *(
                 [
                     Field(
+                        "deprecated",
+                        "Deprecated",
+                        "readonly",
+                        advice,
+                        emphasis="attention",
+                        note="still works, and rules already using it keep it; pickers no longer offer it",
+                    )
+                ]
+                if (advice := library.advice(item.uuid))
+                else []
+            ),
+            *(
+                [
+                    Field(
                         "shadowed",
                         "Taken precedence over by",
                         "summary",

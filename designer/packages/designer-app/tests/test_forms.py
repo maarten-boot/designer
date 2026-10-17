@@ -1095,3 +1095,19 @@ def test_an_order_term_naming_a_removed_slot_is_marked(model, library) -> None:
     row = spec_for(model, library, "Customer").by_key("default_order").rows[0]
     assert row.cells[0] == "(removed)"
     assert "error" in row.tags
+
+
+def test_a_deprecated_built_in_says_so_on_its_form(model) -> None:
+    from designer_model.ids import builtin_id
+    from designer_model.stdlib import Deprecation, Library, standard_library
+
+    shipped = standard_library()
+    library = Library(
+        [shipped.by_name(n) for n in shipped.names],
+        2,
+        {builtin_id("is_uuid"): Deprecation(since=2, replacement=builtin_id("is_email"))},
+    )
+    spec = forms.describe(model, builtin_id("is_uuid"), library)
+    field = spec.by_key("deprecated")
+    assert field is not None and field.value == "since library v2; use is_email instead"
+    assert forms.describe(model, builtin_id("is_email"), library).by_key("deprecated") is None

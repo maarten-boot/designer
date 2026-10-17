@@ -22,6 +22,7 @@ from .tooltip import attach
 TAG_STYLES: dict[str, dict[str, str]] = {
     "abstract": {"foreground": "#555555"},
     "builtin": {"foreground": "#777777"},
+    "deprecated": {"foreground": "#aaaaaa"},
     "unnamed": {"foreground": "#999999"},
     "incomplete": {"foreground": "#8a6d00"},
     "context-only": {"foreground": "#aaaaaa"},

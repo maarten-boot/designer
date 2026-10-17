@@ -271,7 +271,14 @@ def validators(
         for v in _visible(deriver, model.validators, context)
     ]
     if show_builtins and library is not None:
-        rows += [Row(str(library.by_name(n).uuid), n, "Validator", "", ("builtin",)) for n in sorted(library.names)]
+        for name in sorted(library.names):
+            uuid = library.by_name(name).uuid
+            # still listed — it still works, and a model may use it — but marked
+            deprecated = uuid in library.deprecated
+            label = f"{name} (deprecated)" if deprecated else name
+            rows.append(
+                Row(str(uuid), label, "Validator", "", ("builtin", "deprecated") if deprecated else ("builtin",))
+            )
     rows = [r for r in rows if _matches(r.label, filter_text)]
     # built-ins stay after the authored ones whichever way the sort runs: that
     # is a grouping, not a sort key, and reversing it would bury the model's

@@ -168,7 +168,7 @@ class Checker:
             )
             return
         if binding.validator in self.library.deprecated:
-            yield Diagnostic("LIB102", at, {"item": ItemRef(owner.uuid), "target": ItemRef(binding.validator)})
+            yield self._deprecated(owner, binding.validator, at)
         unset = self._unset_arguments(owner, binding)
         if unset:
             yield Diagnostic(
@@ -462,6 +462,17 @@ class Checker:
                         yield Diagnostic(
                             "MOD113", at.then("expression"), {"item": ItemRef(v.uuid), "target": ItemRef(operand)}
                         )
+                    elif operand in self.library.deprecated:
+                        yield self._deprecated(v, operand, at.then("expression"))
+
+    def _deprecated(self, owner, target: UUID, at: Subject) -> Diagnostic:
+        """A note, not a warning: a deprecated built-in still works (spec §5.7),
+        and the finding is there so the move to its replacement is a choice."""
+        return Diagnostic(
+            "LIB102",
+            at,
+            {"item": ItemRef(owner.uuid), "target": ItemRef(target), "advice": self.library.advice(target)},
+        )
 
     # --- entities -----------------------------------------------------------
 

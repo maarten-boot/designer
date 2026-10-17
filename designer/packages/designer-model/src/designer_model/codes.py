@@ -446,7 +446,13 @@ _ALL = [
         "{item} uses built-in {target}, which this standard library does not have",
         blocks_export=True,
     ),
-    _d("LIB102", Severity.INFO, Scope.ITEM, "Deprecated built-in", "{item} uses {target}, which is deprecated"),
+    _d(
+        "LIB102",
+        Severity.INFO,
+        Scope.ITEM,
+        "Deprecated built-in",
+        "{item} uses {target}, which is deprecated ({advice})",
+    ),
 ]
 
 # --- EXPnnn  the expression checker -------------------------------------

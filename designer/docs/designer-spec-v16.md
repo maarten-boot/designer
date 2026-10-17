@@ -404,7 +404,13 @@ Only references to built-ins are stored.
   `schema_version` (§12). It increments when a built-in is added, deprecated, or
   changes meaning; a message reword does not bump it.
 - **Built-ins are never removed**, only deprecated: still resolvable, still
-  functional, marked in the interface, excluded from pickers. A reference to a
+  functional, marked in the interface, excluded from pickers. `[DECIDED]`
+  Deprecations are recorded beside the library, in `data/deprecations.json` —
+  the validator, the `library_version` since which, and optionally a
+  replacement and a reason — not inside it, because the library is an ordinary
+  model document and a model document has nowhere to say "deprecated". A
+  picker still offers a deprecated built-in to a rule that already uses it, so
+  editing that rule does not silently change it. A reference to a
   UUID this installation does not have produces a named diagnostic — "requires
   standard library v3, this is v2" — rather than a dangling reference.
 - **Fork to model** copies a built-in into the active Context as an ordinary
@@ -1286,5 +1292,6 @@ built.
 
 Everything through phase 3 is built and editable, and schema export (§9.6) is
 built: **File ▸ Export Schema…**, `tools/export_schema.py` and `make export`.
-Every check the appendices specify is implemented, and the test bench and the
-Preferences dialog (§15) are built. Not built: deprecation handling.
+Every check the appendices specify is implemented, and the test bench, the
+Preferences dialog (§15) and deprecation (§5.7) are built. Not built: the YAML
+serialiser for the export (§9.6).

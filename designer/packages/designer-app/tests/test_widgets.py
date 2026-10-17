@@ -2587,3 +2587,42 @@ def test_the_preferences_dialog_stays_open_on_a_bad_value(app: DesignerApp) -> N
     settle(app)
     assert not dialog.winfo_exists()
     assert dialog.result is not None and dialog.result["undo_limit"] == 20
+
+
+# --- deprecated built-ins --------------------------------------------------------
+
+
+def _deprecate_in(app: DesignerApp, name: str) -> None:
+    from designer_model.ids import builtin_id
+    from designer_model.stdlib import Deprecation, Library
+
+    shipped = app.library
+    app.library = Library([shipped.by_name(n) for n in shipped.names], 2, {builtin_id(name): Deprecation(since=2)})
+
+
+def test_a_deprecated_built_in_is_not_offered_for_a_new_rule(app: DesignerApp, quiet: dict) -> None:
+    from uuid import UUID
+
+    _deprecate_in(app, "between")
+    select_named(app, "context", "common")
+    row = select_named(app, "type", "Money")
+    app._add_rule(UUID(row))
+    settle(app)
+    _title, _draft, rules, _slots, _params = quiet["rule_dialogs"][-1]
+    offered = {choice.label for choice in rules}
+    assert "between" not in offered
+    assert "non_negative" in offered
+
+
+def test_a_rule_already_using_it_keeps_it_on_offer(app: DesignerApp, quiet: dict) -> None:
+    from uuid import UUID
+
+    _deprecate_in(app, "max_length")
+    select_named(app, "context", "common")
+    row = select_named(app, "type", "ShortText")
+    short = app.session.model.index()[UUID(row)]
+    binding = next(b for b in short.validators if b.arguments)  # max_length(80)
+    app._edit_rule(UUID(row), str(binding.uuid))
+    settle(app)
+    _title, _draft, rules, _slots, _params = quiet["rule_dialogs"][-1]
+    assert "max_length" in {choice.label for choice in rules}

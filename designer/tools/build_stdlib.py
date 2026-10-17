@@ -23,9 +23,15 @@ OUT = (
     pathlib.Path(__file__).resolve().parents[1]
     / "packages/designer-model/src/designer_model/data/stdlib.json"
 )
+DEPRECATIONS_OUT = OUT.with_name("deprecations.json")
 
 LIBRARY_VERSION = 1
 STAMP = "2026-08-29T00:00:00Z"
+
+# Deprecating a built-in (spec §5.7): never delete its entry below. Add it here
+# as (name, replacement name or None, reason), and bump LIBRARY_VERSION; the
+# version it is deprecated since is the one this run writes.
+DEPRECATED: list[tuple[str, str | None, str]] = []
 
 # name, parameters, expression, message, description
 LEAVES: list[tuple[str, list[str], str, str, str]] = [
@@ -360,8 +366,28 @@ def build() -> dict:
     }
 
 
+def deprecations() -> dict:
+    """Beside the library rather than inside it: the library is an ordinary
+    model document, and a model document has nowhere to say "deprecated"."""
+    names = {entry[0] for entry in LEAVES} | {entry[0] for entry in COMPOSITES}
+    out = []
+    for name, replacement, reason in DEPRECATED:
+        if name not in names or (replacement is not None and replacement not in names):
+            raise SystemExit(f"cannot deprecate {name}: it, or its replacement, is not a built-in")
+        out.append(
+            {
+                "validator": str(builtin_id(name)),
+                "since": LIBRARY_VERSION,
+                **({"replacement": str(builtin_id(replacement))} if replacement else {}),
+                **({"reason": reason} if reason else {}),
+            }
+        )
+    return {"library_version": LIBRARY_VERSION, "deprecated": out}
+
+
 if __name__ == "__main__":
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(build(), indent=2) + "\n")
+    DEPRECATIONS_OUT.write_text(json.dumps(deprecations(), indent=2) + "\n")
     doc = build()
     print(f"{len(doc['validators'])} built-ins -> {OUT}")

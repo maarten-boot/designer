@@ -699,3 +699,18 @@ def test_sorting_ignores_case(model) -> None:
 
 def test_a_row_with_no_value_still_sorts(model) -> None:
     assert rows.sorted_rows(["1", "2"], {"1": "a"}, rows.ASCENDING) == ["2", "1"]
+
+
+def _deprecating(name):
+    from designer_model.ids import builtin_id
+    from designer_model.stdlib import Deprecation, Library
+
+    shipped = standard_library()
+    return Library([shipped.by_name(n) for n in shipped.names], 2, {builtin_id(name): Deprecation(since=2)})
+
+
+def test_a_deprecated_built_in_is_listed_and_marked(model) -> None:
+    data = rows.validators(model, ctx(model, "sales"), library=_deprecating("is_uuid"), show_builtins=True)
+    (row,) = [r for r in data.rows if r.label.startswith("is_uuid")]
+    assert row.label == "is_uuid (deprecated)"
+    assert set(row.tags) == {"builtin", "deprecated"}
