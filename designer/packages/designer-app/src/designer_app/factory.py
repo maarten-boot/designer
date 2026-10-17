@@ -23,6 +23,7 @@ from designer_model.model import (
     Item,
     Property,
     Schema,
+    SlotArg,
     Type,
     Validator,
 )
@@ -77,11 +78,30 @@ def duplicate(item: ItemT) -> ItemT:  # noqa: UP047
     """
     stamp = _now()
     copy = replace(item, uuid=uuid4(), name="", created=stamp, modified=stamp)
-    # lists are shared by `replace`, so a change to the copy would reach the
-    # original; give the copy its own
-    for attribute in ("slots", "validators"):
-        if hasattr(copy, attribute):
-            setattr(copy, attribute, list(getattr(item, attribute)))
+    # `replace` shares lists and keeps the identities inside them, so the copy's
+    # slots and bindings would be the original's — the same UUIDs that
+    # diagnostics, paths and identity address them by. Each gets its own, and
+    # whatever named an original slot is pointed at the copy's.
+    renamed: dict[UUID, UUID] = {}
+    if isinstance(copy, Entity) and isinstance(item, Entity):
+        copy.slots = [replace(s, uuid=renamed.setdefault(s.uuid, uuid4())) for s in item.slots]
+        copy.identity = tuple(renamed.get(u, u) for u in item.identity)
+        copy.indexes = tuple(replace(ix, slots=tuple(renamed.get(u, u) for u in ix.slots)) for ix in item.indexes)
+        copy.default_order = tuple(replace(o, slot=renamed.get(o.slot, o.slot)) for o in item.default_order)
+    if isinstance(copy, Type | Entity | Schema) and isinstance(item, Type | Entity | Schema):
+        copy.validators = [  # type: ignore[assignment]  # a Schema's are SchemaBindings, and replace keeps that
+            replace(
+                b,
+                uuid=uuid4(),
+                arguments={
+                    k: SlotArg(renamed.get(a.slot, a.slot)) if isinstance(a, SlotArg) else a
+                    for k, a in b.arguments.items()
+                },
+            )
+            for b in item.validators
+        ]
+    if isinstance(copy, Type) and isinstance(item, Type):
+        copy.interfaces = [replace(b, uuid=uuid4()) for b in item.interfaces]
     return copy
 
 

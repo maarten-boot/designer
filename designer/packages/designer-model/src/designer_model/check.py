@@ -32,12 +32,14 @@ from .diagnostics import (
 )
 from .expressions import check_leaf
 from .expressions.evaluate import EvaluationError, evaluate_composite, evaluate_leaf
+from .expressions.tokens import unresolved_names
 from .expressions.types import UNKNOWN, ExprType, ListOf, Scalar
 from .ids import builtin_id
 from .literals import ListLiteral, ScalarLiteral
 from .model import (
     AnyTypeRef,
     Binding,
+    Context,
     Entity,
     Item,
     LiteralArg,
@@ -147,6 +149,7 @@ class Checker:
         return [
             *self.model.contexts,
             *self.model.validators,
+            *self.model.interfaces,
             *self.model.types,
             *self.model.properties,
             *self.model.entities,
@@ -162,10 +165,17 @@ class Checker:
             yield Diagnostic("MOD107", at, {"item": ItemRef(owner.uuid)})
             return
         if not self._exists(binding.validator):
-            code = "LIB101" if binding.validator.version == 5 else "MOD111"
-            yield Diagnostic(
-                code, at, {"item": ItemRef(owner.uuid), "field": "validator", "target": ItemRef(binding.validator)}
-            )
+            args = {"item": ItemRef(owner.uuid), "field": "validator", "target": ItemRef(binding.validator)}
+            if binding.validator.version == 5:
+                # the model says which library it was written against, and a
+                # newer one is the likely reason a built-in is missing (spec §5.7)
+                needed, have = self.model.library_version, self.library.version
+                args["version"] = (
+                    f" — the model needs standard library v{needed}, this is v{have}" if needed > have else ""
+                )
+                yield Diagnostic("LIB101", at, args)
+            else:
+                yield Diagnostic("MOD111", at, args)
             return
         if binding.validator in self.library.deprecated:
             yield self._deprecated(owner, binding.validator, at)
@@ -464,6 +474,15 @@ class Checker:
                         )
                     elif operand in self.library.deprecated:
                         yield self._deprecated(v, operand, at.then("expression"))
+                # a name that resolved to nothing on commit is stored as written
+                # (spec §5.2), and this is where it is reported
+                for name, start, end in unresolved_names(v.expression):
+                    yield Diagnostic(
+                        "MOD113",
+                        at.then("expression"),
+                        {"item": ItemRef(v.uuid), "target": name},
+                        span=TextSpan(start, end),
+                    )
 
     def _deprecated(self, owner, target: UUID, at: Subject) -> Diagnostic:
         """A note, not a warning: a deprecated built-in still works (spec §5.7),
@@ -527,19 +546,30 @@ class Checker:
             yield Diagnostic("MOD412", here, args)
         if s.is_value:
             new, old = self.d.slot_type(s), self.d.slot_type(inherited)
-            if isinstance(new, TypeRef) and isinstance(old, TypeRef) and new != old:
-                if not self.d.narrows(new.type_uuid, old.type_uuid):
-                    # naming both types is the difference between a verdict and
-                    # something the reader can act on
-                    yield Diagnostic(
-                        "MOD413",
-                        here,
-                        {
-                            **args,
-                            "chosen": ItemRef(new.type_uuid),
-                            "inherited": ItemRef(old.type_uuid),
-                        },
-                    )
+            if new is not None and old is not None and new != old and not self._narrows_ref(new, old):
+                # naming both types is the difference between a verdict and
+                # something the reader can act on
+                yield Diagnostic(
+                    "MOD413",
+                    here,
+                    {**args, "chosen": self._type_arg(new), "inherited": self._type_arg(old)},
+                )
+
+    def _narrows_ref(self, new: AnyTypeRef, old: AnyTypeRef) -> bool:
+        """Whether `new` admits no more than `old` (spec §8.1).
+
+        Over a base type, any Type built on that same base narrows it; a base
+        type narrows nothing but itself. An unfinished chain is not judged here:
+        it is already reported as incomplete.
+        """
+        if isinstance(old, TypeRef):
+            return isinstance(new, TypeRef) and self.d.narrows(new.type_uuid, old.type_uuid)
+        base = self.d.base_type_of(new)
+        return base is None or base == old.base_type
+
+    @staticmethod
+    def _type_arg(ref: AnyTypeRef):
+        return ItemRef(ref.type_uuid) if isinstance(ref, TypeRef) else ref.base_type
 
     def _check_identity(self, e: Entity, at: Subject) -> Iterator[Diagnostic]:
         effective = {s.uuid: s for s in self.d.effective_slots(e.uuid)}
@@ -681,7 +711,10 @@ class Checker:
                 continue
             if not IDENTIFIER.fullmatch(item.name):
                 yield Diagnostic("MOD303", at.then("name"), {"name": item.name})
-            key = (getattr(item, "context", None), type(item).__name__, item.name)
+            # unique per (Context, kind) (spec §3); a Context lives under its
+            # parent instead, so siblings conflict and cousins do not
+            scope = item.parent if isinstance(item, Context) else getattr(item, "context", None)
+            key = (scope, type(item).__name__, item.name)
             if key in seen:
                 other = seen[key]
                 yield Diagnostic(
@@ -696,7 +729,7 @@ class Checker:
 
     def _check_shadowing(self, seen) -> Iterator[Diagnostic]:
         for (context, kind, name), item in seen.items():
-            if context is None:
+            if context is None or kind == "Context":
                 continue
             for ancestor in self.d.ancestry(context)[1:]:
                 other = seen.get((ancestor, kind, name))

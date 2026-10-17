@@ -1160,8 +1160,13 @@ class DesignerApp(tk.Tk):
         column = next(key for key, value in TITLES.items() if value == title)
         chosen = getattr(self.selection, column, None)
         original = self.session.model.index().get(chosen) if chosen else None
+        if original is None and chosen is not None and self.library.get(chosen) is not None:
+            # a built-in is not in the model, so it cannot be copied as an item
+            # of it; duplicating one is copying it in (spec §13.9)
+            self._fork_builtin(chosen)
+            return
         if original is None:
-            self._not_yet("Duplicate")
+            messagebox.showinfo("Nothing to duplicate", f"Select a {TITLES[column].lower()} to copy first.")
             return
         copy = duplicate(original)
         self.session.execute(AddItem(copy, label=f"duplicate {TITLES[column]}"))
@@ -1369,9 +1374,6 @@ class DesignerApp(tk.Tk):
         self.selection = updated(Selection(context=where), column, item.uuid)
         self.refresh()
         self.lift()
-
-    def _not_yet(self, what: str) -> None:
-        messagebox.showinfo("Not yet", f"{what} arrives with the forms, in the next round.")
 
     # --- status and autosave ------------------------------------------------
 

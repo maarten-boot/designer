@@ -2626,3 +2626,14 @@ def test_a_rule_already_using_it_keeps_it_on_offer(app: DesignerApp, quiet: dict
     settle(app)
     _title, _draft, rules, _slots, _params = quiet["rule_dialogs"][-1]
     assert "max_length" in {choice.label for choice in rules}
+
+
+def test_duplicating_a_built_in_copies_it_into_the_model(app: DesignerApp, quiet: dict) -> None:
+    show_builtins(app)
+    select_named(app, "validator", "max_length")
+    before = len(app.session.model.validators)
+    app._duplicate_item("Validator")
+    settle(app)
+    assert len(app.session.model.validators) == before + 1
+    assert app.session.model.validators[-1].name == "max_length"
+    assert not [title for title, _ in quiet["info"] if title == "Not yet"]

@@ -14,13 +14,21 @@ diffed independently of the code that consumes it.
 
 ```python
 Signature(
-    key:           str,          # "+", "<", "len", "in"
-    params:        tuple[TypeExpr, ...],
-    result:        TypeExpr,
-    deterministic: bool = True,
-    note:          str | None = None,   # shown in diagnostics on match failure
+    name:           str,                  # "len", "regex_full_match"
+    params:         tuple[TypeExpr, ...],
+    result:         TypeExpr,
+    deterministic:  bool = True,
+    variadic:       bool = False,         # min, max take two or more
+    literal_params: tuple[int, ...] = (), # positions that must be literals
+    constraint:     frozenset[str] | None = None,  # what a Var may become
 )
 ```
+
+`[CHANGED]` Functions are `Signature` records (`signatures.FUNCTIONS`); the
+operators are tables of pairs (`ARITHMETIC`, `COMPARISON_REJECTS` and the like)
+rather than records with a `key`, and rejections are `Reject(code, message)`
+values in those tables. There is no per-signature `note`: a rejection carries
+its own message.
 
 A `TypeExpr` is one of:
 
@@ -145,7 +153,7 @@ single retry pass is sufficient — there is no need for a general worklist.
 | `-` | `real` | `real` |
 | `-` | `decimal` | `decimal` |
 | `-` | `duration` | `duration` |
-| `+` | any numeric | same type |
+| `+` | any numeric, or `duration` | same type |
 | `not` | `boolean` | `boolean` |
 
 `not` on a non-boolean is a **rejection**, not a missing rule: "no implicit truth
@@ -187,9 +195,11 @@ point would destroy the exactness of the decimal. Convert explicitly with
 | anything else | `%` | | **rejected** |
 
 `integer / integer → real` follows Python, and it has a sharp edge worth naming:
-`(a / b) < price` with a `decimal` price is a real/decimal rejection, because the
-division produced a real. The message for that case adds *"integer division
-produces `real`; use `%` or compare against a `real`"*. Floor division `//` is
+`(a / b) < price` with a `decimal` price is a real/decimal rejection (`EXP201`),
+because the division produced a real — when `a` and `b` are known integers.
+`[NOT BUILT]` The message does not yet add the hint *"integer division produces
+`real`…"*, and when `a` and `b` are parameters whose types are still open the
+pair is not rejected at all: nothing forces them to integer. Floor division `//` is
 not supported — one division operator is enough and the second invites confusion
 about which one a rule meant.
 
@@ -199,8 +209,8 @@ about which one a rule meant.
 |---|---|---|---|
 | `string` | `+` | `string` | `string` |
 
-Nothing else. `string * integer` is rejected with *"use a validator, not
-repetition"*; there is no use for it in a predicate.
+Nothing else. `string * integer` is rejected (`EXP211`, *"strings cannot be
+multiplied."*); there is no use for it in a predicate.
 
 ### 6.5 Temporal
 
@@ -212,6 +222,7 @@ repetition"*; there is no use for it in a predicate.
 | `date` | `+` or `-` | `duration` | `date` |
 | `duration` | `+` or `-` | `duration` | `duration` |
 | `duration` | `*` | `integer` or `real` | `duration` |
+| `integer` or `real` | `*` | `duration` | `duration` |
 | `duration` | `/` | `integer` or `real` | `duration` |
 | `duration` | `/` | `duration` | `real` |
 | `date` | `-` | `datetime` | **rejected** — no common zone (§4.2) |
@@ -318,15 +329,20 @@ computed from string concatenation would forfeit both, and nothing needs one.
 
 `min` and `max` are variadic over two or more arguments that unify to one type.
 
+What the evaluator does with them (`expressions/evaluate.py`), where the table
+says only the type: `round` rounds half to even, as Python does; `precision`
+counts digits as `NUMERIC(p, s)` does — `1234.50` is 6, `0.005` is 3 — and
+`scale` counts places after the point, trailing zeros included.
+
 ### 7.3 Conversion
 
 | Signature | Result | Notes |
 |---|---|---|
-| `int(real)`, `int(decimal)`, `int(string)` | `integer` | truncates |
+| `int(real)`, `int(decimal)`, `int(string)` | `integer` | truncates a number; a string must be a whole number |
 | `float(integer)`, `float(decimal)`, `float(string)` | `real` | the explicit escape from the firewall |
-| `str(T)` for any scalar `T` | `string` | |
+| `str(T)` for any `T` | `string` | lists too |
 | `decimal(string)`, `decimal(integer)` | `decimal` | |
-| `decimal(real)` | **rejected** | *"converting binary floating point to decimal captures rounding noise; use a decimal literal or a string"* |
+| `decimal(real)` | **rejected** | `EXP301`, no signature matches. `[NOT BUILT]` the dedicated message *"converting binary floating point to decimal captures rounding noise; use a decimal literal or a string"* |
 
 Two changes from §5.4's provisional list. `Decimal` is renamed **`decimal`**,
 lowercase, to match every other type name in the language — the capitalised form
@@ -343,6 +359,9 @@ date.
 | `today()` | `date` | **no** |
 | `current()` | `T` where `T ∈ {datetime, date}` | **no** |
 
+The clock is UTC: `today()` is the UTC date, and `current()` is `today()` for a
+`date` value and `now()` for a `datetime`.
+
 `current()` is how §5.7's polymorphic temporal rule is expressed, and it needs no
 dispatch machinery beyond the unification already present. The library's
 `in_past` is simply:
@@ -353,8 +372,8 @@ value < current()
 
 Unification gives `current()` the type of `value`. Bound to a `datetime` it means
 `now()`; bound to a `date` it means `today()`; bound to a `time` or anything else
-the constraint fails and the checker reports *"`in_past` applies to dates and
-datetimes"*. Bound to `unknown` it stays `unknown` and says nothing.
+the constraint fails and the checker reports `EXP304` *"this applies to date or
+datetime, not time"*. Bound to `unknown` it stays `unknown` and says nothing.
 
 ### 7.5 Duration constructors and accessors
 
@@ -377,10 +396,12 @@ duration is a measurement, not money, and no exactness claim is being made.
 
 ## 8. Determinism
 
-Determinism is derived by the same walk (§5.7 of the spec). An expression is
-non-deterministic when it calls any function whose signature carries
-`deterministic = False` — `now`, `today`, `current` — and a composite is
-non-deterministic when any operand is.
+An expression is non-deterministic when it calls any function whose signature
+carries `deterministic = False` — `now`, `today`, `current` — and a composite is
+non-deterministic when any operand is. `[CHANGED]` The model check and the
+exporter find those calls with a token scan for `now(`, `today(` or `current(`
+rather than the type walk (whose `deterministic` result is computed but not
+used), so a string literal containing `"now()"` would wrongly count.
 
 The flag propagates upward and is never stored. It is used at three places: the
 locked `enforcement` on a Schema binding, the warning on a Type or Entity
@@ -413,7 +434,8 @@ Three tests, all cheap, and the first is the one that makes "complete" mean
 something:
 
 1. **The full matrix, as a golden file.** For each binary operator, generate the
-   cross-product of the ten types on both sides — 100 cells per operator — and
+   cross-product of the nine types on both sides (the eight BaseTypes and
+   `duration`) — 81 cells per operator, and no table for `in` — and
    record the result type or the rejection code. Commit the rendered matrix. Any
    change to the table then shows up as a reviewable diff, and any pair nobody
    thought about appears as an explicit "no rule" cell rather than hiding.
@@ -443,3 +465,23 @@ All eleven accepted, 29 August 2026. Nothing in this document is open.
 9. **Duration constructors added** — without them `duration` is unusable (§7.5).
 10. Stable diagnostic codes, which give gap 2 its shape (§9).
 11. The operator matrix committed as a golden file (§10).
+
+---
+
+## 12. Known gaps `[FOUND WHILE BUILDING]`
+
+Found by the crosscheck of 17 October 2026, and not yet fixed. Each is the
+checker accepting or refusing something this table says otherwise; none affects
+the built-in library, which `test_a_built_in_passes_and_fails_its_examples`
+exercises.
+
+1. **The first matching overload wins** (§1 says exactly one must match), and
+   it binds an open parameter as it goes: in `abs(x) < value` with a `decimal`
+   value, `x` is inferred `integer`, so the binding form offers the wrong
+   editor.
+2. **An untyped literal does not unify with a type variable**: `min(value, 1)`
+   on a `decimal` value is refused (`EXP301`) though §4 says `1` takes its
+   context's type.
+3. **`x in [1, 2]` with `x` a parameter is refused** (`EXP202`): an open
+   variable on the left of `in` is never bound to the list's element type.
+4. The two `[NOT BUILT]` messages in §6.3 and §7.3.

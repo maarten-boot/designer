@@ -195,11 +195,12 @@ class _Exporter:
             "primary_key": self._column_names(entity, self.d.effective_identity(entity.uuid)),
             "foreign_keys": foreign_keys,
             "indexes": [
-                {"columns": self._column_names(entity, ix.slots), "unique": ix.unique} for ix in entity.indexes
+                {"columns": self._column_names(entity, ix.slots), "unique": ix.unique}
+                for ix in self.d.effective_indexes(entity.uuid)
             ],
             "default_order": [
                 {"column": name, "ascending": term.ascending}
-                for term in entity.default_order
+                for term in self.d.effective_default_order(entity.uuid)
                 for name in self._column_names(entity, (term.slot,))
             ],
             "check": check,
@@ -271,10 +272,9 @@ class _Exporter:
         that is itself a reference expands into the key of what it points at."""
         if depth > MAX_DEPTH:
             raise ExportError(f"the key of {entity.name} does not resolve")
-        by_uuid = {s.uuid: s for s in self.d.effective_slots(entity.uuid)}
         out: list[tuple[str, AnyTypeRef | None]] = []
         for uuid in self.d.effective_identity(entity.uuid):
-            slot = by_uuid.get(uuid)
+            slot = self.d.slot_in(entity.uuid, uuid)
             if slot is None:
                 raise ExportError(f"the key of {entity.name} names a slot it does not have")
             if slot.is_value:
@@ -289,10 +289,9 @@ class _Exporter:
         return out
 
     def _column_names(self, entity: Entity, slot_uuids: tuple[UUID, ...]) -> list[str]:
-        by_uuid = {s.uuid: s for s in self.d.effective_slots(entity.uuid)}
         out: list[str] = []
         for uuid in slot_uuids:
-            slot = by_uuid.get(uuid)
+            slot = self.d.slot_in(entity.uuid, uuid)
             if slot is None:
                 continue
             if slot.is_value:
@@ -384,14 +383,13 @@ class _Exporter:
     def _entity_rules(self, entity: Entity) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         check: list[dict[str, Any]] = []
         application: list[dict[str, Any]] = []
-        by_uuid = {s.uuid: s for s in self.d.effective_slots(entity.uuid)}
         for uuid in reversed(self.d.ancestors_of(entity.uuid)):
             owner = self.d.entities[uuid]
             for b in owner.validators:
                 names = {
-                    k: by_uuid[a.slot].slot_name
+                    k: slot.slot_name
                     for k, a in b.arguments.items()
-                    if isinstance(a, SlotArg) and a.slot in by_uuid
+                    if isinstance(a, SlotArg) and (slot := self.d.slot_in(entity.uuid, a.slot)) is not None
                 }
                 self._sort(self._rule(b, names, owner.name), check, application)
         return check, application

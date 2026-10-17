@@ -106,7 +106,21 @@ class Session:
     def _after_change(self, touched: set[UUID]) -> Report:
         self._dirty = True
         self._autosave_owed = True
+        self._stamp(touched)
         return self.recheck(touched)
+
+    def _stamp(self, touched: set[UUID]) -> None:
+        """`modified` is "updated on change to the item's own fields" (spec §3),
+        and every change reaches the model through here — execute, undo and
+        redo alike. An undo is a change too: the stamp says when the item last
+        changed, not when it last changed forwards. Whole seconds, as the file
+        writes them."""
+        now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+        index = self.model.index()
+        for uuid in touched:
+            item = index.get(uuid)
+            if item is not None:
+                item.modified = now
 
     # --- deleting -----------------------------------------------------------
 

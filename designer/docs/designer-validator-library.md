@@ -113,7 +113,7 @@ expressions to be side-effect free, deterministic and terminating.
 Rather than exclude temporal-relative rules, which are genuinely useful:
 
 - **Determinism is derived, not declared.** A Validator is non-deterministic if
-  its expression calls `now()` or `today()`, or if any composite operand is. The
+  its expression calls `now()`, `today()` or `current()`, or if any composite operand is. The
   checker computes this; nothing is stored.
 - **A binding to a non-deterministic Validator forces `enforcement = application`**
   and is excluded from CHECK-constraint generation on export.
@@ -141,8 +141,9 @@ against binary floating point is not a question with a reliable answer.
 
 ## 4. The catalogue
 
-Forty validators. Every one is parameterless or takes named parameters; `value`
-is the implicit argument. Messages interpolate parameters.
+Forty-four validators: forty-two leaves and two composites (§4.6). Every one is
+parameterless or takes named parameters; `value` is always the implicit argument,
+parameters or not. Messages interpolate parameters.
 
 ### 4.1 Comparison — any ordered BaseType
 
@@ -193,7 +194,7 @@ validator serves all of them.
 | `min_length` | `min` | `len(value) >= min` | must be at least {min} characters |
 | `max_length` | `max` | `len(value) <= max` | must be at most {max} characters |
 | `exact_length` | `n` | `len(value) == n` | must be exactly {n} characters |
-| `length_between` | `min`, `max` | `min <= len(value) <= max` | must be {min}–{max} characters |
+| `length_between` | `min`, `max` | `min <= len(value) <= max` | must be {min}-{max} characters |
 | `matches` | `pattern` | `regex_full_match(value, pattern)` | must match {pattern} |
 | `starts_with` | `prefix` | `starts_with(value, prefix)` | must start with {prefix} |
 | `ends_with` | `suffix` | `ends_with(value, suffix)` | must end with {suffix} |
@@ -223,13 +224,19 @@ they change. The description says so, so nobody assumes otherwise.
 | `non_positive` | — | `value <= 0` | must not be positive |
 | `multiple_of` | `n` | `value % n == 0` | must be a multiple of {n} |
 | `is_finite` | — | `is_finite(value)` | must be a finite number |
-| `max_precision` | `p` | `precision(value) <= p` | must have at most {p} significant digits |
+| `max_precision` | `p` | `precision(value) <= p` | must have at most {p} digits |
 | `max_scale` | `s` | `scale(value) <= s` | must have at most {s} decimal places |
 
-`max_precision` and `max_scale` are the two the exporter recognises by UUID, to
-emit `NUMERIC(p, s)` (§4). They are recognised by identity, not by parsing the
-expression, so a forked copy will not be recognised — worth stating in their
+`max_precision` and `max_scale` are recognised by the exporter by UUID, to emit
+`numeric: {precision, scale}` — `NUMERIC(p, s)` (spec §9.6) — and so is
+`max_length`, for a `length` hint. Recognition is by identity, not by parsing the
+expression, so a forked copy is not recognised — worth stating in their
 descriptions.
+
+`precision` counts digits the way `NUMERIC(p, s)` does, not significant figures:
+`1234.50` has precision 6 and `0.005` has precision 3 (the three places it needs).
+The message says "digits" for that reason; it said "significant digits" until the
+evaluator was built and showed `0.005` disagreeing with it.
 
 `is_finite` matters more than it looks: `real` can hold NaN and infinity, JSON
 cannot represent them portably, and databases reject them. A `real` Type destined
@@ -289,8 +296,9 @@ the union-of-operand-parameters rule (§5.1) doing something useful.
 
 ## 5. Regular expressions
 
-Six built-ins call `regex_full_match`, and `matches` takes a user-supplied
-pattern. Two consequences:
+Seven built-ins call `regex_full_match` with a fixed pattern — `is_identifier`,
+`is_email`, `is_url`, `is_uuid`, `is_country_code`, `is_currency_code` and
+`no_control_characters` — and `matches` takes a user-supplied pattern. Two consequences:
 
 - **Full match, not search.** `regex_full_match` anchors both ends. A partial
   match is the more common source of a validator that silently passes everything,
@@ -316,14 +324,18 @@ for a product code that has a documented format.
 **A binding carries an optional `message`**, overriding the Validator's when
 present (spec §5.6). Half a field on an existing structure, and it removes the
 main reason a user would fork a built-in — which is worth something, since a
-forked `max_length` also loses exporter recognition (§4.3).
+forked `max_length`, `max_precision` or `max_scale` also loses exporter
+recognition (§4.3).
 
 ## 7. Versioning and additions
 
 - `library_version` is an integer, incremented whenever a built-in is added,
   removed, or changes meaning. A message reword does not bump it.
 - **Built-ins are never removed** once shipped, only deprecated: still resolvable,
-  still functional, marked in the UI, excluded from pickers.
+  still functional, marked in the UI, excluded from pickers. Deprecations live
+  beside the library in `data/deprecations.json` — validator, `since`, and
+  optionally `replacement` and `reason` — written by `tools/build_stdlib.py` from
+  its `DEPRECATED` list (spec §5.7).
 - A model file records the `library_version` it was authored against. A file from
   a newer library opens, and any unresolvable built-in becomes a named error
   rather than a mystery.
@@ -332,18 +344,23 @@ forked `max_length` also loses exporter recognition (§4.3).
 
 - Built-ins appear in the **Validator column** in a distinct style, as abstract
   Entities do, and are visible from every Context.
-- The column filter carries a **show built-ins** toggle, defaulting to off once a
-  model has validators of its own. Forty built-ins swamping a user's five would
+- **View ▸ Show built-in validators** toggles them, off by default and
+  remembered between sessions. Forty-four built-ins swamping a user's five would
   make the column useless.
-- Selecting one shows a read-only form, plus **Fork to model** (§1).
+- Selecting one shows a read-only form, plus **Copy into this model…** (§1).
 - Non-deterministic built-ins are marked, with the reason (§3.3).
 
 ## 9. Testing
 
-Every built-in ships with **example values, passing and failing**, in the library
-document alongside its definition. Two payoffs: pytest asserts the whole library
-in one parameterised test from day one, and the test bench (deferred, §15 of the
-spec) gets its fixtures for free when it arrives.
+Every built-in ships with **example values, passing and failing**, in
+`data/examples.json` beside the library — not inside it, since the library is an
+ordinary model document and a model document has nowhere to put them. They are
+written in the model file's tagged-literal form from `EXAMPLES` in
+`tools/build_stdlib.py`, which refuses to build if a built-in has none. One
+parameterised test runs every built-in against its own examples
+(`test_a_built_in_passes_and_fails_its_examples`). `is_finite` needs infinity and
+NaN, which standard JSON cannot hold, so this file uses Python's `NaN`/`Infinity`
+extension; it is read by nothing else.
 
 This is also the cheapest way to catch the class of bug this library is most
 prone to — a regex that is subtly wrong in a way no reviewer notices.

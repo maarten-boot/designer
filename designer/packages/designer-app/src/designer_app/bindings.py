@@ -21,6 +21,7 @@ from designer_model.commands import AddBinding, Command, Macro, RemoveBinding
 from designer_model.expressions.infer import check_leaf
 from designer_model.expressions.types import BASE_TYPES, UNKNOWN, ExprType, Scalar
 from designer_model.model import (
+    Argument,
     Binding,
     Entity,
     LiteralArg,
@@ -272,6 +273,12 @@ class SchemaDraft:
     validator: UUID | None = None
     paths: dict[str, tuple[UUID, ...]] = field(default_factory=dict)
     message: str = ""
+    carried: dict[str, Argument] = field(default_factory=dict)
+    """Literal arguments the dialog does not edit (spec §9.3 allows them; the
+    dialog builds only paths). Kept so that editing a rule loaded from a file
+    does not silently drop them — but only while the rule keeps the validator
+    they were written for."""
+    carried_for: UUID | None = None
 
     @classmethod
     def of(cls, binding: SchemaBinding) -> SchemaDraft:
@@ -282,6 +289,10 @@ class SchemaDraft:
                 name: argument.path for name, argument in binding.arguments.items() if isinstance(argument, PathArg)
             },
             message=binding.message or "",
+            carried={
+                name: argument for name, argument in binding.arguments.items() if not isinstance(argument, PathArg)
+            },
+            carried_for=binding.validator,
         )
 
 
@@ -355,7 +366,10 @@ def _schema_binding(model: Model, library: Library, draft: SchemaDraft, uuid: UU
     return SchemaBinding(
         uuid=uuid,
         validator=draft.validator,
-        arguments={name: PathArg(path) for name, path in draft.paths.items() if path},
+        arguments={
+            **(draft.carried if draft.validator == draft.carried_for else {}),
+            **{name: PathArg(path) for name, path in draft.paths.items() if path},
+        },
         message=draft.message.strip() or None,
         anchor=draft.anchor,
         # never "database": a rule spanning two tables is not a check

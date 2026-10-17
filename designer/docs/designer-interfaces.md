@@ -140,7 +140,7 @@ it is written, so a nonsense picture is a finding, not a run-time surprise.
 | `#` | a digit position, shown only if the value needs it |
 | `,` | grouping separator, at the position given |
 | `.` | decimal separator |
-| `-` `+` | sign position; `+` shows the sign always, `-` only when negative |
+| `+` | leading only: show the sign always; without it a sign appears only when negative |
 | `%` | present as a percentage, multiplying by 100 |
 | `;` | separates the positive picture from the negative one |
 
@@ -216,8 +216,8 @@ If a length is meant to be a limit, that is `max_length`, and it is a rule.
 
 ### 5.3 date, time, datetime
 
-`yyyy MM dd HH mm ss` with the usual meanings, `SSS` for milliseconds, `ZZ` for
-the offset. Literal text in quotes.
+`yyyy MM dd HH mm ss` with the usual meanings, `yy` for a two-digit year, `SSS`
+for milliseconds, `ZZ` for the offset. Literal text in quotes.
 
     dd-MM-yyyy              2026-08-30  ▶  30-08-2026
     yyyy-MM-dd'T'HH:mm:ssZZ             ▶  2026-08-30T14:22:05+00:00
@@ -277,6 +277,13 @@ the presented form in ways that cannot change the value:
 - either case for boolean labels and for `U`/`L` strings
 - a missing sign where the picture always shows one
 
+`[FOUND WHILE BUILDING]` In the code the strict mode is less strict than this
+list implies. Whitespace around a number, padding around a string with positions,
+and a missing `+` are accepted either way; turning leniency off only makes
+grouping separators required and boolean labels case-sensitive. And in both
+modes grouping marks are never checked for position — `1,2,3` reads as `123`.
+That last is a gap rather than a choice, and the first thing to tighten.
+
 Anything else fails to parse, and a parse failure is *not* a validation failure:
 the application has nothing to hand to the validators, so it reports the input
 as unreadable rather than as invalid. The distinction matters — "that is not a
@@ -298,8 +305,8 @@ registry.
 | `INT301` | error | yes | bound to `{type}`, whose base type is `{other}` |
 | `INT302` | error | yes | two Interfaces on `{type}` are both marked default |
 | `INT401` | warning | no | `{interface}` on `{type}` shows {n} decimals of a value allowing {m} |
-| `INT402` | note | no | `{interface}` gives {n} positions to a value `{validator}` allows {m} on `{type}` |
-| `INT601` | note | no | Interface is bound to nothing |
+| `INT402` | info | no | `{interface}` gives {n} positions to a value `{validator}` allows {m} on `{type}` |
+| `INT601` | info | no | Interface is bound to nothing |
 
 ### 7.3 How `INT202` finds the values a Type admits `[FOUND WHILE BUILDING]`
 
@@ -330,7 +337,11 @@ round trip found nothing on that binding: one fault, one finding. What is left
 for it is the lossy pair the probes miss — a Type whose other rules happen to
 exclude every probe at the scales that would round.
 
-`INT402` is a **note**, not a warning. `[DECIDED]` If a Type says
+`INT401` applies to `decimal` pictures only: a `real` has no `max_scale` to
+compare against.
+
+`INT402` is a **note** (severity `info`, which the findings list and
+`check_model.py` show as *note*), not a warning. `[DECIDED]` If a Type says
 `max_length(40)` and its Interface says `X(30)`, nothing is wrong with either
 and nothing will fail: the width is a hint, and the application scrolls. It is
 worth saying once, because the designer may not have intended a field narrower
@@ -381,10 +392,12 @@ Each column of an exported Schema gains an optional `interface` block:
 ```json
 {
   "name": "total",
-  "base_type": "decimal",
-  "constraints": [">= 0", "scale <= 2"],
+  "type": "Money",
+  "base": "decimal",
+  "numeric": {"precision": 12, "scale": 2},
+  "check": [{"rule": "non_negative", "expression": "value >= 0", "...": "..."}],
   "interface": {
-    "name": "default",
+    "name": "money_uk",
     "picture": "#,##0.00",
     "decimal_point": ".",
     "group_mark": ",",
@@ -407,7 +420,7 @@ picture is complete on its own:
 ```json
 {
   "name": "ordered_on",
-  "base_type": "date",
+  "base": "date",
   "interface": { "name": "european", "picture": "dd-MM-yyyy", "parse_lenient": true, "blank": "—" }
 }
 ```
@@ -418,14 +431,15 @@ whatever the base type. The rest of each column's shape, of which these
 examples show only a part, is spec §9.6 and `examples/sales_schema.export.json`;
 a column with no Interface carries `"interface": null`.
 
-Resolved like everything else in the export: the name it was bound under and the
-picture, with no reference to the Interface item. A database generator ignores
+Resolved like everything else in the export: the Interface's name and its
+picture, with no reference to the Interface item. (A binding has no name of its
+own, §4; `name` is the Interface's.) A database generator ignores
 the block; a form generator uses it; neither needs to know the Interface
 existed.
 
 **An inherited Interface exports as though it were declared.** If `PositiveMoney`
-takes its presentation from `Money` (§4), the column carries the picture and the
-name it was bound under, and says nothing about the inheritance. Resolved means
+takes its presentation from `Money` (§4), the column carries the Interface's
+name and picture, and says nothing about the inheritance. Resolved means
 resolved: the export is for generators, and where a format came from is a fact
 about authoring. The form is where the provenance is shown, to the person who
 can act on it.

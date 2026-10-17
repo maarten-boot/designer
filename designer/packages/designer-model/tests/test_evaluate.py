@@ -99,3 +99,15 @@ def test_every_operand_is_asked_even_past_a_short_circuit():
 
     evaluate_composite(f"{first} AND {second}", verdict)
     assert asked == [first, second]
+
+
+def test_a_fraction_literal_is_an_exact_decimal():
+    # signature table §4: untyped, exact, decimal unless the context is real
+    assert evaluate_leaf("value == 0.1", Decimal("0.1"))
+    assert evaluate_leaf("value + 0.5 > 1", Decimal("0.75"))
+    assert evaluate_leaf("value * 1.1 == 1.1", 1)
+
+
+def test_a_fraction_literal_stays_binary_for_a_real():
+    assert evaluate_leaf("value == 0.1", 0.1)
+    assert evaluate_leaf("value + 0.5 > 1", 0.75)

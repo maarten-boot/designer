@@ -249,8 +249,16 @@ def comparable(left: str, right: str) -> Scalar | Reject | None:
 
 
 def equatable(left: str, right: str) -> Scalar | Reject | None:
+    """As `comparable`, over the equatable set: ordered types plus boolean.
+
+    A boolean beside anything else has no meaning rather than being "not
+    ordered" — that rejection tells the writer to use `==`, which is what they
+    already wrote.
+    """
     if left == "boolean" and right == "boolean":
         return BOOLEAN
+    if "boolean" in (left, right):
+        return None
     return comparable(left, right)
 
 

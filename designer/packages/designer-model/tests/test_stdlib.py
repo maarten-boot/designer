@@ -170,3 +170,60 @@ def test_a_deprecated_built_in_does_not_block_export() -> None:
     model = load(DATA.parents[5] / "examples" / "sales.json")
     schema = next(s for s in model.schemas if s.name == "sales_schema")
     export_schema(model, schema.uuid, _with_deprecated("max_length"))
+
+
+# --- every built-in against its own examples (validator library §9) ----------
+
+EXAMPLES = DATA.with_name("examples.json")
+
+
+def _examples() -> dict:
+    import json
+
+    return json.loads(EXAMPLES.read_text())["examples"]
+
+
+def _verdict(library, validator, value, arguments) -> bool:
+    from designer_model.expressions.evaluate import evaluate_composite, evaluate_leaf
+
+    if not validator.is_composite:
+        return evaluate_leaf(validator.expression, value, arguments)
+    return evaluate_composite(validator.expression, lambda u: _verdict(library, library.get(u), value, arguments))
+
+
+def test_every_built_in_has_examples(library) -> None:
+    assert set(_examples()) == library.names
+
+
+@pytest.mark.parametrize("name", sorted(_examples()))
+def test_a_built_in_passes_and_fails_its_examples(library, name) -> None:
+    from designer_model.literals import ListLiteral, decode
+
+    def plain(raw):
+        literal = decode(raw)
+        return list(literal.values) if isinstance(literal, ListLiteral) else literal.value
+
+    entry = _examples()[name]
+    validator = library.by_name(name)
+    arguments = {k: plain(v) for k, v in entry["arguments"].items()}
+    for raw in entry["pass"]:
+        assert _verdict(library, validator, plain(raw), arguments), f"{name} refused {raw}"
+    for raw in entry["fail"]:
+        assert not _verdict(library, validator, plain(raw), arguments), f"{name} admitted {raw}"
+
+
+def test_a_built_in_from_a_newer_library_names_the_version_needed() -> None:
+    from uuid import uuid4
+
+    from designer_model.check import check
+    from designer_model.codes import definition
+    from designer_model.diagnostics import render
+    from designer_model.model import Binding
+
+    model = load(DATA.parents[5] / "examples" / "sales.json")
+    model.library_version = 3
+    item = next(t for t in model.types if t.name == "ShortText")
+    item.validators.append(Binding(uuid=uuid4(), validator=builtin_id("is_iban")))  # not in v1
+    (finding,) = [f for f in check(model).findings if f.code == "LIB101"]
+    text = render(definition("LIB101").template, finding.args, {item.uuid: "ShortText"})
+    assert text.endswith("the model needs standard library v3, this is v1")

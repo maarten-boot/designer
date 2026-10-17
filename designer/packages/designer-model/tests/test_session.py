@@ -278,3 +278,15 @@ def test_slot_edits_are_separate_steps(session) -> None:
     # only the last step reverted; the first two stand
     assert slots[2].required is True
     assert slots[0].required is False and slots[1].required is False
+
+
+def test_an_edit_stamps_the_item_it_changed(session) -> None:
+    from designer_model.commands import SetField
+
+    money = by_name(session.model.types, "Money")
+    short = by_name(session.model.types, "ShortText")
+    before, untouched = money.modified, short.modified
+    session.execute(SetField(money.uuid, "description", "changed"))
+    assert money.modified > before
+    assert short.modified == untouched
+    assert money.modified.microsecond == 0

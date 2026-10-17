@@ -25,32 +25,35 @@ ships:
 Two packages. `designer-model` is the domain: items, derivation, persistence,
 diagnostics, the model check, the expression checker, pictures, commands, undo,
 session. Standard library only, and it never imports tkinter. `designer-app` is
-the interface, with `rows.py`, `selection.py`, `slots.py`, `bindings.py`,
-`paths.py`, `forms.py`, `impact.py` and `findings.py` deliberately tkinter-free
-so the logic worth testing can be tested without a display.
+the interface, with `rows.py`, `selection.py`, `state.py`, `slots.py`,
+`bindings.py`, `paths.py`, `forms.py`, `impact.py`, `findings.py`, `factory.py`,
+`exporting.py`, `testbench.py` and `preferences.py` deliberately tkinter-free so
+the logic worth testing can be tested without a display.
 
 ---
 
 ## Where things stand
 
-`xvfb-run -a make check` green on 17 October: 931 tests, none skipped — the
-first run here with the widget suite included. Re-run it rather than trusting
+`xvfb-run -a make check` green on 17 October: 1059 tests, none skipped, after
+the crosscheck that evening. Re-run it rather than trusting
 the number. The machine has pip, tkinter and Xvfb but no system-wide ruff, mypy
 or pytest, so put them in a virtual environment and its `bin` first on `PATH`.
 Without `xvfb-run` the widget suite skips and `make check` still says green.
 
-Everything in the specification is built and editable, and every check the
-appendices specify is implemented — `INT202` by sampling (`pictures.PROBES`,
-appendix *interfaces* §7.3), with the project's first evaluator,
-`expressions/evaluate.py`. There are no read-only summaries left in the editor.
+Almost everything in the specification is built and editable — `INT202` by
+sampling (`pictures.PROBES`, appendix *interfaces* §7.3), with the project's
+first evaluator, `expressions/evaluate.py`. What is not is listed in spec §16
+and marked `[NOT BUILT]` where it is specified; the crosscheck of 17 October
+(turn 139) found it. Two questions there are the user's to answer.
 
-**Not built:**
+**Done, with what is worth knowing:**
 
-1. **Schema export: YAML.** The exporter is built (`designer_model/export.py`,
+1. **Schema export is done.** `designer_model/export.py`,
    **File ▸ Export Schema…** via `designer_app/exporting.py`,
-   `tools/export_schema.py`, `make export`), with every decision in spec §9.6.
+   `tools/export_schema.py`, `make export`, with every decision in spec §9.6.
    `examples/sales_schema.export.json` is its acceptance test, compared byte
-   for byte. The YAML serialiser is the open piece.
+   for byte. **No YAML** — dropped in turn 138: an external tool converts the
+   JSON, so do not build a serialiser.
 2. **Phase 4 is done.** Deprecated built-ins: `data/deprecations.json` beside
    the library (not inside it — the library must stay an ordinary model
    document that round-trips), `Library.offered()` for pickers,
@@ -124,10 +127,9 @@ message has twice shown that the message itself was the defect, not the model.
 | `model` | the worked example round-trips and carries its three findings |
 | `docs` | the documents against each other and against the code |
 
-Package by copying `README.md HISTORY.md .gitignore Makefile mypy.ini docs
-examples packages tools` into a clean tree, rewriting the document paths in the
-README table to `docs/`, stripping caches, zipping, then extracting the zip
-somewhere fresh and running `make check` there. A package that has not been
+Package by copying `README.md HANDOVER.md HISTORY.md .gitignore Makefile
+mypy.ini docs examples packages tools` into a clean tree, stripping caches,
+zipping, then extracting the zip somewhere fresh and running `make check` there. A package that has not been
 verified from a clean extraction has not been verified.
 
 ---

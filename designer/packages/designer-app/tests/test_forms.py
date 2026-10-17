@@ -355,6 +355,41 @@ def test_duplicating_an_entity_copies_its_slots(model) -> None:
     assert order.slots
 
 
+def test_a_duplicates_slots_and_rules_have_their_own_identities(model) -> None:
+    """Slots and bindings are addressed by UUID — by diagnostics, paths and
+    identity — so a copy sharing them would be two things answering to one name."""
+    line = by_name(model.entities, "OrderLine")
+    copy = factory.duplicate(line)
+    assert not {s.uuid for s in copy.slots} & {s.uuid for s in line.slots}
+    assert not {b.uuid for b in copy.validators} & {b.uuid for b in line.validators}
+    # the rule `quantity >= 1` names the copy's own quantity slot
+    (rule,) = copy.validators
+    quantity = next(s for s in copy.slots if s.slot_name == "quantity")
+    assert rule.arguments["value"].slot == quantity.uuid
+
+
+def test_a_duplicates_identity_and_indexes_follow_its_own_slots(model) -> None:
+    customer = by_name(model.entities, "Customer")
+    copy = factory.duplicate(customer)
+    own = {s.slot_name: s.uuid for s in copy.slots}
+    assert copy.identity == (own["id"],)
+    assert copy.indexes[0].slots == (own["name"],)
+    assert copy.default_order[0].slot == own["name"]
+    assert customer.identity != copy.identity
+
+
+def test_a_duplicated_type_does_not_share_its_presentations(model) -> None:
+    from uuid import uuid4
+
+    from designer_model.model import InterfaceBinding
+
+    money = by_name(model.types, "Money")
+    money.interfaces.append(InterfaceBinding(uuid=uuid4(), interface=uuid4()))
+    copy = factory.duplicate(money)
+    assert copy.interfaces is not money.interfaces
+    assert copy.interfaces[0].uuid != money.interfaces[0].uuid
+
+
 # --- an edit belongs to the item it was typed into ---------------------------
 
 

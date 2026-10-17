@@ -20,7 +20,8 @@ saved report and every test assertion into a trap.
     MOD5xx  schemas
     MOD6xx  enforcement, export and orphans
     LIB1xx  the standard library
-    EXP1xx-5xx  the expression checker (phase 2, see the signature table)
+    INT1xx-6xx  Interfaces and pictures (see the interfaces appendix §7)
+    EXP1xx-5xx  the expression checker (see the signature table)
 """
 
 from __future__ import annotations
@@ -443,7 +444,7 @@ _ALL = [
         Severity.ERROR,
         Scope.ITEM,
         "Unknown built-in",
-        "{item} uses built-in {target}, which this standard library does not have",
+        "{item} uses built-in {target}, which this standard library does not have{version}",
         blocks_export=True,
     ),
     _d(

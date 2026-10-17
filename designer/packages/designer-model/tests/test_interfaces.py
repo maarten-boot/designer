@@ -473,3 +473,20 @@ def test_neither_blocks_export():
     assert definition("INT401").severity is Severity.WARNING
     assert definition("INT402").severity is Severity.INFO
     assert not blocks_export("INT401") and not blocks_export("INT402")
+
+
+# --- the Interfaces example -----------------------------------------------------
+
+INTERFACES_EXAMPLE = EXAMPLE.with_name("sales_interfaces.json")
+
+
+def test_the_interfaces_example_round_trips_at_version_2():
+    model = load(INTERFACES_EXAMPLE)
+    assert model.schema_version == 2
+    assert dumps(model) == INTERFACES_EXAMPLE.read_text()
+
+
+def test_the_interfaces_example_carries_exactly_its_findings():
+    """The worked example's three, plus the one note it is built to show: a
+    picture narrower than the data (INT402). Every other pairing is sound."""
+    assert sorted(f.code for f in check(load(INTERFACES_EXAMPLE)).findings) == ["INT402", "MOD101", "MOD601", "MOD602"]

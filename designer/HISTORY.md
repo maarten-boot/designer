@@ -925,3 +925,25 @@ FAILED test_widgets.py::test_reordering_is_disabled_while_a_sort_is_applied
 
 > yes commit it
 
+## 137.
+
+> i pushed it
+
+## 138.
+
+> skip the yaml, we can use a external tool for that. lets take a break on futher development.
+
+## 139.
+
+> do a full crosscheck:
+>
+> inspect all code and match against the documents;
+> inspect all documents and check against the code;
+> verify that all examples follow code and documents,
+> add missing examples if you find reason to add some.
+> Suggest other improvements.
+
+## 140.
+
+> yes commit it
+

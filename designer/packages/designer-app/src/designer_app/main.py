@@ -31,7 +31,11 @@ def check_tkinter() -> bool:
 
 
 def _startup_model(settings, path: Path | None):
-    """Recovery first, then the last file, then nothing.
+    """Recovery first, then the file asked for, then the last file, then nothing.
+
+    Recovery comes first even when a file is named on the command line — which
+    `make run` always does. It used to be skipped then, and the first autosave
+    of the new session overwrote the only copy of the work the crash had left.
 
     Reopening must never prevent startup: a file that is missing, unreadable, or
     written by a newer build gives an empty model and a note, not a failure.
@@ -41,9 +45,6 @@ def _startup_model(settings, path: Path | None):
     from designer_model import Session, read_autosave
 
     from .state import config_dir
-
-    if path is not None:
-        return Session.open(path, undo_limit=settings.undo_limit), None
 
     recovered = read_autosave(config_dir())
     if recovered is not None:
@@ -57,6 +58,9 @@ def _startup_model(settings, path: Path | None):
             session = Session(recovered.model, recovered.path, undo_limit=settings.undo_limit)
             return session, None
         Session().clear_autosave(config_dir())
+
+    if path is not None:
+        return Session.open(path, undo_limit=settings.undo_limit), None
 
     if settings.last_file and Path(settings.last_file).exists():
         try:

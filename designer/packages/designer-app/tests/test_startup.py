@@ -16,6 +16,8 @@ import pytest
 
 from designer_app.main import check_tkinter, main
 
+EXAMPLE = pathlib.Path(__file__).resolve().parents[3] / "examples" / "sales.json"
+
 
 def test_missing_tkinter_is_reported_not_raised(monkeypatch, capsys) -> None:
     real_import = builtins.__import__
@@ -277,3 +279,57 @@ def test_widget_tests_never_compare_a_raw_cget_result() -> None:
                 if is_cget(side):
                     bare.append(node.lineno)
     assert bare == [], f"wrap cget in str() at lines {sorted(set(bare))}"
+
+
+# --- the startup decision tree ---------------------------------------------
+
+
+def _crash_left_work(config, model_path):
+    """An autosave on disk, as a session that did not end cleanly leaves it."""
+    from designer_model import Session
+
+    session = Session.open(model_path)
+    session.model.types[0].name = "RecoveredName"
+    session.write_autosave(config)
+
+
+def test_recovery_is_offered_even_when_a_file_is_named(config, monkeypatch, tmp_path) -> None:
+    pytest.importorskip("tkinter")
+    import tkinter.messagebox
+
+    from designer_app.main import _startup_model
+    from designer_app.state import Settings
+
+    example = tmp_path / "sales.json"
+    example.write_text(EXAMPLE.read_text())
+    _crash_left_work(config, example)
+    asked = []
+
+    def askyesno(*args, **_kwargs):
+        asked.append(args)
+        return True
+
+    monkeypatch.setattr(tkinter.messagebox, "askyesno", askyesno)
+    session, complaint = _startup_model(Settings(), example)
+    assert asked, "recovery was not offered"
+    assert session.model.types[0].name == "RecoveredName"
+    assert complaint is None
+
+
+def test_declining_recovery_opens_the_named_file_and_drops_the_autosave(config, monkeypatch, tmp_path) -> None:
+    pytest.importorskip("tkinter")
+    import tkinter.messagebox
+
+    from designer_model import read_autosave
+
+    from designer_app.main import _startup_model
+    from designer_app.state import Settings
+
+    example = tmp_path / "sales.json"
+    example.write_text(EXAMPLE.read_text())
+    _crash_left_work(config, example)
+    monkeypatch.setattr(tkinter.messagebox, "askyesno", lambda *a, **k: False)
+    session, _ = _startup_model(Settings(), example)
+    assert session.model.types[0].name != "RecoveredName"
+    assert session.path == example
+    assert read_autosave(config) is None

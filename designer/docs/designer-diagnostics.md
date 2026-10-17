@@ -128,6 +128,7 @@ class CodeDefinition:
     template:      str               # "{left} and {right} cannot be combined — …"
     scope:         Scope             # item | context | model  (§9)
     blocks_export: bool = False
+    retired:       bool = False      # kept, never reused (§8)
 ```
 
 The registry is a module of pure data, like the signature table. Three things
@@ -148,7 +149,7 @@ its definition says so, not because its severity changes by context.
 **Argument values** are either a literal string or an item reference:
 
 ```python
-ArgValue = str | ItemRef      # ItemRef(uuid)
+ArgValue = str | int | ItemRef   # ItemRef(uuid); int for counts and widths
 ```
 
 An `ItemRef` renders at display time through §5.3's rule — `name (3f2a91c4)`, or
@@ -182,7 +183,7 @@ reaches outside.
 ```python
 @dataclass(frozen=True, slots=True)
 class Related:
-    role:    str        # "shadows", "conflicts_with", "target", "anchor"
+    role:    str        # "shadows", "conflicts_with", "target", "declares_identity"
     subject: Subject
 ```
 
@@ -207,7 +208,9 @@ stays free of UI, and the mapping lives where the command stack does.
 
 Populate it for the few findings with a genuine one-step remedy: unclosed Schema
 (§9.2), a path entity that is not a member (§9.3), a widening override where a
-narrowing Type exists. Leave it `None` everywhere else. It is cheap now and
+narrowing Type exists. Leave it `None` everywhere else. `[NOT BUILT]` Only the
+first exists — `MOD503` carries `add_schema_closure`; `MOD509` and `MOD413` have
+no hint yet. It is cheap now and
 awkward to retrofit, because retrofitting means revisiting every rule.
 
 Whatever a hint triggers must be **one command** (§13.8) — a fix the user has to
@@ -217,9 +220,10 @@ undo four times is worse than no button.
 
 ## 8. Code ranges
 
-Two families. `EXP` codes come from the expression checker and are already
+Three families. `EXP` codes come from the expression checker and are already
 defined in the signature table appendix §9. `MOD` and `LIB` codes come from the
-model check.
+model check, and `INT` codes from the Interface checks (appendix *interfaces*
+§7).
 
 | Range | Covers |
 |---|---|
@@ -229,12 +233,17 @@ model check.
 | `EXP4xx` | binding and arguments |
 | `EXP5xx` | result and shape |
 | `MOD1xx` | references — dangling, deleted composite operand, unset |
-| `MOD2xx` | cycles — Type parent, Entity extension, Validator |
+| `MOD2xx` | cycles — Type parent, Entity extension, Validator, Context |
 | `MOD3xx` | naming — duplicate, shadowing, blank |
 | `MOD4xx` | entities and slots — narrowing, extension, identity, `on_delete` |
 | `MOD5xx` | schemas — membership, closure, anchors, paths |
-| `MOD6xx` | enforcement and export notes |
-| `LIB1xx` | standard library — unknown built-in, deprecated built-in, version |
+| `MOD6xx` | enforcement and export notes, and orphans (`MOD601`, `MOD604`) |
+| `LIB1xx` | standard library — unknown built-in (`LIB101`), deprecated built-in (`LIB102`) |
+| `INT1xx` | Interface incomplete — no base type, no picture |
+| `INT2xx` | the picture — not valid, does not read back |
+| `INT3xx` | binding — wrong base type, two defaults |
+| `INT4xx` | the picture against the Type's rules — precision, width |
+| `INT6xx` | orphans — bound to no Type |
 
 **Codes are permanent.** A retired code is marked retired and its number is never
 reused, because a code that means one thing in v1 and another in v3 makes every
@@ -295,9 +304,10 @@ class Consequence:
     args:    Mapping[str, ArgValue] = {}
 ```
 
-`ConsequenceKind` enumerates §11.1 exactly: `membership_removed`,
-`reference_cleared`, `parent_cleared`, `property_cleared`, `extension_cleared`,
-`binding_removed`, `operand_orphaned`, `anchor_cleared`.
+`ConsequenceKind` enumerates §11.1: `membership_removed`, `reference_cleared`,
+`parent_cleared`, `property_cleared`, `type_cleared`, `extension_cleared`,
+`binding_removed`, `presentation_changed` (a Type falling back to another
+Interface, appendix *interfaces* §7.2), `operand_orphaned`, `anchor_cleared`.
 
 The dialog groups by `kind`, which is what §11.1 asks for — "3 Schemas lose a
 member, 2 slots lose their target" rather than a flat list of seventeen items.

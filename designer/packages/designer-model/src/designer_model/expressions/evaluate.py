@@ -103,6 +103,29 @@ def _functions(value: Any) -> dict[str, Callable[..., Any]]:
     }
 
 
+def _exact_fractions(tree: ast.Expression, source: str, names: dict[str, Any]) -> ast.Expression:
+    """Fraction literals as the decimals they were written as.
+
+    A fraction-shaped literal is untyped and takes the type of its context,
+    defaulting to decimal "because the source text is exact" (signature table
+    §4). Python reads `0.1` as binary floating point, so `value == 0.1` would be
+    false for the decimal 0.1 and `value + 0.5` would not run at all. Each one is
+    bound instead to a `Decimal` of its own source text. Left alone when the
+    value is a `real`, where binary floating point is what was asked for.
+    """
+
+    class Exact(ast.NodeTransformer):
+        def visit_Constant(self, node: ast.Constant) -> ast.AST:
+            if not isinstance(node.value, float):
+                return node
+            text = ast.get_source_segment(source, node) or repr(node.value)
+            name = f"_fraction{len(names)}"
+            names[name] = Decimal(text)
+            return ast.copy_location(ast.Name(id=name, ctx=ast.Load()), node)
+
+    return ast.fix_missing_locations(Exact().visit(tree))
+
+
 def evaluate_leaf(source: str, value: Any, arguments: Mapping[str, Any] | None = None) -> bool:
     """A leaf expression's verdict on `value`, with its parameters bound."""
     try:
@@ -113,6 +136,8 @@ def evaluate_leaf(source: str, value: Any, arguments: Mapping[str, Any] | None =
     if violations:
         raise EvaluationError(violations[0].message)
     names = {**_functions(value), **(arguments or {}), "value": value}
+    if not isinstance(value, float):
+        tree = _exact_fractions(tree, source, names)
     try:
         # the whitelist walk above is what makes this defensible: no attribute
         # access, no builtins, and only the functions the signature table names

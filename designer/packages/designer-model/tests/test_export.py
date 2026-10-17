@@ -128,6 +128,36 @@ def test_a_reference_column_is_named_after_the_target_key(model):
     assert fk["target_columns"] == ["order_number"]
 
 
+def test_an_index_declared_on_an_abstract_base_reaches_its_tables(model):
+    from designer_model.model import Index, OrderTerm
+
+    item = named(model.entities, "LineItem")  # abstract; OrderLine extends it
+    line_total = next(s for s in item.slots if s.slot_name == "line_total")
+    item.indexes = (Index((line_total.uuid,), unique=False),)
+    item.default_order = (OrderTerm(line_total.uuid, ascending=False),)
+    line = table(export(model), "OrderLine")
+    assert line["indexes"] == [{"columns": ["line_total"], "unique": False}]
+    assert line["default_order"] == [{"column": "line_total", "ascending": False}]
+
+
+def test_an_inherited_rule_on_an_overridden_slot_names_the_override(model):
+    from designer_model.ids import builtin_id
+    from designer_model.literals import ScalarLiteral
+    from designer_model.model import LiteralArg, SlotArg
+
+    item = named(model.entities, "LineItem")  # OrderLine overrides line_total
+    line_total = next(s for s in item.slots if s.slot_name == "line_total")
+    item.validators.append(
+        Binding(
+            uuid=uuid4(),
+            validator=builtin_id("max_value"),
+            arguments={"value": SlotArg(line_total.uuid), "max": LiteralArg(ScalarLiteral("decimal", Decimal("1000")))},
+        )
+    )
+    rules = [r for r in table(export(model), "OrderLine")["check"] if r["rule"] == "max_value"]
+    assert [r["expression"] for r in rules] == ["line_total <= 1000"]
+
+
 def test_tables_come_after_the_tables_they_reference(model):
     assert [t["name"] for t in export(model)["tables"]] == ["Customer", "Order", "OrderLine"]
 
@@ -285,3 +315,18 @@ def test_a_binding_with_an_unset_argument_blocks(model):
     binding.arguments = {"max": LiteralArg(ScalarLiteral("integer", 2))}
     rules = column(export(model), "Customer", "country_code")["check"]
     assert named_rule(rules, "max_length")["expression"] == "len(value) <= 2"
+
+
+# --- the other example files --------------------------------------------------
+
+INTERFACES = EXAMPLES / "sales_interfaces.json"
+
+
+def test_support_schema_reproduces_its_example(model):
+    assert dumps(export(model, "support_schema")) == (EXAMPLES / "support_schema.export.json").read_text()
+
+
+def test_the_interfaces_example_reproduces_its_export():
+    m = load(INTERFACES)
+    exported = dumps(export_schema(m, named(m.schemas, "sales_schema").uuid))
+    assert exported == (EXAMPLES / "sales_interfaces.export.json").read_text()

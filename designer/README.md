@@ -10,7 +10,8 @@ non-obvious decision in this code is there, with the reasoning:
 left, and the mistakes that have been made more than once.
 
 `HISTORY.md` is every prompt in this project, in order — appended as each turn
-arrives, attachments included, rather than reconstructed afterwards — the design decisions
+arrives, attachments included (turns 1–27 are verbatim from a transcript; the
+next stretch was reconstructed, as the file itself says) — the design decisions
 as they were actually asked for, which is often more useful than the settled
 answer in the specification.
 
@@ -32,20 +33,23 @@ answer in the specification.
                                 and it never imports tkinter.
     packages/designer-app/      the interface. rows.py, selection.py,
                                 state.py, slots.py, bindings.py, paths.py,
-                                forms.py, impact.py, findings.py and
-                                exporting.py are
-                                deliberately tkinter-free and carry the logic
-                                worth testing; the widget modules are thin
-                                adapters over them.
+                                forms.py, impact.py, findings.py, factory.py,
+                                exporting.py, testbench.py and preferences.py
+                                are deliberately tkinter-free and carry the
+                                logic worth testing; the widget modules are
+                                thin adapters over them.
     examples/sales.json         the worked example, and the main test fixture.
+    examples/sales_interfaces.json
+                                the same model at schema_version 2, with eight
+                                Interfaces (docs/designer-example-notes.md §8).
     tools/build_stdlib.py       regenerates the built-in validator library.
     tools/build_matrix.py       regenerates the committed operator matrix.
     tools/check_model.py        loads, round-trips and checks a model file.
     tools/check_docs.py         checks the documents against the code.
     tools/export_schema.py      exports one Schema of a model file.
-    examples/sales_schema.export.json
-                                the export of sales_schema, which the exporter
-                                must reproduce byte for byte.
+    examples/*.export.json      the exports of sales_schema and support_schema,
+                                and of sales_schema with Interfaces, which the
+                                exporter must reproduce byte for byte.
 
 ## The columns
 
@@ -89,8 +93,8 @@ Validator column marks it, its form says since when and what to use instead,
 the rule pickers stop offering it (except to the rule already using it), and a
 model that uses it gets the note `LIB102`. None is deprecated yet.
 
-**Not built yet:** YAML export. Everything else the specification describes is
-built.
+Everything the specification describes is built. YAML export was dropped: an
+external tool can convert the JSON.
 
 Schema membership is editable: add, remove, and add-missing-referenced-entities,
 each a single undo step. Adding one entity names the cascade before it happens —
@@ -175,8 +179,9 @@ It clicks every entry in the menu bar with the dialogs stubbed, collapses and
 restores every column, and drives selection through each list. That is how the
 reset-layout crash should have been found.
 
-**Python 3.12 is the floor**, declared once in each `pyproject.toml` and nowhere
-else — ruff infers its target from `requires-python`, and mypy is told the same.
+**Python 3.12 is the floor**, declared in each `pyproject.toml` and in
+`mypy.ini` — ruff infers its target from `requires-python`, and mypy is told the
+same number by hand. Three places, so they are kept in step on purpose.
 
 The three agreeing matters more than the number. When they did not — the floor
 at 3.14 while development ran on 3.12 — ruff correctly applied PEP 758 and
@@ -334,8 +339,9 @@ puts a field back. That follows from one user action being one undo step — an
 Apply button would either bundle a form's worth of edits into one step or push
 several at once, and neither is what Ctrl-Z should mean.
 
-Every form names the context the item lives in, read-only: an item is moved by
-changing its context, not from the form. The breadcrumb and the form share one
+Every form names the context the item lives in, as an ordinary field: changing
+it moves the item, and the model check reports anything that can no longer see
+it (spec §10.1 would refuse such a move; that is an open question). The breadcrumb and the form share one
 path helper, so the two cannot disagree about where something sits.
 
 `forms.py` decides what a form contains and `formview.py` renders it. So which
@@ -527,7 +533,7 @@ chain, and the impact dialog says the outcome rather than the mechanism —
 remain". A Type without one is an ordinary state, not a fault.
 
 **Context · Validator · Interface · Type · Property · Entity · Schema** — seven
-columns, still 560px at their minimum. The Interface form previews the picture
+columns, each at least six `m` wide — under 350px together on a typical font. The Interface form previews the picture
 against sample values and says when they do not read back; a Type says what it
 presents with and, when that was inherited, names the ancestor it came from with
 an action to override it here.

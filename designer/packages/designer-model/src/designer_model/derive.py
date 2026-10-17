@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from uuid import UUID
 
-from .model import AnyTypeRef, BaseTypeRef, Entity, Model, Schema, Slot, TypeRef
+from .model import AnyTypeRef, BaseTypeRef, Entity, Index, Model, OrderTerm, Schema, Slot, TypeRef
 
 MAX_DEPTH = 64
 
@@ -133,6 +133,23 @@ class Deriver:
             out[slot.slot_name] = slot
         return out
 
+    def slot_in(self, entity_uuid: UUID, slot_uuid: UUID) -> Slot | None:
+        """The slot of this Entity that `slot_uuid` means here.
+
+        Usually that slot itself. But identity, indexes and rules declared on an
+        ancestor name the ancestor's slot, and an override replaces it by name
+        (spec §8.1) — so the slot meant is whichever one now carries that name.
+        """
+        effective = self._effective_slots(entity_uuid, set())
+        for slot in effective.values():
+            if slot.uuid == slot_uuid:
+                return slot
+        for e in self.model.entities:
+            for slot in e.slots:
+                if slot.uuid == slot_uuid:
+                    return effective.get(slot.slot_name)
+        return None
+
     def inherited_slot(self, entity_uuid: UUID, slot_name: str) -> Slot | None:
         """The slot this Entity's own slot of that name overrides, if any."""
         entity = self.entities.get(entity_uuid)
@@ -151,6 +168,26 @@ class Deriver:
                 return entity.identity
             cur = entity.extends
             depth += 1
+        return ()
+
+    def effective_indexes(self, entity_uuid: UUID) -> tuple[Index, ...]:
+        """Every index along the chain, the root's first: an abstract Entity
+        declares indexes for its descendants to materialize (spec §8.1), and
+        a flat table has to carry them itself."""
+        return tuple(
+            ix
+            for e in reversed(self.ancestors_of(entity_uuid))
+            if e in self.entities
+            for ix in self.entities[e].indexes
+        )
+
+    def effective_default_order(self, entity_uuid: UUID) -> tuple[OrderTerm, ...]:
+        """The nearest declared default order, inherited like identity: an
+        order is one statement, so a descendant's replaces its ancestor's."""
+        for e in self.ancestors_of(entity_uuid):
+            entity = self.entities.get(e)
+            if entity is not None and entity.default_order:
+                return entity.default_order
         return ()
 
     def ancestors_of(self, entity_uuid: UUID) -> list[UUID]:

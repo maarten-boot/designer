@@ -112,3 +112,28 @@ def test_unknown_document_is_rejected() -> None:
 def test_newer_schema_version_is_rejected() -> None:
     with pytest.raises(DocumentError, match="newer"):
         load({"schema_version": 99})
+
+
+@pytest.mark.parametrize(
+    ("raw", "reason"),
+    [
+        ({"integer": 1.9}, "whole number"),
+        ({"decimal": 0.1}, "a string"),
+        ({"boolean": "false"}, "true or false"),
+        ({"real": True}, "a number"),
+        ({"time": "12:00:00+02:00"}, "carries a zone"),
+    ],
+)
+def test_a_literal_is_never_converted_on_load(raw, reason) -> None:
+    """`1.9` is not an integer and `"false"` is not a boolean; storing 1 and
+    true instead would be a silent change to the model (spec §4.1)."""
+    from designer_model.literals import LiteralError, decode
+
+    with pytest.raises(LiteralError, match=reason):
+        decode(raw)
+
+
+def test_an_integer_is_a_fine_real() -> None:
+    from designer_model.literals import decode
+
+    assert decode({"real": 2}).value == 2.0

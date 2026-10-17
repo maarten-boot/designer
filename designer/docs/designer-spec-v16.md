@@ -46,7 +46,7 @@ follow from that.
 
 | Term | Meaning |
 |---|---|
-| Item | Any addressable model object: BaseType, Validator, Type, Property, Entity, Schema, Context. |
+| Item | Any addressable model object: BaseType, Validator, Interface, Type, Property, Entity, Schema, Context. Interfaces are described in appendix *interfaces*. |
 | Kind | The class of an item (`Validator`, `Type`, …). |
 | Reference | A pointer from one item to another, stored by UUID. |
 | Slot | The use of a Property, or of another Entity, inside one Entity. |
@@ -173,8 +173,10 @@ A Validator is **either** a leaf or a composite, never both.
 | `expression` | Predicate **source text**, returning boolean. |
 | `message` | Shown when the predicate returns false. May interpolate parameters. |
 
-An empty `parameters` list means the expression uses a single implicit argument
-named `value`.
+`value` is always the implicit argument, whether or not there are parameters:
+`max_length(max)` is `len(value) <= max`. On a Type `value` is supplied by the
+Type; on an Entity or a Schema binding it is an argument like any other — a slot
+or a path — and leaving it unset is `MOD108`.
 
 **Composite**
 
@@ -419,7 +421,7 @@ Only references to built-ins are stored.
   read-only acceptable.
 
 **Determinism is derived, not declared.** A Validator is non-deterministic when
-its expression calls `now()` or `today()`, or when any composite operand is. The
+its expression calls `now()`, `today()` or `current()`, or when any composite operand is. The
 checker computes it; nothing is stored.
 
 A binding to a non-deterministic Validator **cannot be enforced by the database**.
@@ -450,6 +452,7 @@ A named restriction of a BaseType.
 |---|---|
 | `parent` | Reference to a BaseType or another Type. Exactly one once complete; null while authoring. |
 | `validators` | Ordered list of bindings (§5.6). |
+| `interfaces` | Ordered list of Interface bindings, at most one default (appendix *interfaces* §4). |
 
 The **effective validator set** is the parent's followed by this Type's own.
 Validation is conjunctive.
@@ -528,6 +531,12 @@ Single inheritance, acyclic.
 declare `identity` and `indexes` for descendants to materialize, warn when they
 have no concrete descendant, and are **never Schema members**.
 
+`[FOUND WHILE BUILDING]` What a descendant materializes: **indexes accumulate**
+along the chain, the root's first, since each is a separate statement; a
+**default order is inherited like identity** — the nearest declared one wins,
+since an order is one statement and a second would contradict the first. The
+export (§9.6) writes both effective forms.
+
 **Materialization is flattened**: each concrete Entity becomes one table with all
 its effective slots as real columns. Concrete-table inheritance; §8.2 covers the
 cost.
@@ -535,16 +544,20 @@ cost.
 **Slot narrowing.** A descendant may redeclare an inherited `slot_name`:
 
 - The slot kind may not change.
-- `type_override` must narrow the inherited Type (§6). Widening is rejected.
+- `type_override` must narrow the inherited Type (§6). Widening is rejected (`MOD413`), including over a base type: an inherited `integer` admits only a Type built on `integer`. A `type_override` on a slot that inherits nothing is `MOD408`.
 - `required` may go false → true, not true → false.
-- `default` may be replaced, and must satisfy the narrowed Type.
-- A **reference slot's target may not be narrowed**.
+- `default` may be replaced, and must satisfy the narrowed Type. `[NOT BUILT]` No
+  default is checked yet, overridden or not: a string default on an integer slot
+  is silent.
+- A **reference slot's target may not be narrowed**. `[NOT BUILT]` Not checked;
+  redeclaring a reference with another target is silent. Both need codes of
+  their own.
 
 Because each concrete table is flat, a narrowed slot's constraints are the
 constraints on that table's own column — which is why narrowing works here and
 would not under joined-table inheritance.
 
-**Identity** is inherited when an ancestor declares it.
+**Identity** is inherited when an ancestor declares it, and declared once: a descendant that redeclares it is `MOD409`.
 
 ### 8.2 Extension does not give polymorphic references
 
@@ -725,6 +738,8 @@ Decided before any of it was built (`HISTORY.md`, turn 103):
   to be read, and it is not loadable as a model: it is output, not a document.
 - **One Schema per file.** The Schema is the export unit (§9.5).
 - **JSON now.** YAML later, as a different serialiser over the same structure.
+  `[CHANGED]` Dropped (turn 138): an external tool converts the JSON, so the
+  export stays JSON only.
 
 The shape was settled against a hand-written sample,
 `examples/sales_schema.export.json` (turn 105):
@@ -786,7 +801,10 @@ does not change reference resolution.
 - Moving an item between Contexts is allowed only if every referencing item can
   still see it at the new location. This includes Schemas: moving an Entity
   deeper can put it out of reach of a Schema listing it, so the move is refused
-  with those Schemas named.
+  with those Schemas named. `[NOT BUILT]` The form's Context field allows any
+  move; the model check then reports what can no longer see the item (`MOD502`
+  for a Schema member). Whether to
+  refuse, as written here, or to allow and report, as built, is open.
 
 | | Context | Schema |
 |---|---|---|
@@ -857,8 +875,8 @@ reference from outside. Likewise one command.
 **Capped at 100 commands**, oldest dropped, because a single delete command can
 hold an entire Context subtree and an uncapped stack has no bound on memory.
 
-The value is a settings key from v1 (§14.3) with a default of 100, so `[V2]` a
-**Preferences** dialog can expose it without a file-format change.
+The value is a settings key from v1 (§14.3) with a default of 100, exposed in
+**Edit ▸ Preferences…**; lowering it forgets the oldest steps at once.
 
 ### 11.5 What undo does not cover
 
@@ -890,7 +908,9 @@ re-check after every command (§13.8) is neither wrong nor whole-model. Without 
 a rename would miss the duplicate-name finding on the *other* item, since that
 item did not change. `model`-scope rules run on demand and before export.
 
-The findings, by severity:
+The findings, by severity. These lists say what each severity is for; the code
+registry (`codes.py`, appendix *diagnostics* §8) is the authority and holds more
+codes in each — the Interface checks (`INT`) among them.
 
 **Incomplete** — unset Type parent, unset Property type, unset slot Property or
 target, unset validator anchor, blank names, bindings whose type cannot resolve,
@@ -912,7 +932,9 @@ names.
 
 **Warnings** — Schema not closed, naming each outward reference; **a Type or
 Entity binding to a non-deterministic Validator**, which no CHECK constraint can
-carry (§5.7); shadowing, including an authored Validator shadowing a built-in;
+carry (§5.7); shadowing (`MOD302`); `[CHANGED]` an authored Validator
+shadowing a built-in is `MOD304`, *informational* in the code — whether it should
+be a warning, as written here, is open;
 reference slot whose target has concrete descendants; abstract Entity with no
 concrete descendant.
 
@@ -1016,28 +1038,32 @@ The **Entity column is an extension tree**, with abstract Entities in a distinct
 style. Each column has a filter entry above its list.
 
 The **Validator column** also shows built-ins, in a distinct style, visible from
-every Context. Its filter carries a **show built-ins** toggle, defaulting to off
-once a model has validators of its own — forty-four built-ins swamping a user's five
-would make the column useless. Deprecated built-ins are marked and hidden from
+every Context. `[CHANGED]` **View ▸ Show built-in validators** toggles them, off
+by default and remembered between sessions — forty-four built-ins swamping a
+user's five would make the column useless. Deprecated built-ins are marked and hidden from
 pickers.
 
 ### 13.3 Column widths and collapsing `[DECIDED]`
 
-**Ten 'm' is the minimum column width**, measured at runtime with
-`tkinter.font.Font.measure("m") * 10` on the actual UI font so the rule follows
-font size and DPI scaling. Designer is not a small-screen application; the
-1024 × 768 floor stands.
+`[CHANGED]` **A column's width comes from its content**: three quarters of its
+widest row, which is both its starting width and its minimum, never narrower
+than six `m` and never wider than its share of the screen (`rows.preferred_width`,
+measured on the actual UI font so it follows font size and DPI scaling). The
+original rule, a flat ten `m` minimum, made every column of short names the same
+width and pushed seven columns past the screen. Designer is not a small-screen
+application; the 1024 × 768 floor stands.
 
 **Manual collapse only.** Automatic collapse is deferred (§15), which removes
 pinning, resize monitoring, the `<Configure>` debounce, the collapse priority
 order and one settings key along with it.
 
-- A slim toolbar above the upper pane with six toggle buttons.
+- `[CHANGED]` A checkbutton per column in the **View** menu — seven, one per
+  column — rather than a toolbar.
 - Collapsing calls `PanedWindow.forget(pane)`; restoring calls `insert(index,
   pane)` at the remembered position. Driving a sash to zero instead leaves a dead
   draggable strip that fights the next resize.
 - Each pane's last width is remembered.
-- **Reset layout** restores all six at their default widths.
+- **View ▸ Reset layout** restores all seven at their default widths.
 
 ### 13.4 Context breadcrumb `[DECIDED]`
 
@@ -1066,7 +1092,9 @@ them would leave the user unable to see why the path they wanted is unavailable.
 
 ### 13.6 Editor pane `[DECIDED]` — generated form, plus a JSON tab
 
-Below the breadcrumb, a notebook with two tabs.
+Below the breadcrumb, a notebook with two tabs. `[NOT BUILT]` There is one pane,
+the form, in a scrolling area; the JSON tab described at the end of this section
+does not exist yet.
 
 **Form tab.** Generated per kind. Common controls: `name`, `description`, and
 read-only `uuid`, `created`, `modified`.
@@ -1074,7 +1102,7 @@ read-only `uuid`, `created`, `modified`.
 | Kind | Kind-specific editor |
 |---|---|
 | Context | parent selector |
-| Schema | member list with add/remove; **Add missing referenced entities**; closure status; cross-entity binding list with anchor picker, path editor and `enforcement` flag |
+| Schema | member list with add/remove; **Add missing referenced entities**; closure status; cross-entity binding list with anchor picker and path editor. `[CHANGED]` No `enforcement` flag: a rule across tables is always the application's (§9.4), so the form does not offer a choice |
 | Entity | `abstract` checkbox; `extends` picker; slot table; binding list; identity; indexes; default order; read-only list of Schemas this Entity belongs to |
 | Property | Type picker |
 | Type | parent picker; binding list |
@@ -1082,16 +1110,19 @@ read-only `uuid`, `created`, `modified`.
 
 **Binding rows**, in all three forms, show the inferred BaseType beside each
 argument, flag §5.6 findings inline, offer the **message override** field, and —
-for a list argument — an editable list of values rather than a text field. A
-binding to a non-deterministic Validator shows its `enforcement` locked, with the
-reason (§5.7).
+for a list argument — an editable list of values rather than a text field.
+`[CHANGED]` Type and Entity bindings have no `enforcement` field at all; a
+non-deterministic one is reported (`MOD602`) and exported as application-enforced
+(§9.6).
 
-**Built-in Validators** open in a read-only form with a **Fork to model** action.
+**Built-in Validators** open in a read-only form with a **Copy into this model…**
+action (spec §5.7 calls it *fork to model*).
 Non-deterministic ones are marked, with the reason.
 
 The **Validator form** shows a composite's expression in display form, with
-operand names rather than UUIDs (§5.2), and an operand picker that inserts a
-Validator visible in scope — including built-ins.
+operand names rather than UUIDs (§5.2). `[NOT BUILT]` There is no operand
+picker: names are typed, and a name that resolves to nothing is reported
+(`MOD113`).
 
 The Schema member picker offers concrete Entities **visible from the Schema's
 Context**, with members marked. Closure status is either "closed" or a count of
@@ -1102,12 +1133,12 @@ build risk. It shows inherited slots read-only above the Entity's own, and offer
 an override action on an inherited row that creates a narrowing slot (§8.1)
 rather than a duplicate, with its Type picker filtered to narrowing Types.
 
-**JSON tab.** Read-only in v1, showing the selected item in the on-disk shape,
-with a copy button. `[V2]` Editable once the form editor settles.
+**JSON tab.** `[NOT BUILT]` Read-only in v1, showing the selected item in the
+on-disk shape, with a copy button. `[V2]` Editable once the form editor settles.
 
 ### 13.7 Column linkage `[DECIDED]` — hybrid
 
-- The Context selection **filters** all five other columns.
+- The Context selection **filters** all six other columns.
 - The Schema selection **highlights** its members in the Entity column
   `[CHANGED]`. It filtered them in revision 15, which was wrong in use: the
   Entity column is where members are chosen from, so hiding the non-members hid
@@ -1156,19 +1187,25 @@ incremental re-check of the affected items.
 
 ### 13.9 Actions
 
-Each column carries a toolbar: **New**, **Duplicate**, **Delete**, mirrored on a
-right-click menu and the Edit menu. Delete opens the impact dialog (§11.1).
+Each column's header carries three buttons: **+** New, **=** Duplicate and
+**−** Delete, each with a tooltip. `[CHANGED]` They are not mirrored on a
+right-click menu or in the Edit menu. Delete opens the impact dialog (§11.1).
 
 **New creates an empty item** in the active Context and selects it, with focus in
 the name field. Duplicate copies every field except `uuid`, `created` and `name`,
-left blank so the user names it deliberately. Duplicating a Schema copies its
+left blank so the user names it deliberately. The slots, bindings and Interface
+bindings it copies get identities of their own, and the copy's identity,
+indexes, default order and slot-bound rules point at its own slots — sharing
+the original's UUIDs would make two things answer to one name. Duplicating a Schema copies its
 member list; duplicating a composite Validator copies its expression, operand
 UUIDs and all. On a built-in, Duplicate is **Fork to model** (§5.7).
 
 ### 13.10 Status line
 
-Selected item's kind and name, model dirty state, and the last model check
-result. The Context path lives in the breadcrumb.
+`[CHANGED]` The file name, a dot while there are unsaved changes, and the model
+check's headline — the counts at the level View ▸ Findings shown chooses, and how
+many would block an export. Clicking it opens the findings. The selected item is
+named in the editor's title and the Context path in the breadcrumb.
 
 ---
 
@@ -1204,11 +1241,12 @@ model file `schema_version`, and `library_version`.
   4-space indent.
 - ruff will flag the `eval` in the expressions module (S307). Suppress it there,
   with a comment pointing at §5.4.
-- **pytest**. The domain package's tests run headless. The standard library ships
-  **passing and failing example values with each built-in**, so the whole library
-  is asserted by one parameterised test — the cheapest guard against the bug this
-  library is most prone to, a regex that is subtly wrong in a way no reviewer
-  notices. The same fixtures serve the test bench when it arrives.
+- **pytest**. The domain package's tests run headless; the widget tests need a
+  display, and run under `xvfb-run` where there is none. The standard library
+  ships **passing and failing example values with each built-in**, in
+  `data/examples.json` beside it, so the whole library is asserted by one
+  parameterised test — the cheapest guard against the bug this library is most
+  prone to, a regex that is subtly wrong in a way no reviewer notices.
 - **tkinter is standard library but not always installed** — Debian and Ubuntu
   ship it as `python3-tk`. It cannot be declared as a dependency, so
   `designer-app` checks at startup and fails with a message naming the package.
@@ -1228,8 +1266,9 @@ it is the only thing that would otherwise pull one in.
 | `recent_files` | — | File menu |
 | `last_file` | — | startup |
 | `window_geometry`, `sash_positions`, `column_widths`, `collapsed_columns` | — | layout |
-| `follow_selection` | false | toggle |
-| `show_builtins` | false | Validator column filter |
+| `show_builtins` | false | View ▸ Show built-in validators |
+| `sort_descending` | — | a click on a column heading |
+| `finding_level` | `warning` | View ▸ Findings shown |
 | `undo_limit` | 100 | Preferences |
 | `autosave_delay_ms` | 250 | Preferences |
 | `recent_files_limit` | 10 | Preferences |
@@ -1241,14 +1280,18 @@ A corrupt settings file is replaced with defaults, never fatal.
 1. Load settings; fall back to defaults on any problem.
 2. Load the standard library into the read-only registry.
 3. **If an autosave exists**, offer recovery before anything opens, naming the
-   file it belongs to and its timestamp. Declining discards it.
-4. Otherwise, **reopen the last file** if settings name one and it loads.
-5. Otherwise, start with an **empty model**.
+   file it belongs to and its timestamp — even when a file is named on the
+   command line. Declining discards it.
+4. Otherwise, open the file named on the command line, if there is one.
+5. Otherwise, **reopen the last file** if settings name one and it loads.
+6. Otherwise, start with an **empty model**.
 
-Reopening must never prevent startup. Missing, unreadable, or a newer
-`schema_version` gives an empty model plus a non-modal notice. A newer
-`library_version` opens normally; unresolvable built-ins become named errors
-(§11.6).
+Reopening must never prevent startup. `[CHANGED]` A last file that is missing is
+skipped quietly — the recent list already marks it unavailable — and one that is
+unreadable or from a newer `schema_version` gives an empty model and a message
+saying why (a modal one: it is shown once, before there is anything to work
+on). A newer `library_version` opens normally; unresolvable built-ins become
+named errors (`LIB101`, naming the version needed).
 
 **Recent files** are capped by `recent_files_limit`, most-recent-first,
 deduplicated by resolved absolute path. An entry whose file is missing is **kept
@@ -1291,7 +1334,21 @@ now only says what is still open; `README.md` and `HANDOVER.md` describe what is
 built.
 
 Everything through phase 3 is built and editable, and schema export (§9.6) is
-built: **File ▸ Export Schema…**, `tools/export_schema.py` and `make export`.
-Every check the appendices specify is implemented, and the test bench, the
-Preferences dialog (§15) and deprecation (§5.7) are built. Not built: the YAML
-serialiser for the export (§9.6).
+built: **File ▸ Export Schema…**, `tools/export_schema.py` and `make export`. The
+test bench, the Preferences dialog (§15) and deprecation (§5.7) are built.
+
+`[CORRECTED]` An earlier revision of this section said nothing was left unbuilt.
+The crosscheck of 17 October found otherwise; each item is marked `[NOT BUILT]`
+where it is specified:
+
+- the JSON tab and the Validator operand picker (§13.6);
+- refusing a Context move that would hide an item from what uses it (§10.1);
+- checking an overridden slot's `default` and a reference slot's target (§8.1);
+- fix hints for `MOD509` and `MOD413` (appendix *diagnostics* §7);
+- three type-inference gaps and two dedicated messages (appendix *signature
+  table* §12);
+- grouping marks checked for position when parsing (appendix *interfaces* §6).
+
+Two questions are open rather than unbuilt: whether a Context move is refused or
+allowed and reported (§10.1), and whether shadowing a built-in is a warning or a
+note (§11.6).

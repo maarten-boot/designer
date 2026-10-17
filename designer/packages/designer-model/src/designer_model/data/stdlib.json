@@ -159,7 +159,7 @@
     {
       "uuid": "b5bfc6ca-adeb-523c-8b84-ec070bb68290",
       "name": "max_length",
-      "description": "An upper length bound.",
+      "description": "An upper length bound. Recognised by the exporter by identity to emit a length hint; a forked copy is not recognised.",
       "context": null,
       "kind": "leaf",
       "parameters": [
@@ -459,7 +459,7 @@
         "p"
       ],
       "expression": "precision(value) <= p",
-      "message": "must have at most {p} significant digits",
+      "message": "must have at most {p} digits",
       "created": "2026-08-29T00:00:00Z",
       "modified": "2026-08-29T00:00:00Z"
     },

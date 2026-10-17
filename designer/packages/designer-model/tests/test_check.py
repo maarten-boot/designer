@@ -369,3 +369,158 @@ def test_the_message_names_the_binding_and_what_is_missing(model) -> None:
     assert message.startswith("CountryCode (")
     assert "binds max_length (" in message
     assert message.endswith("without setting max")
+
+
+# --- a composite naming something that does not exist ------------------------
+
+
+def test_an_unresolved_name_in_a_composite_is_reported(model) -> None:
+    from designer_model.diagnostics import TextSpan
+
+    composite = by_name(model.validators, "order_reference")
+    composite.expression = f"{composite.expression} AND nosuch"
+    findings = [f for f in check(model).findings if f.code == "MOD113"]
+    assert [f.args["target"] for f in findings] == ["nosuch"]
+    start = composite.expression.index("nosuch")
+    assert findings[0].span == TextSpan(start, start + len("nosuch"))
+
+
+def test_stored_uuids_are_not_mistaken_for_names(model) -> None:
+    # order_reference holds two UUIDs, one of whose segments begins with a letter
+    assert not [f for f in check(model).findings if f.code == "MOD113"]
+
+
+# --- naming: contexts and interfaces ------------------------------------------
+
+
+def _context(model, name, parent):
+    from designer_model.model import Context
+
+    c = Context(
+        uuid=uuid4(),
+        name=name,
+        description="",
+        created=model.contexts[0].created,
+        modified=model.contexts[0].modified,
+        parent=parent,
+    )
+    model.contexts.append(c)
+    return c
+
+
+def test_context_names_are_unique_among_siblings_only(model) -> None:
+    sales, support = by_name(model.contexts, "sales"), by_name(model.contexts, "support")
+    _context(model, "archive", sales.uuid)
+    _context(model, "archive", support.uuid)
+    assert "MOD301" not in check(model).codes
+    _context(model, "archive", sales.uuid)
+    assert check(model).codes.count("MOD301") == 1
+
+
+def test_an_interface_is_held_to_the_naming_rules(model) -> None:
+    import datetime as dt
+
+    from designer_model.model import Interface
+
+    now = dt.datetime(2026, 10, 17, tzinfo=dt.UTC)
+    for name in ("bad name!", "bad name!", ""):
+        model.interfaces.append(
+            Interface(
+                uuid=uuid4(),
+                name=name,
+                description="",
+                created=now,
+                modified=now,
+                context=model.contexts[0].uuid,
+                base_type="string",
+                picture="X(3)",
+            )
+        )
+    codes = check(model).codes
+    assert "MOD303" in codes and "MOD301" in codes and "MOD106" in codes
+
+
+# --- overrides over a base type -----------------------------------------------
+
+
+def test_overriding_a_base_typed_slot_with_another_base_widens(model) -> None:
+    """`quantity` is a plain integer on OrderLine; an override built on string
+    is not a narrowing of it, though neither side is a named Type."""
+    from dataclasses import replace
+
+    line = by_name(model.entities, "OrderLine")
+    child = replace(line, uuid=uuid4(), name="BulkLine", abstract=False, extends=line.uuid, slots=[], validators=[])
+    quantity = next(s for s in line.slots if s.slot_name == "quantity")
+    short = by_name(model.types, "ShortText")
+    child.slots = [replace(quantity, uuid=uuid4(), type_override=short.uuid, default=None)]
+    model.entities.append(child)
+    (finding,) = [f for f in check(model).findings if f.code == "MOD413"]
+    assert finding.args["inherited"] == "integer"
+
+
+def test_a_type_over_the_same_base_narrows_it(model) -> None:
+    from dataclasses import replace
+
+    from designer_model.model import BaseTypeRef, Type
+
+    line = by_name(model.entities, "OrderLine")
+    money = by_name(model.types, "Money")
+    counted = Type(
+        uuid=uuid4(),
+        name="Count",
+        description="",
+        created=money.created,
+        modified=money.modified,
+        context=money.context,
+        parent=BaseTypeRef("integer"),
+    )
+    model.types.append(counted)
+    child = replace(line, uuid=uuid4(), name="BulkLine", abstract=False, extends=line.uuid, slots=[], validators=[])
+    quantity = next(s for s in line.slots if s.slot_name == "quantity")
+    child.slots = [replace(quantity, uuid=uuid4(), type_override=counted.uuid)]
+    model.entities.append(child)
+    assert "MOD413" not in check(model).codes
+
+
+# --- the mutation table in the example notes §5 ------------------------------
+
+
+def _mutate_override(m):
+    slot = next(s for s in by_name(m.entities, "OrderLine").slots if s.slot_name == "line_total")
+    slot.type_override = by_name(m.types, "ShortText").uuid
+
+
+def _mutate_required(m):
+    next(s for s in by_name(m.entities, "LineItem").slots if s.slot_name == "line_total").required = True
+    next(s for s in by_name(m.entities, "OrderLine").slots if s.slot_name == "line_total").required = False
+
+
+def _mutate_closure(m):
+    schema = by_name(m.schemas, "sales_schema")
+    schema.members = tuple(u for u in schema.members if u != by_name(m.entities, "Customer").uuid)
+
+
+def _mutate_target(m):
+    slot = next(s for s in by_name(m.entities, "OrderLine").slots if s.slot_name == "order")
+    slot.target = by_name(m.entities, "LineItem").uuid
+
+
+def _mutate_path(m):
+    binding = by_name(m.schemas, "sales_schema").validators[0]
+    order, ship = binding.arguments["value"].path
+    binding.arguments["value"] = PathArg((order, ship, ship))
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected"),
+    [
+        (_mutate_override, {"MOD413"}),
+        (_mutate_required, {"MOD412"}),
+        (_mutate_closure, {"MOD503", "MOD509"}),
+        (_mutate_target, {"MOD401", "MOD404", "MOD503", "MOD506", "MOD509"}),
+        (_mutate_path, {"MOD508"}),
+    ],
+)
+def test_the_example_notes_mutations_produce_what_they_say(model, mutate, expected) -> None:
+    mutate(model)
+    assert new_codes(model) == expected

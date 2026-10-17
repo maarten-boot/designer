@@ -1,0 +1,828 @@
+{
+  "library_version": 1,
+  "examples": {
+    "between": {
+      "arguments": {
+        "min": {
+          "integer": 1
+        },
+        "max": {
+          "integer": 9
+        }
+      },
+      "pass": [
+        {
+          "integer": 1
+        },
+        {
+          "integer": 5
+        },
+        {
+          "integer": 9
+        }
+      ],
+      "fail": [
+        {
+          "integer": 0
+        },
+        {
+          "integer": 10
+        }
+      ]
+    },
+    "contains": {
+      "arguments": {
+        "substring": {
+          "string": "lace"
+        }
+      },
+      "pass": [
+        {
+          "string": "Lovelace"
+        }
+      ],
+      "fail": [
+        {
+          "string": "Ada"
+        }
+      ]
+    },
+    "ends_with": {
+      "arguments": {
+        "suffix": {
+          "string": ".json"
+        }
+      },
+      "pass": [
+        {
+          "string": "sales.json"
+        }
+      ],
+      "fail": [
+        {
+          "string": "sales.json.bak"
+        }
+      ]
+    },
+    "equals": {
+      "arguments": {
+        "other": {
+          "string": "GBP"
+        }
+      },
+      "pass": [
+        {
+          "string": "GBP"
+        }
+      ],
+      "fail": [
+        {
+          "string": "gbp"
+        }
+      ]
+    },
+    "exact_length": {
+      "arguments": {
+        "n": {
+          "integer": 2
+        }
+      },
+      "pass": [
+        {
+          "string": "NL"
+        }
+      ],
+      "fail": [
+        {
+          "string": "N"
+        },
+        {
+          "string": "NLD"
+        }
+      ]
+    },
+    "greater_than": {
+      "arguments": {
+        "min": {
+          "decimal": "0"
+        }
+      },
+      "pass": [
+        {
+          "decimal": "0.01"
+        }
+      ],
+      "fail": [
+        {
+          "decimal": "0"
+        },
+        {
+          "decimal": "-1"
+        }
+      ]
+    },
+    "in_future": {
+      "arguments": {},
+      "pass": [
+        {
+          "date": "2999-01-01"
+        }
+      ],
+      "fail": [
+        {
+          "date": "2000-01-01"
+        }
+      ]
+    },
+    "in_past": {
+      "arguments": {},
+      "pass": [
+        {
+          "date": "2000-01-01"
+        },
+        {
+          "datetime": "2000-01-01T00:00:00Z"
+        }
+      ],
+      "fail": [
+        {
+          "date": "2999-01-01"
+        }
+      ]
+    },
+    "is_country_code": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": "NL"
+        },
+        {
+          "string": "GB"
+        }
+      ],
+      "fail": [
+        {
+          "string": "nl"
+        },
+        {
+          "string": "NLD"
+        },
+        {
+          "string": "N1"
+        },
+        {
+          "string": ""
+        }
+      ]
+    },
+    "is_currency_code": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": "EUR"
+        }
+      ],
+      "fail": [
+        {
+          "string": "eur"
+        },
+        {
+          "string": "EU"
+        },
+        {
+          "string": "EURO"
+        }
+      ]
+    },
+    "is_email": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": "ada@example.org"
+        }
+      ],
+      "fail": [
+        {
+          "string": "ada@example"
+        },
+        {
+          "string": "ada example@x.org"
+        },
+        {
+          "string": "@example.org"
+        },
+        {
+          "string": "a@@x.org"
+        }
+      ]
+    },
+    "is_false": {
+      "arguments": {},
+      "pass": [
+        {
+          "boolean": false
+        }
+      ],
+      "fail": [
+        {
+          "boolean": true
+        }
+      ]
+    },
+    "is_finite": {
+      "arguments": {},
+      "pass": [
+        {
+          "real": 1.5
+        },
+        {
+          "real": 0.0
+        }
+      ],
+      "fail": [
+        {
+          "real": Infinity
+        },
+        {
+          "real": NaN
+        }
+      ]
+    },
+    "is_identifier": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": "order_line"
+        },
+        {
+          "string": "_x1"
+        }
+      ],
+      "fail": [
+        {
+          "string": "1x"
+        },
+        {
+          "string": "order line"
+        },
+        {
+          "string": "order-line"
+        },
+        {
+          "string": ""
+        }
+      ]
+    },
+    "is_lowercase": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": "ada"
+        },
+        {
+          "string": "ada 1"
+        }
+      ],
+      "fail": [
+        {
+          "string": "Ada"
+        }
+      ]
+    },
+    "is_safe_identifier": {
+      "arguments": {
+        "max": {
+          "integer": 8
+        }
+      },
+      "pass": [
+        {
+          "string": "order"
+        }
+      ],
+      "fail": [
+        {
+          "string": "order_line_total"
+        },
+        {
+          "string": "1x"
+        }
+      ]
+    },
+    "is_true": {
+      "arguments": {},
+      "pass": [
+        {
+          "boolean": true
+        }
+      ],
+      "fail": [
+        {
+          "boolean": false
+        }
+      ]
+    },
+    "is_uppercase": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": "GBP"
+        },
+        {
+          "string": "GBP 1"
+        }
+      ],
+      "fail": [
+        {
+          "string": "Gbp"
+        }
+      ]
+    },
+    "is_url": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": "https://example.org/a?b=1"
+        },
+        {
+          "string": "http://x"
+        }
+      ],
+      "fail": [
+        {
+          "string": "ftp://example.org"
+        },
+        {
+          "string": "https://"
+        },
+        {
+          "string": "https://a b"
+        }
+      ]
+    },
+    "is_uuid": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": "5bd36f99-970f-596e-acd8-b907ff8cfa44"
+        },
+        {
+          "string": "5BD36F99-970F-596E-ACD8-B907FF8CFA44"
+        }
+      ],
+      "fail": [
+        {
+          "string": "5bd36f99970f596eacd8b907ff8cfa44"
+        },
+        {
+          "string": "5bd36f99-970f-596e-acd8-b907ff8cfa4"
+        },
+        {
+          "string": "not-a-uuid"
+        }
+      ]
+    },
+    "length_between": {
+      "arguments": {
+        "min": {
+          "integer": 2
+        },
+        "max": {
+          "integer": 3
+        }
+      },
+      "pass": [
+        {
+          "string": "ab"
+        },
+        {
+          "string": "abc"
+        }
+      ],
+      "fail": [
+        {
+          "string": "a"
+        },
+        {
+          "string": "abcd"
+        }
+      ]
+    },
+    "less_than": {
+      "arguments": {
+        "max": {
+          "integer": 10
+        }
+      },
+      "pass": [
+        {
+          "integer": 9
+        }
+      ],
+      "fail": [
+        {
+          "integer": 10
+        }
+      ]
+    },
+    "matches": {
+      "arguments": {
+        "pattern": {
+          "string": "ORD-[0-9]{6}"
+        }
+      },
+      "pass": [
+        {
+          "string": "ORD-000123"
+        }
+      ],
+      "fail": [
+        {
+          "string": "ORD-123"
+        },
+        {
+          "string": "xORD-000123"
+        }
+      ]
+    },
+    "max_length": {
+      "arguments": {
+        "max": {
+          "integer": 3
+        }
+      },
+      "pass": [
+        {
+          "string": ""
+        },
+        {
+          "string": "abc"
+        }
+      ],
+      "fail": [
+        {
+          "string": "abcd"
+        }
+      ]
+    },
+    "max_precision": {
+      "arguments": {
+        "p": {
+          "integer": 6
+        }
+      },
+      "pass": [
+        {
+          "decimal": "1234.50"
+        },
+        {
+          "decimal": "0.005"
+        }
+      ],
+      "fail": [
+        {
+          "decimal": "12345.67"
+        }
+      ]
+    },
+    "max_scale": {
+      "arguments": {
+        "s": {
+          "integer": 2
+        }
+      },
+      "pass": [
+        {
+          "decimal": "1"
+        },
+        {
+          "decimal": "1.25"
+        },
+        {
+          "decimal": "1.20"
+        }
+      ],
+      "fail": [
+        {
+          "decimal": "1.250"
+        },
+        {
+          "decimal": "0.001"
+        }
+      ]
+    },
+    "max_value": {
+      "arguments": {
+        "max": {
+          "integer": 100
+        }
+      },
+      "pass": [
+        {
+          "integer": 100
+        }
+      ],
+      "fail": [
+        {
+          "integer": 101
+        }
+      ]
+    },
+    "min_length": {
+      "arguments": {
+        "min": {
+          "integer": 2
+        }
+      },
+      "pass": [
+        {
+          "string": "ab"
+        }
+      ],
+      "fail": [
+        {
+          "string": "a"
+        }
+      ]
+    },
+    "min_value": {
+      "arguments": {
+        "min": {
+          "date": "2026-01-01"
+        }
+      },
+      "pass": [
+        {
+          "date": "2026-01-01"
+        }
+      ],
+      "fail": [
+        {
+          "date": "2025-12-31"
+        }
+      ]
+    },
+    "multiple_of": {
+      "arguments": {
+        "n": {
+          "integer": 5
+        }
+      },
+      "pass": [
+        {
+          "integer": 0
+        },
+        {
+          "integer": 15
+        },
+        {
+          "integer": -10
+        }
+      ],
+      "fail": [
+        {
+          "integer": 7
+        }
+      ]
+    },
+    "negative": {
+      "arguments": {},
+      "pass": [
+        {
+          "integer": -1
+        }
+      ],
+      "fail": [
+        {
+          "integer": 0
+        },
+        {
+          "integer": 1
+        }
+      ]
+    },
+    "no_control_characters": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": "plain text"
+        },
+        {
+          "string": ""
+        }
+      ],
+      "fail": [
+        {
+          "string": "tab\there"
+        },
+        {
+          "string": "bell\u0007"
+        }
+      ]
+    },
+    "non_blank": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": "Ada"
+        }
+      ],
+      "fail": [
+        {
+          "string": ""
+        },
+        {
+          "string": " Ada"
+        },
+        {
+          "string": "Ada "
+        }
+      ]
+    },
+    "non_empty": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": " "
+        }
+      ],
+      "fail": [
+        {
+          "string": ""
+        }
+      ]
+    },
+    "non_negative": {
+      "arguments": {},
+      "pass": [
+        {
+          "decimal": "0"
+        },
+        {
+          "decimal": "0.01"
+        }
+      ],
+      "fail": [
+        {
+          "decimal": "-0.01"
+        }
+      ]
+    },
+    "non_positive": {
+      "arguments": {},
+      "pass": [
+        {
+          "integer": 0
+        },
+        {
+          "integer": -3
+        }
+      ],
+      "fail": [
+        {
+          "integer": 1
+        }
+      ]
+    },
+    "not_equals": {
+      "arguments": {
+        "other": {
+          "integer": 0
+        }
+      },
+      "pass": [
+        {
+          "integer": 1
+        }
+      ],
+      "fail": [
+        {
+          "integer": 0
+        }
+      ]
+    },
+    "not_in_future": {
+      "arguments": {},
+      "pass": [
+        {
+          "date": "2000-01-01"
+        }
+      ],
+      "fail": [
+        {
+          "date": "2999-01-01"
+        }
+      ]
+    },
+    "not_in_past": {
+      "arguments": {},
+      "pass": [
+        {
+          "date": "2999-01-01"
+        }
+      ],
+      "fail": [
+        {
+          "date": "2000-01-01"
+        }
+      ]
+    },
+    "not_one_of": {
+      "arguments": {
+        "options": {
+          "list": {
+            "string": [
+              "draft",
+              "void"
+            ]
+          }
+        }
+      },
+      "pass": [
+        {
+          "string": "sent"
+        }
+      ],
+      "fail": [
+        {
+          "string": "void"
+        }
+      ]
+    },
+    "one_of": {
+      "arguments": {
+        "options": {
+          "list": {
+            "string": [
+              "low",
+              "normal",
+              "high"
+            ]
+          }
+        }
+      },
+      "pass": [
+        {
+          "string": "low"
+        }
+      ],
+      "fail": [
+        {
+          "string": "urgent"
+        },
+        {
+          "string": "Low"
+        }
+      ]
+    },
+    "positive": {
+      "arguments": {},
+      "pass": [
+        {
+          "decimal": "0.01"
+        }
+      ],
+      "fail": [
+        {
+          "decimal": "0"
+        }
+      ]
+    },
+    "starts_with": {
+      "arguments": {
+        "prefix": {
+          "string": "ORD-"
+        }
+      },
+      "pass": [
+        {
+          "string": "ORD-1"
+        }
+      ],
+      "fail": [
+        {
+          "string": "ord-1"
+        }
+      ]
+    },
+    "trimmed": {
+      "arguments": {},
+      "pass": [
+        {
+          "string": "Ada"
+        },
+        {
+          "string": ""
+        }
+      ],
+      "fail": [
+        {
+          "string": " Ada"
+        },
+        {
+          "string": "Ada\n"
+        }
+      ]
+    }
+  }
+}

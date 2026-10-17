@@ -402,3 +402,22 @@ def test_a_rule_added_through_the_editor_checks_clean(session, library) -> None:
     session.execute(bindings.schema_add(session.model, library, sales, draft))
     codes = {f.code for f in session.full_check().findings if f.subject.item_uuid == sales.uuid}
     assert not {c for c in codes if c.startswith("MOD5")}, codes
+
+
+def test_editing_a_cross_entity_rule_keeps_the_literals_it_cannot_show(session, library) -> None:
+    """The dialog builds paths only; a literal argument loaded from a file must
+    survive an edit rather than be dropped from it."""
+    from uuid import uuid4
+
+    from designer_model.literals import ScalarLiteral
+    from designer_model.model import LiteralArg
+
+    sales = schema_of(session)
+    original = sales.validators[0]
+    original.arguments["note"] = LiteralArg(ScalarLiteral("string", "kept"))
+    draft = bindings.SchemaDraft.of(original)
+    rebuilt = bindings._schema_binding(session.model, library, draft, uuid4())
+    assert rebuilt.arguments["note"] == original.arguments["note"]
+    # another validator chosen: the literals were written for the old one
+    draft.validator = library.by_name("not_equals").uuid
+    assert "note" not in bindings._schema_binding(session.model, library, draft, uuid4()).arguments

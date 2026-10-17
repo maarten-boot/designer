@@ -56,8 +56,11 @@ def unresolved_names(expression: str) -> list[tuple[str, int, int]]:
     A name that resolved to nothing on commit is left as written, so storage
     never fails; the checker reports it from here.
     """
+    # blank the stored UUIDs first: a hyphen is a word boundary, so a UUID's
+    # letter-led segments (`e0000000`, `adeb`) would otherwise read as names
+    masked = UUID_PATTERN.sub(lambda m: " " * len(m.group(0)), expression)
     out = []
-    for match in IDENTIFIER.finditer(expression):
+    for match in IDENTIFIER.finditer(masked):
         if match.group(0) not in KEYWORDS:
             out.append((match.group(0), match.start(), match.end()))
     return out

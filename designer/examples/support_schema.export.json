@@ -1,0 +1,308 @@
+{
+  "format": "designer-schema-export",
+  "format_version": 1,
+  "source": {
+    "schema_version": 1,
+    "library_version": 1,
+    "expression_language": "designer-1"
+  },
+  "schema": {
+    "uuid": "5c000000-0000-4000-8000-000000000002",
+    "name": "support_schema",
+    "description": "What ships as the support database. Shares Customer with sales.",
+    "context": "common/support"
+  },
+  "warnings": [
+    {
+      "code": "MOD602",
+      "item": "Auditable",
+      "message": "Auditable (e0000000) binds in_past (2754a6b3), which is not deterministic; no check constraint can enforce it"
+    }
+  ],
+  "tables": [
+    {
+      "name": "Customer",
+      "uuid": "e0000000-0000-4000-8000-000000000002",
+      "description": "Someone who places orders. Lives in common so several schemas can use it.",
+      "context": "common",
+      "inherits": [
+        "Auditable"
+      ],
+      "columns": [
+        {
+          "name": "created_at",
+          "uuid": "a0000000-0000-4000-8000-000000000001",
+          "declared_on": "Auditable",
+          "property": "created_at",
+          "type": null,
+          "base": "datetime",
+          "nullable": false,
+          "default": null,
+          "check": [],
+          "application": [],
+          "interface": null
+        },
+        {
+          "name": "id",
+          "uuid": "a0000000-0000-4000-8000-000000000010",
+          "property": "id",
+          "type": "Uuid",
+          "base": "string",
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "is_uuid",
+              "expression": "regex_full_match(value, \"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\")",
+              "message": "must be a UUID",
+              "from": "Uuid"
+            }
+          ],
+          "application": [],
+          "interface": null
+        },
+        {
+          "name": "name",
+          "uuid": "a0000000-0000-4000-8000-000000000011",
+          "property": "name",
+          "type": "ShortText",
+          "base": "string",
+          "length": 80,
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "max_length",
+              "arguments": {
+                "max": {
+                  "integer": 80
+                }
+              },
+              "expression": "len(value) <= 80",
+              "message": "must be 80 characters or fewer",
+              "from": "ShortText"
+            },
+            {
+              "rule": "non_blank",
+              "expression": "(len(value) > 0) and (value == strip(value))",
+              "message": "must not be blank",
+              "from": "ShortText"
+            }
+          ],
+          "application": [],
+          "interface": null
+        },
+        {
+          "name": "country_code",
+          "uuid": "a0000000-0000-4000-8000-000000000012",
+          "property": "country_code",
+          "type": "CountryCode",
+          "base": "string",
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "is_country_code",
+              "expression": "regex_full_match(value, \"[A-Z]{2}\")",
+              "message": "must be an ISO 3166-1 alpha-2 code",
+              "from": "CountryCode"
+            }
+          ],
+          "application": [],
+          "interface": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "columns": [
+            "name"
+          ],
+          "unique": false
+        }
+      ],
+      "default_order": [
+        {
+          "column": "name",
+          "ascending": true
+        }
+      ],
+      "check": [],
+      "application": [
+        {
+          "rule": "in_past",
+          "expression": "created_at < current()",
+          "message": "must be in the past",
+          "from": "Auditable",
+          "reason": "not deterministic"
+        }
+      ]
+    },
+    {
+      "name": "Ticket",
+      "uuid": "e0000000-0000-4000-8000-000000000006",
+      "description": "A support request. References Customer across a sibling context.",
+      "context": "common/support",
+      "inherits": [
+        "Auditable"
+      ],
+      "columns": [
+        {
+          "name": "created_at",
+          "uuid": "a0000000-0000-4000-8000-000000000001",
+          "declared_on": "Auditable",
+          "property": "created_at",
+          "type": null,
+          "base": "datetime",
+          "nullable": false,
+          "default": null,
+          "check": [],
+          "application": [],
+          "interface": null
+        },
+        {
+          "name": "id",
+          "uuid": "a0000000-0000-4000-8000-000000000050",
+          "property": "id",
+          "type": "Uuid",
+          "base": "string",
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "is_uuid",
+              "expression": "regex_full_match(value, \"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\")",
+              "message": "must be a UUID",
+              "from": "Uuid"
+            }
+          ],
+          "application": [],
+          "interface": null
+        },
+        {
+          "name": "customer_id",
+          "uuid": "a0000000-0000-4000-8000-000000000051",
+          "relationship": "customer",
+          "references": "Customer",
+          "type": "Uuid",
+          "base": "string",
+          "nullable": false,
+          "default": null,
+          "check": [],
+          "application": [],
+          "interface": null
+        },
+        {
+          "name": "subject",
+          "uuid": "a0000000-0000-4000-8000-000000000052",
+          "property": "subject",
+          "type": "ShortText",
+          "base": "string",
+          "length": 80,
+          "nullable": false,
+          "default": null,
+          "check": [
+            {
+              "rule": "max_length",
+              "arguments": {
+                "max": {
+                  "integer": 80
+                }
+              },
+              "expression": "len(value) <= 80",
+              "message": "must be 80 characters or fewer",
+              "from": "ShortText"
+            },
+            {
+              "rule": "non_blank",
+              "expression": "(len(value) > 0) and (value == strip(value))",
+              "message": "must not be blank",
+              "from": "ShortText"
+            }
+          ],
+          "application": [],
+          "interface": null
+        },
+        {
+          "name": "priority",
+          "uuid": "a0000000-0000-4000-8000-000000000053",
+          "property": "priority",
+          "type": "Priority",
+          "base": "string",
+          "nullable": false,
+          "default": {
+            "string": "normal"
+          },
+          "check": [
+            {
+              "rule": "one_of",
+              "arguments": {
+                "options": {
+                  "list": {
+                    "string": [
+                      "low",
+                      "normal",
+                      "high",
+                      "urgent"
+                    ]
+                  }
+                }
+              },
+              "expression": "value in [\"low\", \"normal\", \"high\", \"urgent\"]",
+              "message": "must be one of low, normal, high, urgent",
+              "from": "Priority"
+            }
+          ],
+          "application": [],
+          "interface": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "relationship": "customer",
+          "columns": [
+            "customer_id"
+          ],
+          "table": "Customer",
+          "target_columns": [
+            "id"
+          ],
+          "on_delete": "restrict",
+          "inverse_name": "tickets"
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "customer_id",
+            "priority"
+          ],
+          "unique": false
+        }
+      ],
+      "default_order": [
+        {
+          "column": "id",
+          "ascending": true
+        }
+      ],
+      "check": [],
+      "application": [
+        {
+          "rule": "in_past",
+          "expression": "created_at < current()",
+          "message": "must be in the past",
+          "from": "Auditable",
+          "reason": "not deterministic"
+        }
+      ]
+    }
+  ],
+  "application": []
+}

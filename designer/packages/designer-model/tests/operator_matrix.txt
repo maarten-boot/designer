@@ -105,13 +105,13 @@ a == b  (and !=)
 
           integer   real      decimal   boolean   string    datetime  date      time      duration  
 ----------------------------------------------------------------------------------------------------
-integer   boolean   boolean   boolean   EXP206    -         -         -         -         -
-real      boolean   boolean   EXP201    EXP206    -         -         -         -         -
-decimal   boolean   EXP201    boolean   EXP206    -         -         -         -         -
-boolean   EXP206    EXP206    EXP206    boolean   EXP206    EXP206    EXP206    EXP206    EXP206
-string    -         -         -         EXP206    boolean   -         -         -         -
-datetime  -         -         -         EXP206    -         boolean   EXP204    -         -
-date      -         -         -         EXP206    -         EXP204    boolean   -         -
-time      -         -         -         EXP206    -         -         -         boolean   -
-duration  -         -         -         EXP206    -         -         -         -         boolean
+integer   boolean   boolean   boolean   -         -         -         -         -         -
+real      boolean   boolean   EXP201    -         -         -         -         -         -
+decimal   boolean   EXP201    boolean   -         -         -         -         -         -
+boolean   -         -         -         boolean   -         -         -         -         -
+string    -         -         -         -         boolean   -         -         -         -
+datetime  -         -         -         -         -         boolean   EXP204    -         -
+date      -         -         -         -         -         EXP204    boolean   -         -
+time      -         -         -         -         -         -         -         boolean   -
+duration  -         -         -         -         -         -         -         -         boolean
 

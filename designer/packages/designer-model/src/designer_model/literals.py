@@ -55,6 +55,13 @@ def _decode_datetime(text: str) -> dt.datetime:
     return parsed.astimezone(dt.UTC)
 
 
+def _decode_time(text: str) -> dt.time:
+    parsed = dt.time.fromisoformat(text)
+    if parsed.tzinfo is not None:
+        raise LiteralError(f"time {text!r} carries a zone; a time of day has none (spec §4.1)")
+    return parsed
+
+
 _DECODERS = {
     "integer": int,
     "real": float,
@@ -63,13 +70,44 @@ _DECODERS = {
     "string": str,
     "datetime": _decode_datetime,
     "date": dt.date.fromisoformat,
-    "time": dt.time.fromisoformat,
+    "time": _decode_time,
+}
+
+
+_JSON_KINDS: dict[str, tuple[type, ...]] = {
+    "integer": (int,),
+    "real": (int, float),
+    "decimal": (str,),
+    "boolean": (bool,),
+    "string": (str,),
+    "datetime": (str,),
+    "date": (str,),
+    "time": (str,),
+}
+"""What JSON may carry for each base type. A decimal is a string because JSON
+numbers are binary floating point (§4.1) — `0.1` read as a number would arrive
+as `0.1000000000000000055…`, which is the loss the tagged string exists to
+prevent. Conversions are never applied on load: `1.9` is not an integer and
+`"false"` is not a boolean, and saying so beats storing 1 and true."""
+
+_WRITTEN_AS = {
+    "integer": "a whole number",
+    "real": "a number",
+    "decimal": 'a string, such as "0.10"',
+    "boolean": "true or false",
+    "string": "a string",
+    "datetime": 'a string, such as "2026-08-29T14:30:00Z"',
+    "date": 'a string, such as "2026-08-29"',
+    "time": 'a string, such as "14:30:00"',
 }
 
 
 def _decode_scalar(base_type: str, raw: Any) -> Any:
     if base_type == "integer" and isinstance(raw, bool):
         raise LiteralError("boolean supplied where integer expected")
+    allowed = _JSON_KINDS.get(base_type)
+    if allowed is not None and (not isinstance(raw, allowed) or (base_type == "real" and isinstance(raw, bool))):
+        raise LiteralError(f"{base_type} is written as {_WRITTEN_AS[base_type]}, not {raw!r}")
     return _DECODERS[base_type](raw)
 
 
