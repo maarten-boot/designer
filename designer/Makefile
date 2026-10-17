@@ -1,15 +1,17 @@
 # Designer — the checks, in one place.
 #
-# `make check` is what to run before believing anything works. It is four
+# `make check` is what to run before believing anything works. It is six
 # separate nets and they catch different things:
 #
 #   lint   style, unused names, and the constructs ruff knows are traps
 #   types  attribute and call errors — the ones that survive a green test run
 #          because the widget half of the suite skips without a display
+#   sync   the tests still call the code the way it is written
 #   test   behaviour, including the widget tests where there is a display
 #   model  the worked example: does it load, round trip, and check clean
+#   docs   the documents against each other and against the code
 #
-# The third of these is the one that lies most easily. On a machine with no
+# `test` is the one that lies most easily. On a machine with no
 # tkinter every widget test skips and the suite still reports success, so `make
 # types` is not optional there.
 

@@ -3,7 +3,7 @@
 A desktop tool for authoring a data model: validation rules, type definitions,
 fields, record structures and the schemas that group them.
 
-The specification and its three appendices are the source of truth. Every
+The specification and its five appendices are the source of truth. Every
 non-obvious decision in this code is there, with the reasoning:
 
 `HANDOVER.md` is the briefing for picking this up cold: what is decided, what is
@@ -30,36 +30,43 @@ answer in the specification.
                                 checker, the built-in validators, commands,
                                 undo and the session. Standard library only,
                                 and it never imports tkinter.
-    packages/designer-app/      the interface. rows.py, selection.py and
-                                state.py are deliberately tkinter-free and
-                                carry the logic worth testing; the widget
-                                modules are thin adapters over them.
+    packages/designer-app/      the interface. rows.py, selection.py,
+                                state.py, slots.py, bindings.py, paths.py,
+                                forms.py, impact.py and findings.py are
+                                deliberately tkinter-free and carry the logic
+                                worth testing; the widget modules are thin
+                                adapters over them.
     examples/sales.json         the worked example, and the main test fixture.
     tools/build_stdlib.py       regenerates the built-in validator library.
     tools/build_matrix.py       regenerates the committed operator matrix.
+    tools/check_model.py        loads, round-trips and checks a model file.
+    tools/check_docs.py         checks the documents against the code.
 
 ## The columns
 
-**Context, Validator, Type, Property, Entity, Schema** — strictly from what
-things are made of to what ships. A Context scopes everything; a Validator
-depends on nothing but the base types; a Type is built from Validators; a
-Property is a Type given a name; an Entity is Properties given a shape; a Schema
+**Context, Validator, Interface, Type, Property, Entity, Schema** — strictly
+from what things are made of to what ships. A Context scopes everything; a
+Validator depends on nothing but the base types; an Interface says how a value
+is written down and read back; a Type is built from Validators and presents
+through Interfaces; a Property is a Type given a name; an Entity is Properties given a shape; a Schema
 is the deliverable. Beginning at the Schema would begin at the end.
 
 ## Status
 
-**Phases 1a, 1b, 2, 3a and the first round of 3b are done**: the package skeleton, the domain items, the
-derived computations, load/save, the diagnostic records, the code registry, the
-model check, the standard validator library, and the expression checker —
-tokenizer and token map, composite parser, `ast` whitelist, signature tables,
-type inference, and the `EXP` codes. Phase 3a adds the session layer the
-interface will drive: commands and a bounded undo stack, the delete planner,
-autosave with crash recovery, and application state.
+**Everything in the specification through phase 3 is built and editable**; no
+read-only summaries remain in the editor. The domain: items, derived
+computations, load/save, the diagnostic records and code registry, the model
+check, the standard validator library, the expression checker (tokenizer,
+composite parser, `ast` whitelist, signature tables, type inference, the `EXP`
+codes), Interfaces and the picture engine. The session layer: commands and a
+bounded undo stack, the delete planner, autosave with crash recovery. The
+interface: the window and menu bar, the seven columns, the breadcrumb, column
+collapse, the status line and findings window, and a generated, live form per
+kind with findings beside the field that caused them.
 
-Round one of 3b adds the shell: the window, the menu bar, the six columns with
-filters, the breadcrumb, manual column collapse, and the status line. Round two
-adds the editor: a generated form per kind, live editing through the undo stack,
-findings shown beside the field that caused them, and New and Duplicate.
+**Not built yet:** schema export (four design decisions await confirmation —
+see `HANDOVER.md`); the interface checks `INT202`, `INT401` and `INT402`; and
+phase 4 — the test bench, a Preferences dialog, deprecation handling.
 
 Schema membership is editable: add, remove, and add-missing-referenced-entities,
 each a single undo step. Adding one entity names the cascade before it happens —
@@ -91,16 +98,18 @@ leaving a reference to something no longer there. `Focus.members`,
 invisible to a test suite whose widget half skips without a display, and each is
 caught by this. Run it before believing a green suite.
 
-**The widget layer has not been run.** It was written on a machine with no
-tkinter and no display: the logic underneath it is tested, the widgets are not.
-Expect to find things.
+**The widget layer is tested only where there is a display.** It was written on
+a machine with no tkinter, and most interface bugs so far were found by using
+it, not by the suite. Run `make gui` on a machine with a display after touching
+the interface.
 
 ## Working on it
 
     make deps      # pytest, ruff, mypy — floors, not pins
     make versions  # what the checks are actually running
-    make check     # lint, types, tests, and the worked example
+    make check     # lint, types, sync, test, model, docs
     make run       # open examples/sales.json
+    make run EXAMPLE=../sales.json   # or another model file
     make help      # the rest
 
 The tool versions matter. `make check` passed here on mypy 2.3 while failing on

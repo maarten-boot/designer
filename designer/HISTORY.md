@@ -777,3 +777,7 @@ FAILED test_widgets.py::test_reordering_is_disabled_while_a_sort_is_applied
 
 > yes do 1 and 2
 
+## 100.
+
+> fix the remaining stale docs and typos too
+
