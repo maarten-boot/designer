@@ -286,10 +286,8 @@ date" and "that date is in the future" are different sentences to show somebody.
 
 ## 7. What the checker verifies
 
-New codes, `INT1xx`, in the existing severity scheme. Seven of the nine are in
-the registry; `INT401` and `INT402` are step 6 of §9 and are marked below,
-because a code table that does not say which codes exist is a table somebody
-will trust.
+New codes, `INT1xx`, in the existing severity scheme. All nine are in the
+registry.
 
 | Code | Severity | Blocks export | Says |
 |---|---|---|---|
@@ -299,8 +297,8 @@ will trust.
 | `INT202` | error | yes | `{interface}` on `{type}` does not read back every value the Type admits: `{detail}` |
 | `INT301` | error | yes | bound to `{type}`, whose base type is `{other}` |
 | `INT302` | error | yes | two Interfaces on `{type}` are both marked default |
-| `INT401` | warning | no | presenting loses precision: `{picture}` shows {n} decimals of a value allowing {m} — **specified, not yet implemented** |
-| `INT402` | note | no | `{picture}` gives {n} positions to a value `{validator}` allows {m} — **specified, not yet implemented** |
+| `INT401` | warning | no | `{interface}` on `{type}` shows {n} decimals of a value allowing {m} |
+| `INT402` | note | no | `{interface}` gives {n} positions to a value `{validator}` allows {m} on `{type}` |
 | `INT601` | note | no | Interface is bound to nothing |
 
 ### 7.3 How `INT202` finds the values a Type admits `[FOUND WHILE BUILDING]`
@@ -324,6 +322,13 @@ Two consequences worth knowing:
 Only a Type's own bindings are checked. A Type that inherits its presentation
 admits fewer values than the ancestor it inherits from, so a sound pair stays
 sound below it.
+
+`INT401` compares the picture's decimals with the tightest `max_scale` along the
+Type's chain, counting a percentage as two more. It overlaps `INT202`, which
+also catches rounding, so `[FOUND WHILE BUILDING]` it is reported only when the
+round trip found nothing on that binding: one fault, one finding. What is left
+for it is the lossy pair the probes miss — a Type whose other rules happen to
+exclude every probe at the scales that would round.
 
 `INT402` is a **note**, not a warning. `[DECIDED]` If a Type says
 `max_length(40)` and its Interface says `X(30)`, nothing is wrong with either
@@ -444,7 +449,8 @@ can act on it.
 5. ~~`INT202` against the bound Type — the round trip over the values that Type
    admits, which is where §6 says the interesting failures are.~~ **Built** —
    see §7.3.
-6. `INT401`/`INT402`, comparing pictures against the Type's rules.
+6. ~~`INT401`/`INT402`, comparing pictures against the Type's rules.~~
+   **Built** — see §7.
 
 Steps 2 and 3 are enough to find out whether the vocabulary is right before
 much is written in it.

@@ -420,3 +420,56 @@ def test_int202_is_an_error_that_blocks_export():
 
     assert definition("INT202").severity is Severity.ERROR
     assert blocks_export("INT202")
+
+
+# --- INT401 / INT402: the picture against the Type's rules ------------------
+
+
+def found(model, code):
+    return [f for f in check(model).findings if f.code == code]
+
+
+def test_fewer_decimals_than_the_type_allows_is_a_warning_when_the_probes_miss_it(model):
+    # between(0, 1) leaves only 0 among the probes, so the round trip holds and
+    # INT202 says nothing; comparing the picture with max_scale still sees it
+    add_type(model, "Fraction", "decimal", rule("max_scale", s=4), rule("between", min=0, max=1))
+    bind(model, "Fraction", add_interface(model, "two", "decimal", "0.00"))
+    assert found(model, "INT202") == []
+    (finding,) = found(model, "INT401")
+    assert (finding.args["n"], finding.args["m"]) == (2, 4)
+
+
+def test_int401_is_not_repeated_where_int202_already_reports(model):
+    bind(model, "Money", add_interface(model, "one", "decimal", "#,##0.0"))  # Money allows 2
+    assert len(found(model, "INT202")) == 1
+    assert found(model, "INT401") == []
+
+
+def test_a_percentage_shows_two_more_decimals_of_the_value(model):
+    bind(model, "Money", add_interface(model, "rate", "decimal", "0%"))
+    assert found(model, "INT202") == [] and found(model, "INT401") == []
+
+
+def test_a_narrower_picture_than_the_data_is_a_note(model):
+    bind(model, "ShortText", add_interface(model, "narrow", "string", "X(30)"))
+    (finding,) = found(model, "INT402")
+    assert (finding.args["n"], finding.args["m"]) == (30, 80)
+    names = {i.uuid: i.name for i in model.index().values()} | {finding.args["validator"].uuid: "max_length"}
+    from designer_model.codes import definition
+    from designer_model.diagnostics import render
+
+    assert render(definition("INT402").template, finding.args, names).startswith("narrow (")
+
+
+def test_a_picture_as_wide_as_the_data_says_nothing(model):
+    bind(model, "ShortText", add_interface(model, "wide", "string", "X(80)"))
+    assert found(model, "INT402") == []
+
+
+def test_neither_blocks_export():
+    from designer_model.codes import blocks_export, definition
+    from designer_model.diagnostics import Severity
+
+    assert definition("INT401").severity is Severity.WARNING
+    assert definition("INT402").severity is Severity.INFO
+    assert not blocks_export("INT401") and not blocks_export("INT402")

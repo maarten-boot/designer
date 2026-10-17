@@ -72,8 +72,8 @@ kind with findings beside the field that caused them.
 from the command line — `make export`, or `tools/export_schema.py MODEL SCHEMA` —
 but has no menu entry yet.
 
-**Not built yet:** the interface checks `INT401` and `INT402`; and
-phase 4 — the test bench, a Preferences dialog, deprecation handling.
+**Not built yet:** phase 4 — the test bench, a Preferences dialog,
+deprecation handling.
 
 Schema membership is editable: add, remove, and add-missing-referenced-entities,
 each a single undo step. Adding one entity names the cascade before it happens —

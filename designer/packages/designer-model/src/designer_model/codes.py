@@ -390,6 +390,20 @@ _ALL = [
         blocks_export=True,
     ),
     _d(
+        "INT401",
+        Severity.WARNING,
+        Scope.MODEL,
+        "Presenting loses precision",
+        "{interface} on {item} shows {n} decimals of a value allowing {m}",
+    ),
+    _d(
+        "INT402",
+        Severity.INFO,
+        Scope.MODEL,
+        "Narrower than the data",
+        "{interface} gives {n} positions to a value {validator} allows {m} on {item}",
+    ),
+    _d(
         "INT301",
         Severity.ERROR,
         Scope.MODEL,

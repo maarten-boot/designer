@@ -1283,6 +1283,5 @@ built.
 
 Everything through phase 3 is built and editable, and schema export (§9.6) is
 built as a library function and a command-line tool, with no menu entry yet.
-Not built: the interface checks `INT401` and `INT402` (appendix
-*interfaces*), and phase 4 — the test bench, a Preferences dialog, and
-deprecation handling.
+Every check the appendices specify is implemented. Not built: phase 4 — the
+test bench, a Preferences dialog, and deprecation handling.

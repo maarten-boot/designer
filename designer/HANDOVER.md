@@ -33,13 +33,16 @@ so the logic worth testing can be tested without a display.
 
 ## Where things stand
 
-`make check` was green on 30 August: 670 tests, 1 skipped. That one skip
-matters — see below. Re-run it rather than trusting the number; on 17 October
-only `make model` and `make docs` could be run (green), because the machine had
-no pip, ruff, mypy, pytest or tkinter.
+`make check` green on 17 October: 735 tests, 1 skipped. That one skip
+matters — see below. Re-run it rather than trusting the number. The machine has
+pip but no system-wide ruff, mypy or pytest, so put them in a virtual
+environment and its `bin` first on `PATH` before `make check`; it has no
+tkinter, so the widget suite is the skip.
 
-Everything in the specification is built and editable. There are no read-only
-summaries left in the editor.
+Everything in the specification is built and editable, and every check the
+appendices specify is implemented — `INT202` by sampling (`pictures.PROBES`,
+appendix *interfaces* §7.3), with the project's first evaluator,
+`expressions/evaluate.py`. There are no read-only summaries left in the editor.
 
 **Not built:**
 
@@ -51,12 +54,7 @@ summaries left in the editor.
    §9.6. What is missing is **File ▸ Export schema…** in the window, and since
    the widget tests skip here, it needs a run on a machine with a display.
    The YAML serialiser is the other open piece.
-2. **`INT401`, `INT402`.** Specified in the interfaces appendix, marked there
-   as not implemented. `INT202` is built (appendix §7.3): it samples
-   `pictures.PROBES`, keeps the probes the Type's rules admit, and asks the
-   round trip of those. It brought the project's first evaluator,
-   `expressions/evaluate.py`.
-3. **Phase 4:** the test bench (try a value against a Type and see which rules
+2. **Phase 4:** the test bench (try a value against a Type and see which rules
    pass — `evaluate.py` already answers that per rule), a Preferences dialog,
    deprecation handling.
 

@@ -33,6 +33,7 @@ from .diagnostics import (
 from .expressions import check_leaf
 from .expressions.evaluate import EvaluationError, evaluate_composite, evaluate_leaf
 from .expressions.types import UNKNOWN, ExprType, ListOf, Scalar
+from .ids import builtin_id
 from .literals import ListLiteral, ScalarLiteral
 from .model import (
     AnyTypeRef,
@@ -347,17 +348,24 @@ class Checker:
                         },
                     )
                     continue
-                yield from self._check_round_trip(item, binding, face, at)
+                yield from self._check_picture(item, binding, face, at)
         for face in self.model.interfaces:
             if face.uuid not in bound:
                 yield Diagnostic("INT601", self._subject(face), {"item": ItemRef(face.uuid)})
 
-    def _check_round_trip(self, item: Type, binding, face, at: Subject) -> Iterator[Diagnostic]:
-        """`parse(present(v)) == v` for every value the Type admits (INT202).
+    def _check_picture(self, item: Type, binding, face, at: Subject) -> Iterator[Diagnostic]:
+        """A picture against the Type it is bound to (appendix *interfaces* §7).
 
-        Against the Type, not the picture alone: `X(3)U` is sound on a Type
-        that requires upper case and lossy on one that does not, and neither the
-        picture nor the rules is wrong — the pair is (appendix *interfaces* §6).
+        `INT202` is the round trip, `parse(present(v)) == v`, over the values
+        the Type admits. Against the Type, not the picture alone: `X(3)U` is
+        sound on a Type that requires upper case and lossy on one that does
+        not, and neither the picture nor the rules is wrong — the pair is (§6).
+
+        `INT401` and `INT402` compare the picture with the Type's rules instead
+        of sampling. `INT401` says the same thing as an `INT202` about rounding,
+        so it is only reported when the round trip found nothing: it is the net
+        for a lossy pair the probes happened to miss.
+
         Only a Type's own bindings are checked; one that inherits a sound pair
         admits fewer values, so it is sound too.
         """
@@ -367,14 +375,41 @@ class Checker:
             compiled = pictures.compile_picture(face.base_type, face.picture, face.decimal_point, face.group_mark)
         except pictures.PictureError:
             return  # INT201 already says so
+        here = at.then("interfaces", binding.uuid)
+        names = {"interface": ItemRef(face.uuid), "item": ItemRef(item.uuid)}
         admitted = [v for v in pictures.PROBES.get(face.base_type, ()) if self._admits(item, v)]
         trip = pictures.check_round_trip(compiled, admitted)
         if not trip.holds:
-            yield Diagnostic(
-                "INT202",
-                at.then("interfaces", binding.uuid),
-                {"interface": ItemRef(face.uuid), "item": ItemRef(item.uuid), "detail": trip.why()},
-            )
+            yield Diagnostic("INT202", here, {**names, "detail": trip.why()})
+        elif isinstance(compiled, pictures.Numeric) and compiled.base_type == "decimal":
+            # a percentage shows the value times a hundred: two more decimals
+            shown = compiled.maximum_decimals + (2 if compiled.percent else 0)
+            allowed = self._tightest(item, builtin_id("max_scale"), "s")
+            if allowed is not None and allowed > shown:
+                yield Diagnostic("INT401", here, {**names, "n": shown, "m": allowed})
+        if isinstance(compiled, pictures.Text):
+            longest = self._tightest(item, builtin_id("max_length"), "max")
+            if longest is not None and longest > compiled.positions:
+                yield Diagnostic(
+                    "INT402",
+                    here,
+                    {**names, "n": compiled.positions, "m": longest, "validator": ItemRef(builtin_id("max_length"))},
+                )
+
+    def _tightest(self, item: Type, validator: UUID, parameter: str) -> int | None:
+        """The smallest literal a built-in is given anywhere along the chain:
+        the bound that actually applies when several Types set one."""
+        found = []
+        for uuid in self.d.type_chain(item.uuid):
+            owner = self.d.types.get(uuid)
+            for b in owner.validators if owner else ():
+                arg = b.arguments.get(parameter)
+                if b.validator != validator or not isinstance(arg, LiteralArg):
+                    continue
+                literal = arg.literal
+                if isinstance(literal, ScalarLiteral) and literal.base_type == "integer":
+                    found.append(literal.value)
+        return min(found) if found else None
 
     def _admits(self, item: Type, value) -> bool:
         """Whether every rule along the Type's chain passes for `value`.
