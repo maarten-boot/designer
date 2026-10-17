@@ -38,7 +38,7 @@ from designer_model.model import (
 from designer_model.stdlib import standard_library
 
 from . import bindings as bindingedit
-from . import exporting, forms, testbench
+from . import exporting, forms, preferences, testbench
 from . import findings as findingview
 from . import paths as pathedit
 from . import rows as rowbuild
@@ -50,6 +50,7 @@ from .dialogs import (
     TestBenchWindow,
     choose,
     confirm_delete,
+    edit_preferences,
     edit_rule,
     edit_schema_rule,
     edit_slot,
@@ -131,6 +132,8 @@ class DesignerApp(tk.Tk):
         edit_menu = tk.Menu(menubar, tearoff=False)
         edit_menu.add_command(label="Undo", accelerator="Ctrl+Z", command=self.undo)
         edit_menu.add_command(label="Redo", accelerator="Ctrl+Y", command=self.redo)
+        edit_menu.add_separator()
+        edit_menu.add_command(label="Preferences\u2026", command=self.edit_preferences)
         menubar.add_cascade(label="Edit", menu=edit_menu)
 
         view_menu = tk.Menu(menubar, tearoff=False)
@@ -1268,6 +1271,19 @@ class DesignerApp(tk.Tk):
             messagebox.showerror("Could not export", f"{chosen}\n\n{error}")
             return
         messagebox.showinfo("Exported", f"{schema.name} was written to\n{chosen}")
+
+    def edit_preferences(self) -> None:
+        """Edit ▸ Preferences…. Applied at once and saved at once: a setting
+        that waits for a clean exit is lost to the crash it was meant for."""
+        chosen = edit_preferences(self, preferences.current(self.settings), preferences.PREFERENCES, preferences.check)
+        if chosen is None:
+            return
+        preferences.apply(chosen, self.settings, self.session.stack)
+        try:
+            self.settings.save()
+        except OSError as error:
+            messagebox.showwarning("Preferences not saved", f"They apply until you quit.\n\n{error}")
+        self._refresh_recent()
 
     def open_bench(self) -> None:
         """Model ▸ Try a value…: the test bench on the Type in hand."""

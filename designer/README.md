@@ -78,8 +78,11 @@ those findings. From the command line it is `make export`, or
 **The test bench** is built: **Model ▸ Try a value…** (Ctrl+T), or the button
 on a Type's or a Property's form. See *The test bench* below.
 
-**Not built yet:** the rest of phase 4 — a Preferences dialog, deprecation
-handling.
+**Edit ▸ Preferences…** sets the undo limit, the autosave delay and how many
+recent files are listed, each with its range. A change applies at once — a lower
+undo limit forgets the oldest steps immediately — and is saved at once.
+
+**Not built yet:** the rest of phase 4 — deprecation handling.
 
 Schema membership is editable: add, remove, and add-missing-referenced-entities,
 each a single undo step. Adding one entity names the cascade before it happens —

@@ -1224,9 +1224,9 @@ it is the only thing that would otherwise pull one in.
 | `window_geometry`, `sash_positions`, `column_widths`, `collapsed_columns` | — | layout |
 | `follow_selection` | false | toggle |
 | `show_builtins` | false | Validator column filter |
-| `undo_limit` | 100 | `[V2]` Preferences |
-| `autosave_delay_ms` | 250 | `[V2]` Preferences |
-| `recent_files_limit` | 10 | `[V2]` Preferences |
+| `undo_limit` | 100 | Preferences |
+| `autosave_delay_ms` | 250 | Preferences |
+| `recent_files_limit` | 10 | Preferences |
 
 A corrupt settings file is replaced with defaults, never fatal.
 
@@ -1259,8 +1259,9 @@ and marked unavailable** rather than dropped.
   after two seconds, since a thread cannot interrupt `re`. Originally: enter sample values, see which validators pass or fail and
   why, evaluated off the UI thread so a pathological regex cannot hang the
   window. Worth pulling into v1 if anything else can be dropped.
-- **Preferences dialog**, exposing `undo_limit`, `autosave_delay_ms` and
-  `recent_files_limit`.
+- ~~**Preferences dialog**~~ `[BUILT]` — **Edit ▸ Preferences…**, exposing
+  `undo_limit`, `autosave_delay_ms` and `recent_files_limit`, applied and saved
+  at once.
 - **Automatic column collapse** (§13.3), which would reintroduce pinning.
 - **Schema composition** — a Schema including another (§9.5).
 - Command journal replacing snapshot autosave, giving persistent undo (§12.1).
@@ -1285,5 +1286,5 @@ built.
 
 Everything through phase 3 is built and editable, and schema export (§9.6) is
 built: **File ▸ Export Schema…**, `tools/export_schema.py` and `make export`.
-Every check the appendices specify is implemented, and the test bench (§15)
-is built. Not built: a Preferences dialog, and deprecation handling.
+Every check the appendices specify is implemented, and the test bench and the
+Preferences dialog (§15) are built. Not built: deprecation handling.

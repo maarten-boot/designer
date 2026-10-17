@@ -106,6 +106,24 @@ def test_remove_restores_position(session) -> None:
     assert types[3] is middle
 
 
+def test_lowering_the_undo_limit_forgets_the_oldest_steps_at_once(session) -> None:
+    types = session.model.types
+    stack = CommandStack(session.model)
+    removed = [types[-1], types[-2], types[-3]]
+    for item in removed:
+        stack.execute(RemoveItem(item))
+    stack.set_limit(2)
+    assert stack.undo() is not None and stack.undo() is not None
+    assert stack.undo() is None, "the oldest step should be gone"
+    assert removed[0] not in types and removed[1] in types
+
+
+def test_the_undo_limit_is_never_below_one(session) -> None:
+    stack = CommandStack(session.model)
+    stack.set_limit(0)
+    assert stack.limit == 1
+
+
 # --- deleting ---------------------------------------------------------------
 
 

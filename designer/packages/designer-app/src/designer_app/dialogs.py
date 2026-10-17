@@ -245,6 +245,68 @@ class TestBenchWindow(tk.Toplevel):
             self._stop()
 
 
+class PreferencesDialog(tk.Toplevel):
+    """Edit ▸ Preferences…: a few numbers, each with its range.
+
+    OK checks before it closes, and a value out of range keeps the dialog open
+    with the reason under the fields — the same as the rule and slot dialogs,
+    since closing and reopening to correct one digit loses what else was typed.
+    """
+
+    def __init__(self, parent: tk.Misc, values: dict[str, str], fields, check) -> None:
+        super().__init__(parent)
+        self.title("Preferences")
+        self.transient(parent)
+        self.resizable(False, False)
+        self.result: dict[str, int] | None = None
+        self._check = check
+        self._vars: dict[str, tk.StringVar] = {}
+
+        grid = ttk.Frame(self, padding=(12, 12, 12, 4))
+        grid.pack(fill="x")
+        for row, field in enumerate(fields):
+            ttk.Label(grid, text=field.label).grid(row=row * 2, column=0, sticky="w", padx=(0, 10))
+            var = tk.StringVar(master=self, value=values.get(field.key, ""))
+            self._vars[field.key] = var
+            entry = ttk.Entry(grid, textvariable=var, width=10)
+            entry.grid(row=row * 2, column=1, sticky="w")
+            if row == 0:
+                entry.focus_set()
+            hint = f"{field.minimum:,} to {field.maximum:,} \u2014 {field.hint}"
+            ttk.Label(grid, text=hint, foreground="#4f4f4f").grid(
+                row=row * 2 + 1, column=0, columnspan=2, sticky="w", pady=(0, 8)
+            )
+
+        self.problem = ttk.Label(self, text="", foreground="#a01b0b", padding=(12, 0))
+        self.problem.pack(fill="x")
+        buttons = ttk.Frame(self, padding=(12, 4, 12, 12))
+        buttons.pack(fill="x")
+        ttk.Button(buttons, text="Cancel", command=self.destroy).pack(side="right")
+        ttk.Button(buttons, text="OK", command=self.accept).pack(side="right", padx=(0, 6))
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self.bind("<Return>", lambda _e: self.accept())
+
+    def set(self, key: str, text: str) -> None:
+        self._vars[key].set(text)
+
+    def accept(self) -> None:
+        values, problem = self._check({k: v.get() for k, v in self._vars.items()})
+        if problem:
+            self.problem.configure(text=problem)
+            return
+        self.result = values
+        self.destroy()
+
+    def ask(self) -> dict[str, int] | None:
+        self.grab_set()
+        self.wait_window(self)
+        return self.result
+
+
+def edit_preferences(parent: tk.Misc, values: dict[str, str], fields, check) -> dict[str, int] | None:
+    return PreferencesDialog(parent, values, fields, check).ask()
+
+
 class PathPicker(ttk.Frame):
     """Build a route one step at a time.
 

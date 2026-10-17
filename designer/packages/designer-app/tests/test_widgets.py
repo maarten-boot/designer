@@ -2547,3 +2547,43 @@ def test_closing_the_bench_stops_a_running_trial(app: DesignerApp, quiet: dict) 
     window.destroy()
     settle(app)
     assert job._process.poll() is not None, "the trial's process outlived its window"
+
+
+# --- Edit ▸ Preferences… -------------------------------------------------------
+
+
+def test_preferences_are_applied_and_saved(app: DesignerApp, quiet: dict, config) -> None:
+    from designer_app.state import Settings
+
+    quiet["preferences"] = {"undo_limit": 5, "autosave_delay_ms": 400, "recent_files_limit": 3}
+    app.edit_preferences()
+    settle(app)
+    assert quiet["preferences_dialogs"][-1]["undo_limit"] == "100"
+    assert app.session.stack.limit == 5
+    saved = Settings.load()
+    assert (saved.undo_limit, saved.autosave_delay_ms, saved.recent_files_limit) == (5, 400, 3)
+
+
+def test_cancelled_preferences_change_nothing(app: DesignerApp, quiet: dict) -> None:
+    before = (app.settings.undo_limit, app.session.stack.limit)
+    app.edit_preferences()  # the stub cancels
+    settle(app)
+    assert (app.settings.undo_limit, app.session.stack.limit) == before
+
+
+def test_the_preferences_dialog_stays_open_on_a_bad_value(app: DesignerApp) -> None:
+    from designer_app import preferences
+    from designer_app.dialogs import PreferencesDialog
+
+    dialog = PreferencesDialog(app, preferences.current(app.settings), preferences.PREFERENCES, preferences.check)
+    settle(app)
+    dialog.set("undo_limit", "0")
+    dialog.accept()
+    settle(app)
+    assert dialog.winfo_exists()
+    assert "between 1 and 10,000" in str(dialog.problem.cget("text"))
+    dialog.set("undo_limit", "20")
+    dialog.accept()
+    settle(app)
+    assert not dialog.winfo_exists()
+    assert dialog.result is not None and dialog.result["undo_limit"] == 20

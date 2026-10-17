@@ -51,7 +51,8 @@ appendix *interfaces* §7.3), with the project's first evaluator,
    `tools/export_schema.py`, `make export`), with every decision in spec §9.6.
    `examples/sales_schema.export.json` is its acceptance test, compared byte
    for byte. The YAML serialiser is the open piece.
-2. **Phase 4:** a Preferences dialog and deprecation handling. The test bench
+2. **Phase 4:** deprecation handling. Preferences are built
+   (`designer_app/preferences.py`, `PreferencesDialog`). The test bench
    is built (`designer_model/bench.py`, `designer_app/testbench.py`,
    `TestBenchWindow` in `dialogs.py`); it judges in a subprocess so a runaway
    regex is killed after `bench.TIMEOUT`.

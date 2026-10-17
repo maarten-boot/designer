@@ -347,6 +347,12 @@ class CommandStack:
             self._done.pop(0)
         return command
 
+    def set_limit(self, limit: int) -> None:
+        """A new cap, applied now: lowering it forgets the oldest steps at once
+        rather than at the next edit, so the setting means what it says."""
+        self.limit = max(1, limit)
+        del self._done[: max(0, len(self._done) - self.limit)]
+
     def undo(self) -> Command | None:
         if not self._done:
             return None

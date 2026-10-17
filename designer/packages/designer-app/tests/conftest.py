@@ -95,6 +95,8 @@ def quiet(monkeypatch):
         "schema_rule": None,
         "problems": [],
         "answer": False,
+        "preferences_dialogs": [],
+        "preferences": None,
     }
 
     class Boxes:
@@ -168,6 +170,12 @@ def quiet(monkeypatch):
     monkeypatch.setattr(app_module, "edit_slot", edit_slot)
     monkeypatch.setattr(app_module, "edit_rule", edit_rule)
     monkeypatch.setattr(app_module, "edit_schema_rule", edit_schema_rule)
+
+    def edit_preferences(_parent, values, fields, check):
+        calls["preferences_dialogs"].append(values)
+        return calls["preferences"]
+
+    monkeypatch.setattr(app_module, "edit_preferences", edit_preferences)
     return calls
 
 
