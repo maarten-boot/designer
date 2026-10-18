@@ -795,9 +795,16 @@ The "show only this Context" flag is a **filter on the browser lists** only. It
 does not change reference resolution.
 
 - Sibling contexts are never visible to each other.
-- Shadowing: the nearer name wins; the tool warns on a shadowing name. An
-  authored Validator may shadow a built-in, which resolves in its favour and
-  warns — the qualified naming in §5.3 is what keeps such a case legible.
+- Shadowing: the nearer name wins; the tool warns on a shadowing name
+  (`MOD302`). An authored Validator may shadow a built-in, which resolves in its
+  favour — the qualified naming in §5.3 is what keeps such a case legible.
+  `[DECIDED]` (turn 144) That one is a **note** (`MOD304`, informational), not a
+  warning: it is what **Copy into this model…** does on purpose, every time, and
+  a warning raised by the intended use of a feature teaches people to ignore
+  warnings. Both forms say it in amber instead — the copy names what it takes
+  precedence over, the built-in where it has been taken over. Bindings store
+  UUIDs, so existing rules are unaffected either way; only a name typed later in
+  that Context and below resolves to the copy.
 - Moving an item between Contexts is allowed only if every referencing item can
   still see it at the new location. This includes Schemas: moving an Entity
   deeper can put it out of reach of a Schema listing it, so the move is refused
@@ -932,14 +939,12 @@ names.
 
 **Warnings** — Schema not closed, naming each outward reference; **a Type or
 Entity binding to a non-deterministic Validator**, which no CHECK constraint can
-carry (§5.7); shadowing (`MOD302`); `[CHANGED]` an authored Validator
-shadowing a built-in is `MOD304`, *informational* in the code — whether it should
-be a warning, as written here, is open;
+carry (§5.7); shadowing between authored items (`MOD302`);
 reference slot whose target has concrete descendants; abstract Entity with no
 concrete descendant.
 
 **Informational** — `enforcement = database` generates nothing yet; use of a
-deprecated built-in; concrete Entities in no Schema; Schemas with fewer than two
+deprecated built-in; an authored Validator shadowing a built-in (`MOD304`, §10.1); concrete Entities in no Schema; Schemas with fewer than two
 members; orphaned items.
 
 Two Schemas sharing a member is **not** reported, nor are Entity reference cycles.
@@ -1349,6 +1354,6 @@ where it is specified:
   table* §12);
 - grouping marks checked for position when parsing (appendix *interfaces* §6).
 
-Two questions are open rather than unbuilt: whether a Context move is refused or
-allowed and reported (§10.1), and whether shadowing a built-in is a warning or a
-note (§11.6).
+One question is open rather than unbuilt: whether a Context move is refused or
+allowed and reported (§10.1). Shadowing a built-in was the other, decided in
+turn 144: a note (§10.1).

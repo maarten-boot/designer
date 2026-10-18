@@ -947,3 +947,23 @@ FAILED test_widgets.py::test_reordering_is_disabled_while_a_sort_is_applied
 
 > yes commit it
 
+## 141.
+
+> i pushed it
+
+## 142.
+
+> ok where are we
+
+## 143.
+
+> explain the shadowing issue
+
+## 144.
+
+> your reccomendadtion
+
+## 145.
+
+> yes commit it
+

@@ -44,7 +44,9 @@ Almost everything in the specification is built and editable — `INT202` by
 sampling (`pictures.PROBES`, appendix *interfaces* §7.3), with the project's
 first evaluator, `expressions/evaluate.py`. What is not is listed in spec §16
 and marked `[NOT BUILT]` where it is specified; the crosscheck of 17 October
-(turn 139) found it. Two questions there are the user's to answer.
+(turn 139) found it. One question there is still the user's to answer: refusing a
+Context move or allowing and reporting it (spec §10.1). Shadowing a built-in was
+decided in turn 144 — a note, as built.
 
 **Done, with what is worth knowing:**
 
