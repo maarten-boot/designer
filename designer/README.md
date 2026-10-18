@@ -47,6 +47,9 @@ answer in the specification.
     tools/check_model.py        loads, round-trips and checks a model file.
     tools/check_docs.py         checks the documents against the code.
     tools/export_schema.py      exports one Schema of a model file.
+                                (both thin wrappers over designer_model/cli.py,
+                                installed as designer-check and designer-export)
+    tools/release.py            builds the release and verifies it installs.
     examples/*.export.json      the exports of sales_schema and support_schema,
                                 and of sales_schema with Interfaces, which the
                                 exporter must reproduce byte for byte.
@@ -205,7 +208,25 @@ tests pin the codes that a prototype checker, written against the specification
 documents rather than against this code, produced for four deliberately broken
 variants.
 
-## Running it
+## Installing a release
+
+Each release on GitHub carries a wheel of each package. Install both into a
+virtual environment — `designer-app` needs exactly its own `designer-model`:
+
+    python3 -m venv ~/.venvs/designer
+    ~/.venvs/designer/bin/pip install designer_model-0.1.0-py3-none-any.whl \
+                                      designer_app-0.1.0-py3-none-any.whl
+
+That gives three commands: `designer` (the window), `designer-check` (the model
+check, as `make model` runs it) and `designer-export` (a Schema's export, as
+`make export` runs it). Python 3.12 or later; tkinter as below. MIT licensed.
+
+`make release` builds the wheels and sdists into `dist/` and installs them into
+a fresh environment from `dist/` alone, then runs `designer-check` and
+`designer-export` on the worked example — a release that has only been built has
+not been verified.
+
+## Running it from the source
 
     pip install -e packages/designer-model -e packages/designer-app
     designer examples/sales.json

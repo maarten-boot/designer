@@ -3,13 +3,30 @@ name = "designer-app"
 version = "0.1.0"
 description = "The Designer desktop application."
 requires-python = ">=3.12"
-dependencies = ["designer-model"]
+# released together: an app is only promised to work with its own model version
+dependencies = ["designer-model==0.1.0"]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Maarten Boot" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Database",
+    "Topic :: Software Development :: Code Generators",
+]
+
+[project.urls]
+Homepage = "https://github.com/maarten-boot/designer"
+Source = "https://github.com/maarten-boot/designer"
 
 [project.scripts]
 designer = "designer_app.main:main"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

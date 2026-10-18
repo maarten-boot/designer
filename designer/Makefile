@@ -21,7 +21,7 @@ EXAMPLE  := examples/sales.json
 SCHEMA   := sales_schema
 
 .DEFAULT_GOAL := help
-.PHONY: help deps versions format lint types sync test gui model export docs check run clean dist
+.PHONY: help deps versions format lint types sync test gui model export docs check run clean dist release
 
 help:  ## show this list
 	@grep -E '^[a-z]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -32,7 +32,7 @@ deps:  ## install the development tools
 # on mine, and it did not — an unpinned mypy gave me 2.3 and a user 1.9, and
 # three errors appeared that I could not see. Anything at or above these works;
 # the source deliberately avoids syntax that older tools cannot read.
-	pip install "pytest>=8" "ruff>=0.6" "mypy>=1.9"
+	pip install "pytest>=8" "ruff>=0.6" "mypy>=1.9" "build>=1"
 
 versions:  ## what the checks are actually running
 	@python3 --version
@@ -89,6 +89,9 @@ dist:  ## regenerate the built-in library and the operator matrix
 # maintained as a file and held to account by `make model` instead.
 	$(PY) tools/build_stdlib.py
 	$(PY) tools/build_matrix.py
+
+release:  ## build wheels and sdists into dist/ and verify them in a clean environment
+	python3 tools/release.py
 
 clean:  ## remove caches
 	find . -type d \( -name __pycache__ -o -name .pytest_cache -o -name .ruff_cache \

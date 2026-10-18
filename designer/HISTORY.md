@@ -967,3 +967,15 @@ FAILED test_widgets.py::test_reordering_is_disabled_while_a_sort_is_applied
 
 > yes commit it
 
+## 146.
+
+> could we make this into a installable release ?
+
+Answered through four questions: published as a **GitHub release**; version
+**0.1.0**; the **MIT** license; and the check and export tools installed as
+**commands** (`designer-check`, `designer-export`).
+
+## 147.
+
+> yes commit it
+

@@ -129,10 +129,19 @@ message has twice shown that the message itself was the defect, not the model.
 | `model` | the worked example round-trips and carries its three findings |
 | `docs` | the documents against each other and against the code |
 
-Package by copying `README.md HANDOVER.md HISTORY.md .gitignore Makefile
-mypy.ini docs examples packages tools` into a clean tree, stripping caches,
-zipping, then extracting the zip somewhere fresh and running `make check` there. A package that has not been
-verified from a clean extraction has not been verified.
+**Releasing** (decided in turn 146: GitHub releases, MIT, semver from 0.1.0):
+
+1. Bump `version` in both `packages/*/pyproject.toml` and the
+   `designer-model==` pin in designer-app's; a test fails if the three disagree.
+2. `xvfb-run -a make check`, then `make release` — it builds into `dist/` and
+   verifies the wheels in a clean environment.
+3. The user tags and publishes: `git tag -a v0.1.0 -m "Designer 0.1.0"`,
+   `git push origin v0.1.0`, then a GitHub release from the tag with the four
+   files in `dist/` attached and `RELEASE-NOTES.md`'s section as its text.
+
+Tagging and publishing are outward-facing: prepare them, and leave them to the
+user unless asked. A package that has not been installed somewhere clean and run
+has not been verified — which is what `make release` does.
 
 ---
 

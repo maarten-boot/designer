@@ -333,3 +333,15 @@ def test_declining_recovery_opens_the_named_file_and_drops_the_autosave(config, 
     assert session.model.types[0].name != "RecoveredName"
     assert session.path == example
     assert read_autosave(config) is None
+
+
+def test_the_two_packages_are_released_together() -> None:
+    """One version in both pyproject files, and the app pinning exactly it:
+    `tools/release.py` refuses to build otherwise, and so does this."""
+    import tomllib
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    model = tomllib.loads((root / "designer-model" / "pyproject.toml").read_text())["project"]
+    app = tomllib.loads((root / "designer-app" / "pyproject.toml").read_text())["project"]
+    assert app["version"] == model["version"]
+    assert f"designer-model=={model['version']}" in app["dependencies"]
