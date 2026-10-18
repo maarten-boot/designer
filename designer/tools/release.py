@@ -11,24 +11,37 @@ verified; one that has been installed somewhere clean and run has.
 
 Uses `build` from the running Python if it has it. If not — Debian's and
 Ubuntu's Python refuse `pip install` outside a virtual environment (PEP 668) —
-it makes its own, `.release-env/`, once, and reuses it. Building fetches
-`hatchling` into an isolated environment, so the first run needs the network.
+it makes its own in this machine's cache, `~/.cache/designer-release/`, one per
+Python version, and reuses it. Building fetches `hatchling` into an isolated
+environment, so the first run needs the network.
+
+No environment is ever made inside the repository. A virtual environment
+belongs to the machine and the Python that made it, and this repository is
+worked on from more than one machine over a shared folder: one made here on
+Python 3.14 was found and run by a host on 3.12, which failed with "Text file
+busy" (turn 151). The verifying environment is a temporary folder for the
+same reason.
 """
 
 from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 import venv
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-TOOLING = ROOT / ".release-env"
+CACHE = (
+    pathlib.Path(os.environ.get("XDG_CACHE_HOME") or pathlib.Path.home() / ".cache")
+    / "designer-release"
+)
 PACKAGES = ("designer-model", "designer-app")
 
 
@@ -54,43 +67,38 @@ def versions() -> dict[str, str]:
     return found
 
 
+def _python_in(environment: pathlib.Path) -> pathlib.Path:
+    return environment / ("Scripts" if sys.platform == "win32" else "bin") / "python"
+
+
 def builder() -> pathlib.Path:
-    """A Python that can run `python -m build`."""
+    """A Python that can run `python -m build`: this one if it has the module,
+    otherwise a cached environment of this machine's own, for this exact
+    Python, made the first time and checked every time."""
     if importlib.util.find_spec("build") is not None:
         return pathlib.Path(sys.executable)
-    python = TOOLING / ("Scripts" if sys.platform == "win32" else "bin") / "python"
-    if not python.exists():
-        print(f"no `build` module here; making {TOOLING.relative_to(ROOT)}/ for it")
-        venv.create(TOOLING, with_pip=True)
+    tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
+    environment = CACHE / tag
+    python = _python_in(environment)
+    works = (
+        python.exists()
+        and subprocess.run(
+            [str(python), "-c", "import build"], capture_output=True, check=False
+        ).returncode
+        == 0
+    )
+    if not works:
+        print(f"no `build` module here; making {environment} for it")
+        shutil.rmtree(environment, ignore_errors=True)
+        venv.create(environment, with_pip=True, clear=True)
         run(python, "-m", "pip", "install", "-q", "build>=1")
     return python
 
 
-def main() -> int:
-    found = versions()
-    if len(set(found.values())) != 1:
-        print(f"versions disagree: {found}", file=sys.stderr)
-        return 1
-    version = found["designer-model"]
-    print(f"designer {version}")
-
-    shutil.rmtree(DIST, ignore_errors=True)
-    DIST.mkdir()
-    python = builder()
-    for name in PACKAGES:
-        run(
-            python,
-            "-m",
-            "build",
-            "--outdir",
-            DIST,
-            ROOT / "packages" / name,
-            stdout=subprocess.DEVNULL,
-        )
-
-    verify = DIST / ".verify"
+def verify_install(verify: pathlib.Path) -> int:
+    """Install from `dist/` alone into `verify` and run what a user runs."""
     venv.create(verify, with_pip=True)
-    bin_dir = verify / ("Scripts" if sys.platform == "win32" else "bin")
+    bin_dir = _python_in(verify).parent
     run(
         bin_dir / "python",
         "-m",
@@ -135,7 +143,37 @@ def main() -> int:
         "import designer_app.main, designer_model.bench",
         **elsewhere,
     )
-    shutil.rmtree(verify)
+    return 0
+
+
+def main() -> int:
+    found = versions()
+    if len(set(found.values())) != 1:
+        print(f"versions disagree: {found}", file=sys.stderr)
+        return 1
+    version = found["designer-model"]
+    print(f"designer {version}")
+
+    shutil.rmtree(DIST, ignore_errors=True)
+    DIST.mkdir()
+    python = builder()
+    for name in PACKAGES:
+        run(
+            python,
+            "-m",
+            "build",
+            "--outdir",
+            DIST,
+            ROOT / "packages" / name,
+            stdout=subprocess.DEVNULL,
+        )
+
+    verify = pathlib.Path(tempfile.mkdtemp(prefix="designer-verify-"))
+    try:
+        if verify_install(verify):
+            return 1
+    finally:
+        shutil.rmtree(verify, ignore_errors=True)
 
     print(f"\nverified; the release is in {DIST.relative_to(ROOT)}/:")
     for artifact in sorted(DIST.iterdir()):

@@ -224,8 +224,8 @@ check, as `make model` runs it) and `designer-export` (a Schema's export, as
 
 `make release` builds the wheels and sdists into `dist/` and installs them into
 a fresh environment from `dist/` alone — it needs nothing installed beyond
-Python with `venv`: without the `build` module it makes its own environment,
-`.release-env/`, the first time — then runs `designer-check` and
+Python with `venv`: without the `build` module it makes its own environment in
+`~/.cache/designer-release/`, the first time — then runs `designer-check` and
 `designer-export` on the worked example — a release that has only been built has
 not been verified.
 

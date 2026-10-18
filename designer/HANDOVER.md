@@ -135,8 +135,8 @@ message has twice shown that the message itself was the defect, not the model.
    `designer-model==` pin in designer-app's; a test fails if the three disagree.
 2. `xvfb-run -a make check`, then `make release` — it builds into `dist/` and
    verifies the wheels in a clean environment. It runs on a bare system Python:
-   without `build` it makes `.release-env/` for it (turn 148, after the user's
-   host said "No module named build").
+   without `build` it makes an environment for it in
+   `~/.cache/designer-release/<python version>` (turns 148 and 151).
 3. The user tags and publishes: `git tag -a v0.1.0 -m "Designer 0.1.0"`,
    `git push origin v0.1.0`, then a GitHub release from the tag with the four
    files in `dist/` attached and `RELEASE-NOTES.md`'s section as its text.
@@ -204,6 +204,12 @@ library that said "forty" after it grew to forty-four, and a `build_example.py`
 that `make dist` called with the failure swallowed. Note its limit: it checks
 that a cited diagnostic code *exists*, not that it means what the sentence says.
 A wrong-but-real code number got through and had to be caught by reading.
+
+**Nothing machine-specific inside the repository.** The working tree is an NFS
+share used from more than one machine. A virtual environment made in it here
+(Python 3.14, copied binaries) was found and run by the user's host on 3.12 and
+failed with "Text file busy". Environments go in the machine's own cache or a
+temporary folder, never in the tree.
 
 **Tool versions must be pinned enough to agree.** `make check` passed here on
 mypy 2.3 and failed for the user on 1.9. The source now avoids syntax older

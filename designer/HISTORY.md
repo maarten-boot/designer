@@ -987,3 +987,26 @@ Answered through four questions: published as a **GitHub release**; version
 
 > yes commit it
 
+## 150.
+
+> i pushed it
+
+## 151.
+
+> i get:
+>
+> ```
+> make release
+> python3 tools/release.py
+> designer 0.1.0
+>   $ /home/mboot/share-local/DEV/github.com/maarten-boot/designer/designer/.release-env/bin/python -m build --outdir /home/mboot/share-local/DEV/github.com/maarten-boot/designer/designer/dist /home/mboot/share-local/DEV/github.com/maarten-boot/designer/designer/packages/designer-model
+> Traceback (most recent call last):
+>   ...
+> OSError: [Errno 26] Text file busy: '/home/mboot/share-local/DEV/github.com/maarten-boot/designer/designer/.release-env/bin/python'
+> make: *** [Makefile:94: release] Error 1
+> ```
+
+## 152.
+
+> yes commit it
+
