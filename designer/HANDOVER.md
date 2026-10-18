@@ -134,7 +134,9 @@ message has twice shown that the message itself was the defect, not the model.
 1. Bump `version` in both `packages/*/pyproject.toml` and the
    `designer-model==` pin in designer-app's; a test fails if the three disagree.
 2. `xvfb-run -a make check`, then `make release` — it builds into `dist/` and
-   verifies the wheels in a clean environment.
+   verifies the wheels in a clean environment. It runs on a bare system Python:
+   without `build` it makes `.release-env/` for it (turn 148, after the user's
+   host said "No module named build").
 3. The user tags and publishes: `git tag -a v0.1.0 -m "Designer 0.1.0"`,
    `git push origin v0.1.0`, then a GitHub release from the tag with the four
    files in `dist/` attached and `RELEASE-NOTES.md`'s section as its text.

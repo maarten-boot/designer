@@ -137,7 +137,8 @@ gives it one.
 
 ## Working on it
 
-    make deps      # pytest, ruff, mypy — floors, not pins
+    make deps      # pytest, ruff, mypy, build — floors, not pins; inside a
+                   # venv on Debian and Ubuntu, whose Python refuses pip (PEP 668)
     make versions  # what the checks are actually running
     make check     # lint, types, sync, test, model, docs
     make run       # open examples/sales.json
@@ -222,7 +223,9 @@ check, as `make model` runs it) and `designer-export` (a Schema's export, as
 `make export` runs it). Python 3.12 or later; tkinter as below. MIT licensed.
 
 `make release` builds the wheels and sdists into `dist/` and installs them into
-a fresh environment from `dist/` alone, then runs `designer-check` and
+a fresh environment from `dist/` alone — it needs nothing installed beyond
+Python with `venv`: without the `build` module it makes its own environment,
+`.release-env/`, the first time — then runs `designer-check` and
 `designer-export` on the worked example — a release that has only been built has
 not been verified.
 
