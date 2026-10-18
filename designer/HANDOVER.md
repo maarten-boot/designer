@@ -137,9 +137,12 @@ message has twice shown that the message itself was the defect, not the model.
    verifies the wheels in a clean environment. It runs on a bare system Python:
    without `build` it makes an environment for it in
    `~/.cache/designer-release/<python version>` (turns 148 and 151).
-3. The user tags and publishes: `git tag -a v0.1.0 -m "Designer 0.1.0"`,
-   `git push origin v0.1.0`, then a GitHub release from the tag with the four
+3. The user tags and publishes: `git tag -a vX.Y.Z -m "Designer X.Y.Z"`,
+   `git push origin vX.Y.Z`, then a GitHub release from the tag with the four
    files in `dist/` attached and `RELEASE-NOTES.md`'s section as its text.
+   **Check the file names in `dist/` carry the tag's version** before
+   publishing: v0.2.0 first went out with packages still numbered 0.1.0,
+   because the tag moved and the pyproject versions did not (turn 153).
 
 Tagging and publishing are outward-facing: prepare them, and leave them to the
 user unless asked. A package that has not been installed somewhere clean and run

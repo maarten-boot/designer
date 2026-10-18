@@ -1010,3 +1010,14 @@ Answered through four questions: published as a **GitHub release**; version
 
 > yes commit it
 
+## 153.
+
+> ok something went wrong and move to tag 0.2.0 it is now published on github
+
+Answered: bump to **0.2.0** and re-tag v0.2.0 on the bump commit, replacing the
+release's files.
+
+## 154.
+
+> yes commit it
+

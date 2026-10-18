@@ -67,6 +67,21 @@ def versions() -> dict[str, str]:
     return found
 
 
+def tags_here() -> list[str]:
+    """The release tags on the commit being built, if git can say."""
+    try:
+        listed = subprocess.run(
+            ["git", "tag", "--points-at", "HEAD"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return []
+    return [tag for tag in listed.split() if tag.startswith("v")]
+
+
 def _python_in(environment: pathlib.Path) -> pathlib.Path:
     return environment / ("Scripts" if sys.platform == "win32" else "bin") / "python"
 
@@ -153,6 +168,14 @@ def main() -> int:
         return 1
     version = found["designer-model"]
     print(f"designer {version}")
+    tagged = tags_here()
+    if tagged and f"v{version}" not in tagged:
+        # v0.2.0 first went out holding packages numbered 0.1.0 (turn 153)
+        print(
+            f"this commit is tagged {', '.join(tagged)}, but the packages say {version}",
+            file=sys.stderr,
+        )
+        return 1
 
     shutil.rmtree(DIST, ignore_errors=True)
     DIST.mkdir()

@@ -1,5 +1,23 @@
 # Release notes
 
+## 0.2.0
+
+The same application and model as 0.1.0; what changed is the release itself.
+
+- **The packages now say 0.2.0.** The first upload of this release carried
+  files still numbered 0.1.0; they have been replaced.
+- `make release` runs on a bare system Python, such as Debian's or Ubuntu's,
+  which refuse `pip install` outside a virtual environment: it makes its own
+  build environment in `~/.cache/designer-release/`.
+- Nothing machine-specific is created inside the source tree any more, so the
+  release can be built from a checkout shared between machines.
+
+**Install** (Python 3.12+, tkinter — `python3-tk` on Debian and Ubuntu):
+
+    python3 -m venv ~/.venvs/designer
+    ~/.venvs/designer/bin/pip install designer_model-0.2.0-py3-none-any.whl \
+                                      designer_app-0.2.0-py3-none-any.whl
+
 ## 0.1.0 — first release
 
 Designer is a desktop tool for authoring a data dictionary: validation rules,
