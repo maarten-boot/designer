@@ -1,5 +1,30 @@
 # Release notes
 
+## 0.4.0
+
+Smaller fixes, and remedies offered where a finding has one.
+
+- **A Fix button in the findings window.** A finding with a one-step remedy
+  offers it, named for what it does: *Add the missing referenced entities*
+  (`MOD503`), *Add Customer to the schema* when a cross-entity path leaves it
+  (`MOD509`), *Choose a Type that narrows Money* for a widening override
+  (`MOD413`, only when such a Type exists). Each goes through the same prompt or
+  dialog as the form's own button and is one undo step.
+- **Grouping marks are checked for position** when typed values are read:
+  `1,2,3` in a `#,##0.00` picture is refused instead of read as 123, and so is a
+  mark after the decimal point. Leaving the marks out is still accepted. A
+  picture that groups nothing (`0.00`) now refuses `1,234.00` rather than drop
+  the comma.
+- **Clearer messages:** `decimal(real)` says why it is refused, and comparing a
+  decimal with the result of dividing two integers says where the real came
+  from.
+
+**Install** (Python 3.12+, tkinter — `python3-tk` on Debian and Ubuntu):
+
+    python3 -m venv ~/.venvs/designer
+    ~/.venvs/designer/bin/pip install designer_model-0.4.0-py3-none-any.whl \
+                                      designer_app-0.4.0-py3-none-any.whl
+
 ## 0.3.0
 
 Fixes to the model check and its type checker, and checks it was missing.

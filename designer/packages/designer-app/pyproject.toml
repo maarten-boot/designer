@@ -1,10 +1,10 @@
 [project]
 name = "designer-app"
-version = "0.3.0"
+version = "0.4.0"
 description = "The Designer desktop application."
 requires-python = ">=3.12"
 # released together: an app is only promised to work with its own model version
-dependencies = ["designer-model==0.3.0"]
+dependencies = ["designer-model==0.4.0"]
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
