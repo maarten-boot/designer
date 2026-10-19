@@ -35,7 +35,7 @@ the logic worth testing can be tested without a display.
 ## Where things stand
 
 `xvfb-run -a make check` green on 20 October: 1149 tests, none skipped, after
-the second crosscheck (turn 177). Released as 0.5.0; the release steps are below. Re-run it rather than trusting
+the second crosscheck (turn 177). Released as 0.6.0; the release steps are below. Re-run it rather than trusting
 the number. The machine has pip, tkinter and Xvfb but no system-wide ruff, mypy
 or pytest, so put them in a virtual environment and its `bin` first on `PATH`.
 Without `xvfb-run` the widget suite skips and `make check` still says green.

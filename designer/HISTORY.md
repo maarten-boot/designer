@@ -1162,3 +1162,15 @@ new commit, for the tag to be moved onto it, as was done for 0.2.0.
 
 > yes commit it
 
+## 188.
+
+> i pushed it
+
+## 189.
+
+> prepare release 0.6.0
+
+## 190.
+
+> yes commit it
+

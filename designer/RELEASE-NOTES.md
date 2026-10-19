@@ -1,5 +1,28 @@
 # Release notes
 
+## 0.6.0
+
+Small improvements to what the model check and the test bench say.
+
+- **A composite rule without a message of its own now says something.** The
+  test bench names the parts that failed for the value you tried; the export
+  writes what the parts say together — all of an `AND`, any of an `OR`. Before,
+  both were empty.
+- **Cross-entity rules that read the clock** are no longer warned about
+  (`MOD602`): the application enforces a rule across tables whatever it reads,
+  so the warning only added noise. A file that marks such a rule for the
+  database is now an error (`MOD605`), since only the application can enforce
+  it.
+- **A reference to an entity with no identity yet** (`MOD403`) is now reported
+  as unfinished rather than wrong: the reference can be made first and the
+  identity given after. It still blocks an export.
+
+**Install** (Python 3.12+, tkinter — `python3-tk` on Debian and Ubuntu):
+
+    python3 -m venv ~/.venvs/designer
+    ~/.venvs/designer/bin/pip install designer_model-0.6.0-py3-none-any.whl \
+                                      designer_app-0.6.0-py3-none-any.whl
+
 ## 0.5.0
 
 The second full crosscheck of code against documents, and what it found.
