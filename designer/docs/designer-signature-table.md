@@ -37,8 +37,13 @@ A `TypeExpr` is one of:
 - `Var(name, constraint)` — a type variable restricted to a named set, for
   genuinely polymorphic signatures.
 
-A key may have **several signatures**. Resolution tries each in order and
-requires exactly one to match. Where a pair is deliberately illegal, the table
+A key may have **several signatures**. Resolution tries every one, without
+side effects. Exactly one match decides the call. Several can match only while
+an argument is an open parameter, and then nothing is bound yet: if they agree
+on a result (`float(x)` is `real` whatever `x` is) that is the call's type; if
+each returns the type of that same open argument (`abs`, `round`) the call has
+the argument's type, so a later comparison settles both; otherwise it is
+`unknown` until the context says more. Where a pair is deliberately illegal, the table
 carries an explicit **rejection record** with its own message, so the checker
 distinguishes "no rule exists" from "there is a rule and it says no" — the second
 is worth a much better diagnostic.
@@ -398,10 +403,10 @@ duration is a measurement, not money, and no exactness claim is being made.
 
 An expression is non-deterministic when it calls any function whose signature
 carries `deterministic = False` — `now`, `today`, `current` — and a composite is
-non-deterministic when any operand is. `[CHANGED]` The model check and the
-exporter find those calls with a token scan for `now(`, `today(` or `current(`
-rather than the type walk (whose `deterministic` result is computed but not
-used), so a string literal containing `"now()"` would wrongly count.
+non-deterministic when any operand is. The model check, the library and the
+exporter find those calls on the syntax tree (`sandbox.reads_clock`), so a
+string that happens to contain `"now()"` is text, not a call. (They used a text
+scan until 19 October, which counted it.)
 
 The flag propagates upward and is never stored. It is used at three places: the
 locked `enforcement` on a Schema binding, the warning on a Type or Entity
@@ -470,18 +475,16 @@ All eleven accepted, 29 August 2026. Nothing in this document is open.
 
 ## 12. Known gaps `[FOUND WHILE BUILDING]`
 
-Found by the crosscheck of 17 October 2026, and not yet fixed. Each is the
-checker accepting or refusing something this table says otherwise; none affects
-the built-in library, which `test_a_built_in_passes_and_fails_its_examples`
-exercises.
+Found by the crosscheck of 17 October 2026. The first three were fixed on 19
+October (turn 157), each pinned by a test in `test_expressions.py`:
 
-1. **The first matching overload wins** (§1 says exactly one must match), and
-   it binds an open parameter as it goes: in `abs(x) < value` with a `decimal`
-   value, `x` is inferred `integer`, so the binding form offers the wrong
-   editor.
-2. **An untyped literal does not unify with a type variable**: `min(value, 1)`
-   on a `decimal` value is refused (`EXP301`) though §4 says `1` takes its
-   context's type.
-3. **`x in [1, 2]` with `x` a parameter is refused** (`EXP202`): an open
-   variable on the left of `in` is never bound to the list's element type.
-4. The two `[NOT BUILT]` messages in §6.3 and §7.3.
+1. ~~**The first matching overload won**, binding an open parameter as it went:
+   in `abs(x) < value` with a `decimal` value, `x` was inferred `integer`.~~
+   **Fixed** — see §1: overloads are tried without side effects, and an
+   ambiguous call waits for its context.
+2. ~~**An untyped literal did not unify with a type variable**: `min(value, 1)`
+   on a `decimal` value was refused.~~ **Fixed** — a literal argument is judged
+   after the others have given the variable its type.
+3. ~~**`x in [1, 2]` with `x` a parameter was refused**.~~ **Fixed** — an open
+   variable on the left of `in` takes the list's element type.
+4. The two `[NOT BUILT]` messages in §6.3 and §7.3 — still open.

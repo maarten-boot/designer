@@ -330,3 +330,15 @@ def test_the_interfaces_example_reproduces_its_export():
     m = load(INTERFACES)
     exported = dumps(export_schema(m, named(m.schemas, "sales_schema").uuid))
     assert exported == (EXAMPLES / "sales_interfaces.export.json").read_text()
+
+
+def test_a_string_mentioning_the_clock_is_not_a_clock_rule(model):
+    """Determinism is found on the syntax tree: `"now()"` in a string is text,
+    so the rule is a database check and the model check says nothing."""
+    from designer_model import check
+
+    literal = add_validator(model, "not_the_word", "leaf", 'value != "now()"', context="common")
+    named(model.types, "ShortText").validators.append(Binding(uuid=uuid4(), validator=literal.uuid))
+    assert check(model).codes.count("MOD602") == 1  # Auditable's in_past, as before
+    name = column(export(model), "Customer", "name")
+    assert "not_the_word" in [r["rule"] for r in name["check"]]

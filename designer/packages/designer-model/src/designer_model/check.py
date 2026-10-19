@@ -32,6 +32,7 @@ from .diagnostics import (
 )
 from .expressions import check_leaf
 from .expressions.evaluate import EvaluationError, evaluate_composite, evaluate_leaf
+from .expressions.sandbox import reads_clock
 from .expressions.tokens import unresolved_names
 from .expressions.types import UNKNOWN, ExprType, ListOf, Scalar
 from .ids import builtin_id
@@ -197,11 +198,9 @@ class Checker:
         v = authored.get(validator_uuid)
         if v is None or depth > 16:
             return True
-        if re.search(r"\b(now|today|current)\s*\(", v.expression):
-            return False
         if v.is_composite:
             return all(self._deterministic(o, depth + 1) for o in operand_uuids(v.expression))
-        return True
+        return not reads_clock(v.expression)
 
     # --- expression checking ------------------------------------------------
 

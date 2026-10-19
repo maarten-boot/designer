@@ -15,7 +15,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 
-from .signatures import ALLOWED_CALLS, REJECTED_FUNCTIONS
+from .signatures import ALLOWED_CALLS, NON_DETERMINISTIC, REJECTED_FUNCTIONS
 
 ALLOWED_NODES = (
     ast.Expression,
@@ -127,3 +127,21 @@ def _check_call(node: ast.Call, source: str) -> list[Violation]:
     if name not in ALLOWED_CALLS:
         return [Violation("EXP301", f"there is no function called {name}", start, end)]
     return []
+
+
+def reads_clock(source: str) -> bool:
+    """Whether a leaf expression calls `now`, `today` or `current`.
+
+    Found on the syntax tree, not in the text: a string literal that happens to
+    contain `now()` is not a call, and a text scan counted it as one (signature
+    table §8). Text that does not parse reads nothing — it is reported as a
+    parse error elsewhere.
+    """
+    try:
+        tree = ast.parse(source, mode="eval")
+    except SyntaxError:
+        return False
+    return any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in NON_DETERMINISTIC
+        for node in ast.walk(tree)
+    )

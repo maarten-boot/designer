@@ -265,6 +265,11 @@ class Inferencer:
             if isinstance(element, Scalar):
                 self.bind(container, ListOf(element))
             return
+        if isinstance(element, Var):
+            # `x in [1, 2]`: the parameter is whatever the list holds
+            if isinstance(container, ListOf) and isinstance(container.element, Scalar):
+                self.bind(element, container.element)
+            return
         outcome = sig.membership(element, container)
         if outcome is None:
             self.report("EXP202", f"{element} in {container} has no meaning", node)
@@ -303,10 +308,25 @@ class Inferencer:
         return self._resolve_overload(name, candidates, arguments, node)
 
     def _resolve_overload(self, name, candidates, arguments, node) -> ExprType:
-        for signature in candidates:
-            matched = self._match(signature, arguments)
-            if matched is not None:
-                return matched
+        """Pick the signature a call means (signature table §1).
+
+        Every candidate is tried without side effects. One match: its result,
+        and the bindings it implies for open parameters are made. Several —
+        only possible when an argument is still an open parameter — and the
+        call is ambiguous, so nothing is bound: if every match returns the type
+        of that same open argument (`abs`, `round`), the call *is* that
+        argument's type and a later comparison can settle it; otherwise it is
+        unknown. Binding on the first match instead made `abs(x) < value`
+        decide `x` was an integer before `value` had said anything.
+        """
+        matches = [(s, m) for s in candidates if (m := self._match(s, arguments)) is not None]
+        if len(matches) == 1:
+            _, (result, pending) = matches[0]
+            for var, concrete in pending:
+                self.bind(var, concrete)
+            return result
+        if matches:
+            return self._ambiguous(matches, arguments)
         # only a genuinely unknowable argument excuses a failure to match; an
         # open variable is bindable, so _match has already had its chance
         if any(is_unknown(a) for a in arguments):
@@ -314,7 +334,37 @@ class Inferencer:
         shown = ", ".join(str(a) for a in arguments)
         return self.report("EXP301", f"no signature of {name} accepts ({shown})", node)
 
-    def _match(self, signature: sig.Signature, arguments: list[ExprType]) -> ExprType | None:
+    def _ambiguous(self, matches, arguments: list[ExprType]) -> ExprType:
+        """Several signatures fit. If they agree on the result — `float(x)`
+        is real whatever `x` is — that is the call's type. If each returns the
+        type it was given at one position, and the argument there is an open
+        parameter, the call has that parameter's type."""
+        results = {result for _, (result, _) in matches}
+        if len(results) == 1 and not isinstance(next(iter(results)), Var):
+            return next(iter(results))
+        for position, argument in enumerate(arguments):
+            argument = self.resolve(argument)
+            if not isinstance(argument, Var):
+                continue
+            if all(
+                position < len(signature.params) and signature.result == signature.params[position]
+                for signature, _ in matches
+            ):
+                return argument
+        return UNKNOWN
+
+    def _can_bind(self, var: Var, concrete: ExprType) -> bool:
+        """`bind`'s test, without binding."""
+        if isinstance(concrete, (Var, UntypedNumber)) or is_unknown(concrete):
+            return True
+        return var.constraint is None or (isinstance(concrete, Scalar) and concrete.name in var.constraint)
+
+    def _match(
+        self, signature: sig.Signature, arguments: list[ExprType]
+    ) -> tuple[ExprType, list[tuple[Var, ExprType]]] | None:
+        """Whether a signature accepts these arguments, and if so its result
+        and the bindings that accepting would make — returned, not made, so a
+        signature that is not chosen leaves no trace."""
         if signature.variadic:
             if len(arguments) < len(signature.params):
                 return None
@@ -325,9 +375,16 @@ class Inferencer:
             expected = list(signature.params)
 
         local: dict[str, ExprType] = {}
+        pending: list[tuple[Var, ExprType]] = []
+        untyped: list[tuple[Var, UntypedNumber]] = []
         for want, got in zip(expected, arguments, strict=True):
             got = self.resolve(got)
             if is_unknown(got):
+                continue
+            if isinstance(want, Var) and isinstance(got, UntypedNumber):
+                # a literal takes the type the other arguments give the variable
+                # (signature table §4), so it is judged after them
+                untyped.append((want, got))
                 continue
             if isinstance(want, Var):
                 concrete = settle(got)
@@ -347,21 +404,34 @@ class Inferencer:
                     return None
                 continue
             if isinstance(got, Var):
-                self.bind(got, want)
+                if not self._can_bind(got, want):
+                    return None
+                pending.append((got, want))
                 continue
             if got != want:
+                return None
+        for want, literal in untyped:
+            bound = local.get(want.name)
+            if bound is None:
+                bound = settle(literal)
+                if signature.constraint is not None and (
+                    not isinstance(bound, Scalar) or bound.name not in signature.constraint
+                ):
+                    return None
+                local[want.name] = bound
+            elif not accepts_untyped(bound, literal):
                 return None
         result = signature.result
         if isinstance(result, Var):
             resolved = local.get(result.name)
             if resolved is not None:
-                return resolved
+                return resolved, pending
             if signature.constraint is not None:
                 # keep the constraint alive so a later unification can refuse a
                 # type this function never produces
-                return Var(f"{signature.name}:{result.name}", signature.constraint)
-            return UNKNOWN
-        return result
+                return Var(f"{signature.name}:{result.name}", signature.constraint), pending
+            return UNKNOWN, pending
+        return result, pending
 
 
 UUID_LIKE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-")

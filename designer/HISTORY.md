@@ -1021,3 +1021,19 @@ release's files.
 
 > yes commit it
 
+## 155.
+
+> i pushed it and did al the rest that worked
+
+## 156.
+
+> any open items todo ?
+
+## 157.
+
+> ok lets work on the current bugs
+
+## 158.
+
+> yes commit it
+

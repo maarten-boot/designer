@@ -1350,8 +1350,8 @@ where it is specified:
 - refusing a Context move that would hide an item from what uses it (§10.1);
 - checking an overridden slot's `default` and a reference slot's target (§8.1);
 - fix hints for `MOD509` and `MOD413` (appendix *diagnostics* §7);
-- three type-inference gaps and two dedicated messages (appendix *signature
-  table* §12);
+- two dedicated diagnostic messages (appendix *signature table* §12; its three
+  type-inference gaps were fixed on 19 October);
 - grouping marks checked for position when parsing (appendix *interfaces* §6).
 
 One question is open rather than unbuilt: whether a Context move is refused or

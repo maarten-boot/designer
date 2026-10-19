@@ -32,6 +32,7 @@ from .codes import blocks_export, definition
 from .derive import MAX_DEPTH, Deriver
 from .diagnostics import Diagnostic, Severity, render
 from .expressions.composite import BinOp, Not, Operand, ParseError, parse
+from .expressions.sandbox import reads_clock
 from .expressions.tokens import UUID_PATTERN
 from .ids import builtin_id
 from .literals import ListLiteral, Literal, ScalarLiteral, encode
@@ -60,7 +61,6 @@ MAX_PRECISION = builtin_id("max_precision")
 MAX_SCALE = builtin_id("max_scale")
 MAX_LENGTH = builtin_id("max_length")
 
-_CLOCK = re.compile(r"\b(now|today|current)\s*\(")
 _COMPOSITE_OPS = {"AND": "and", "OR": "or", "XOR": "!="}
 
 
@@ -422,7 +422,7 @@ class _Exporter:
 
     @staticmethod
     def _sort(rule: dict[str, Any], check: list[dict[str, Any]], application: list[dict[str, Any]]) -> None:
-        if _CLOCK.search(rule["expression"]):
+        if reads_clock(rule["expression"]):
             application.append({**rule, "reason": "not deterministic"})
         else:
             check.append(rule)

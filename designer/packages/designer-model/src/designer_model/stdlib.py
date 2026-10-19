@@ -24,14 +24,13 @@ import re
 from dataclasses import dataclass
 from uuid import UUID
 
+from .expressions.sandbox import reads_clock
 from .model import Validator
 from .persistence import load
 
 DATA = pathlib.Path(__file__).parent / "data" / "stdlib.json"
 DEPRECATIONS = pathlib.Path(__file__).parent / "data" / "deprecations.json"
 
-NON_DETERMINISTIC_CALLS = ("now", "today", "current")
-_CALL = re.compile(r"\b(" + "|".join(NON_DETERMINISTIC_CALLS) + r")\s*\(")
 _UUID_TOKEN = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 
 
@@ -105,11 +104,9 @@ class Library:
         validator = self.get(uuid)
         if validator is None or depth > 16:
             return True
-        if _CALL.search(validator.expression):
-            return False
         if validator.is_composite:
             return all(self.is_deterministic(o, depth + 1) for o in operand_uuids(validator.expression))
-        return True
+        return not reads_clock(validator.expression)
 
 
 def load_deprecations(path: pathlib.Path = DEPRECATIONS) -> dict[UUID, Deprecation]:

@@ -394,3 +394,46 @@ def test_an_unclosed_parenthesis_is_refused() -> None:
 
     with pytest.raises(composite.ParseError, match="unclosed"):
         composite.parse("(a AND b")
+
+
+# --- the gaps signature table §12 recorded, now closed --------------------------
+
+
+def _parameters(source, value, params):
+    return {name: str(t) for name, t in check_leaf(source, value, params).parameters.items()}
+
+
+@pytest.mark.parametrize(("value", "expected"), [(DECIMAL, "decimal"), (REAL, "real"), (INTEGER, "integer")])
+def test_an_ambiguous_overload_waits_for_its_context(value, expected) -> None:
+    """`abs` has four signatures; with `x` still open the first must not win —
+    the comparison with `value` decides what `x` is."""
+    assert codes("abs(x) < value", value, ("x",)) == []
+    assert _parameters("abs(x) < value", value, ("x",)) == {"x": expected}
+
+
+def test_overloads_that_agree_on_a_result_give_it() -> None:
+    # float(x) is real whatever x is, so real against decimal is still refused
+    assert "EXP201" in codes("value == float(other)", DECIMAL, ("other",))
+
+
+def test_a_literal_takes_the_type_of_a_variable_argument() -> None:
+    assert codes("min(value, 1) < 2", DECIMAL) == []
+    assert codes("min(1, value) < 2", DECIMAL) == []
+    assert codes("max(value, 0.5) > 0", REAL) == []
+    # but a fraction is still not an integer
+    assert codes("max(value, 1.5) > 0", INTEGER) == ["EXP301"]
+
+
+def test_an_open_parameter_in_a_list_takes_the_lists_type() -> None:
+    assert codes("x in [1, 2]", INTEGER, ("x",)) == []
+    assert _parameters("x in [1, 2]", INTEGER, ("x",)) == {"x": "integer"}
+
+
+def test_the_clock_is_found_as_a_call_not_as_text() -> None:
+    from designer_model.expressions.sandbox import reads_clock
+
+    assert reads_clock("value < current()")
+    assert reads_clock("value < now()")
+    assert not reads_clock('value != "now()"')
+    assert not reads_clock("value < max(1, 2)")
+    assert not reads_clock("this does not parse (")
