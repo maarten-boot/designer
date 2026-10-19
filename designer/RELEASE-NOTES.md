@@ -1,5 +1,46 @@
 # Release notes
 
+## 0.5.0
+
+The second full crosscheck of code against documents, and what it found.
+
+**Fixes you may notice**
+
+- After an edit, the status line and the findings window no longer lose the
+  whole-model findings — cycles, `INT202` and the like stay until the next full
+  check, instead of vanishing.
+- A settings file of the wrong shape no longer stops the application starting,
+  and neither does a missing or unreadable model named on the command line:
+  you get an empty model and a note.
+- Loading a model refuses values it used to convert or crash on: `"abc"` as a
+  decimal, `NaN`, a list written as a string, dates and times not written the
+  one way the file writes them (`2026-08-29`, `14:30:00`).
+- A date picture with an unquoted letter (`d-M-yyyy`) is refused instead of
+  printing the letter; put literal text in quotes.
+
+**New checks**
+
+- `MOD417`: a rule given the wrong kind of argument for where it is bound — a
+  slot on a Type rule, a path on an Entity rule, an empty path.
+- `EXP305`: a regular expression that does not compile, with the reason.
+
+**The type checker** now lets literals and open parameters take the type of
+their context in lists (`value in [1.5, 2.5]` on a real), under `-`, in
+`min`/`max` of literals alone, and beside a literal (`x * 2 < value` types `x`).
+The test bench evaluates a fraction literal against a real as a real.
+
+**A new example**, `examples/sales_broken.json`: a schema that will not export,
+with a Fix for each cause.
+
+Models that were clean stay clean. One that holds one of the values above no
+longer loads, and says which value and why.
+
+**Install** (Python 3.12+, tkinter — `python3-tk` on Debian and Ubuntu):
+
+    python3 -m venv ~/.venvs/designer
+    ~/.venvs/designer/bin/pip install designer_model-0.5.0-py3-none-any.whl \
+                                      designer_app-0.5.0-py3-none-any.whl
+
 ## 0.4.0
 
 Smaller fixes, and remedies offered where a finding has one.
