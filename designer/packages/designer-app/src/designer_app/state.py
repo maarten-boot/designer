@@ -107,11 +107,21 @@ class Settings:
             raw = json.loads(path.read_text())
         except (OSError, ValueError):
             return cls()
-        known = {f for f in cls.__dataclass_fields__}
-        settings = cls(**{k: v for k, v in raw.items() if k in known})
-        settings.collapsed_columns = [c for c in settings.collapsed_columns if c in COLUMNS]
-        settings.sort_descending = [c for c in settings.sort_descending if c in COLUMNS]
-        settings.column_widths = {k: v for k, v in settings.column_widths.items() if k in COLUMNS}
+        # "A corrupt settings file is replaced with defaults, never fatal" (spec
+        # §14.3): valid JSON of the wrong shape — a list, a null where a list
+        # belongs — used to crash startup instead
+        try:
+            known = {f for f in cls.__dataclass_fields__}
+            settings = cls(**{k: v for k, v in raw.items() if k in known})
+            settings.collapsed_columns = [c for c in settings.collapsed_columns if c in COLUMNS]
+            settings.sort_descending = [c for c in settings.sort_descending if c in COLUMNS]
+            settings.column_widths = {k: v for k, v in settings.column_widths.items() if k in COLUMNS}
+            settings.recent_files = [str(p) for p in settings.recent_files]
+            for name in ("undo_limit", "autosave_delay_ms", "recent_files_limit"):
+                if not isinstance(getattr(settings, name), int) or isinstance(getattr(settings, name), bool):
+                    setattr(settings, name, getattr(cls(), name))
+        except (AttributeError, TypeError, ValueError):
+            return cls()
         return settings
 
     def save(self, directory: Path | None = None) -> Path:

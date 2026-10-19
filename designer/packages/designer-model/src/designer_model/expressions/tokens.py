@@ -75,7 +75,13 @@ def to_display(stored: str, names: dict[UUID, str]) -> TokenMap:
         pieces.append(stored[cursor : match.start()])
         rendered = "".join(pieces)
         uuid = UUID(match.group(0))
-        shown = names.get(uuid) or f"<deleted {match.group(0)[:8]}>"
+        # an operand that exists but has no name yet shows as its identity,
+        # which `to_stored` leaves alone, so committing the text keeps it;
+        # only one that is gone shows as deleted (spec §5.3)
+        if uuid not in names:
+            shown = f"<deleted {match.group(0)[:8]}>"
+        else:
+            shown = names[uuid] or match.group(0)
         mappings.append(Mapping((match.start(), match.end()), (len(rendered), len(rendered) + len(shown))))
         pieces.append(shown)
         cursor = match.end()

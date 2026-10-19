@@ -143,14 +143,35 @@ class Inferencer:
         return self.report("EXP402", f"{value!r} is not a supported literal", node)
 
     def _list(self, node: ast.List) -> ExprType:
+        """A list's element type, from its elements together.
+
+        Numeric literals are not fixed one by one — `[1.5, 2.5]` beside a real
+        is a list of reals (signature table §4) — and an open parameter in it
+        takes the type the others give it. Only a list of nothing but literals
+        stays open, for the comparison it is used in to decide."""
         if not node.elts:
             return ListOf(UNKNOWN)
-        element_types = [settle(self.infer(e)) for e in node.elts]
-        first = element_types[0]
-        if any(t != first for t in element_types[1:]):
-            shown = ", ".join(sorted({str(t) for t in element_types}))
+        types = [self.resolve(self.infer(e)) for e in node.elts]
+        if any(is_unknown(t) for t in types):
+            return ListOf(UNKNOWN)
+        concrete = {t for t in types if not isinstance(t, (UntypedNumber, Var))}
+        literals = [t for t in types if isinstance(t, UntypedNumber)]
+        variables = [t for t in types if isinstance(t, Var)]
+        if len(concrete) > 1 or (concrete and any(not accepts_untyped(next(iter(concrete)), lit) for lit in literals)):
+            shown = ", ".join(sorted({str(settle(t)) for t in types}))
             return self.report("EXP401", f"a list literal must be homogeneous; got {shown}", node)
-        return ListOf(first)
+        if concrete:
+            element = next(iter(concrete))
+        elif literals:
+            element = UntypedNumber(fractional=any(lit.fractional for lit in literals))
+            if variables:
+                element = settle(element)
+        else:
+            element = variables[0]
+        for var in variables:
+            if var != element:
+                self.bind(var, element)
+        return ListOf(element)
 
     _tuple = _list
 
@@ -171,7 +192,8 @@ class Inferencer:
             if operand != BOOLEAN:
                 return self.reject(sig.NO_TRUTHINESS, node)
             return BOOLEAN
-        if isinstance(operand, UntypedNumber):
+        if isinstance(operand, (UntypedNumber, Var)):
+            # `-x` has x's type, whatever the comparison makes it
             return operand
         if isinstance(operand, Scalar) and (operand.name in NUMERIC or operand.name == "duration"):
             return operand
@@ -215,6 +237,13 @@ class Inferencer:
             right = left if accepts_untyped(left, right) else settle(right)
         if isinstance(left, UntypedNumber) and isinstance(right, UntypedNumber):
             left, right = settle(left), settle(right)
+        if op in {"+", "-", "*", "%"}:
+            # `x * 2` has x's type: the literal takes it, and a comparison
+            # then settles both (`/` is left out — two integers make a real)
+            if isinstance(left, Var) and isinstance(right, UntypedNumber):
+                return left
+            if isinstance(right, Var) and isinstance(left, UntypedNumber):
+                return right
         if isinstance(left, Var) or isinstance(right, Var):
             self.unify(left, right, node)
             left, right = self.resolve(left), self.resolve(right)
@@ -277,6 +306,17 @@ class Inferencer:
         element, container = self.resolve(element), self.resolve(container)
         if is_unknown(element) or is_unknown(container):
             return
+        if isinstance(container, ListOf) and isinstance(container.element, UntypedNumber):
+            literal = container.element
+            if isinstance(element, Var):
+                self.bind(element, settle(literal))
+            elif isinstance(element, Scalar) and not accepts_untyped(element, literal):
+                self.report(
+                    "EXP202",
+                    f"{element} in a list of {'fractions' if literal.fractional else 'numbers'} has no meaning",
+                    node,
+                )
+            return
         element = settle(element)
         if isinstance(container, Var):
             if isinstance(element, Scalar):
@@ -313,6 +353,9 @@ class Inferencer:
                     argument = node.args[index]
                     # a literal, or a parameter the binding will supply one for
                     if isinstance(argument, ast.Constant):
+                        problem = pattern_problem(argument.value)
+                        if problem:
+                            return self.report("EXP305", f"the pattern does not compile: {problem}", argument)
                         continue
                     if isinstance(argument, ast.Name) and argument.id in self.bindings:
                         continue
@@ -396,6 +439,7 @@ class Inferencer:
         local: dict[str, ExprType] = {}
         pending: list[tuple[Var, ExprType]] = []
         untyped: list[tuple[Var, UntypedNumber]] = []
+        open_arguments: list[tuple[Var, Var]] = []
         for want, got in zip(expected, arguments, strict=True):
             got = self.resolve(got)
             if is_unknown(got):
@@ -407,10 +451,12 @@ class Inferencer:
                 continue
             if isinstance(want, Var):
                 concrete = settle(got)
+                if isinstance(concrete, Var):
+                    # `min(value, x)`: x is what the others make the variable
+                    open_arguments.append((want, concrete))
+                    continue
                 if signature.constraint is not None:
                     if not isinstance(concrete, Scalar) or concrete.name not in signature.constraint:
-                        if isinstance(concrete, Var):
-                            continue
                         return None
                 previous = local.get(want.name)
                 if previous is not None and previous != concrete and not isinstance(concrete, Var):
@@ -432,14 +478,17 @@ class Inferencer:
         for want, literal in untyped:
             bound = local.get(want.name)
             if bound is None:
-                bound = settle(literal)
-                if signature.constraint is not None and (
-                    not isinstance(bound, Scalar) or bound.name not in signature.constraint
-                ):
-                    return None
-                local[want.name] = bound
+                # nothing but literals so far: stay open, a fraction if any is,
+                # for the context to settle (`min(1, 2.5) < value` on a real)
+                local[want.name] = literal
+            elif isinstance(bound, UntypedNumber):
+                local[want.name] = UntypedNumber(fractional=bound.fractional or literal.fractional)
             elif not accepts_untyped(bound, literal):
                 return None
+        for want, argument in open_arguments:
+            bound = local.get(want.name)
+            if isinstance(bound, Scalar):
+                pending.append((argument, bound))
         result = signature.result
         if isinstance(result, Var):
             resolved = local.get(result.name)
@@ -493,4 +542,16 @@ def check_leaf(source: str, value: ExprType, parameters: tuple[str, ...] = ()) -
     return result
 
 
-__all__ = ["Finding", "Inferencer", "Result", "check_leaf"]
+def pattern_problem(pattern) -> str:
+    """Why a regular expression does not compile, or nothing (spec §5.4: a
+    malformed pattern is an authoring-time error carrying the compile message)."""
+    if not isinstance(pattern, str):
+        return ""
+    try:
+        re.compile(pattern)
+    except re.error as error:
+        return str(error)
+    return ""
+
+
+__all__ = ["Finding", "Inferencer", "Result", "check_leaf", "pattern_problem"]

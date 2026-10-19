@@ -1108,3 +1108,21 @@ new commit, for the tag to be moved onto it, as was done for 0.2.0.
 
 > yes commit it
 
+## 176.
+
+> ok done
+
+## 177.
+
+> ok lets do a crosscheck:
+>
+> inspect all code and match against the documents;
+> inspect all documents and check against the code;
+> verify that all examples follow code and documents,
+> add missing examples if you find reason to add some.
+> Suggest other improvements.
+
+## 178.
+
+> yes commit it
+

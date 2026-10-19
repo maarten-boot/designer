@@ -34,8 +34,8 @@ Share the part that is genuinely common, not the shape.
 class Diagnostic:
     code:     str                        # "EXP201" — into the registry (§8)
     subject:  Subject                    # what it is about (§3)
-    span:     TextSpan | None = None     # where inside an expression (§4)
     args:     Mapping[str, ArgValue] = {}    # message substitution (§5)
+    span:     TextSpan | None = None     # where inside an expression (§4)
     related:  tuple[Related, ...] = ()   # other items involved (§6)
     fix:      FixHint | None = None      # a one-command remedy, if there is one (§7)
 ```
@@ -124,9 +124,9 @@ one that has the problem.
 class CodeDefinition:
     code:          str
     severity:      Severity          # error | warning | incomplete | info
-    title:         str               # short, for a list column: "Type mismatch"
-    template:      str               # "{left} and {right} cannot be combined — …"
     scope:         Scope             # item | context | model  (§9)
+    title:         str               # short, for a list column: "Exactness would be lost"
+    template:      str               # "{item} has no parent yet", or "{message}" (below)
     blocks_export: bool = False
     retired:       bool = False      # kept, never reused (§8)
 ```
@@ -157,20 +157,21 @@ An `ItemRef` renders at display time through §5.3's rule — `name (3f2a91c4)`,
 would leave stale names in a cached finding, and would lose the qualification
 that shadowing makes necessary.
 
-Worked example:
+Worked example. `[CHANGED]` The expression checker writes its own sentence —
+the signature table's rejection message, which names the types — so every `EXP`
+code's template is just `{message}`:
 
 ```python
 Diagnostic(
     code="EXP201",
-    subject=Subject(validator_uuid, Kind.VALIDATOR, (("expression", None),)),
+    subject=Subject(validator_uuid, Kind.VALIDATOR, (Step("expression"),)),
+    args={"message": "real and decimal cannot be combined; binary floating point …"},
     span=TextSpan(8, 21),
-    args={"left": "real", "right": "decimal"},
 )
 ```
 
-renders as: *"`real` and `decimal` cannot be combined — binary floating point
-would destroy the exactness of the decimal. Convert explicitly with `float(…)` if
-that is what you intend."*
+The `MOD`, `LIB` and `INT` codes keep templates with named arguments, rendered
+as above.
 
 ---
 
@@ -198,7 +199,7 @@ the finding names a problem the user then has to go hunting for.
 ```python
 @dataclass(frozen=True, slots=True)
 class FixHint:
-    action: str                     # "add_schema_closure", "add_path_entity"
+    action: str                     # "add_schema_closure", "add_schema_member"
     label:  str                     # "Add the 3 missing entities"
     args:   Mapping[str, ArgValue]
 ```
@@ -234,13 +235,13 @@ model check, and `INT` codes from the Interface checks (appendix *interfaces*
 | `EXP3xx` | function typing |
 | `EXP4xx` | binding and arguments |
 | `EXP5xx` | result and shape |
-| `MOD1xx` | references — dangling, deleted composite operand, unset |
+| `MOD1xx` | references and incompleteness — dangling, deleted or unresolved operand, unknown base type, unset parent, type, property, target, anchor, name, validator, argument |
 | `MOD2xx` | cycles — Type parent, Entity extension, Validator, Context |
-| `MOD3xx` | naming — duplicate, shadowing, blank |
-| `MOD4xx` | entities and slots — narrowing, extension, identity, `on_delete` |
+| `MOD3xx` | naming — duplicate, shadows an ancestor, not an identifier, shadows a built-in (a blank name is `MOD106`) |
+| `MOD4xx` | entities and slots — reference targets, extension, identity, overrides, `on_delete`, defaults, argument kinds |
 | `MOD5xx` | schemas — membership, closure, anchors, paths |
 | `MOD6xx` | enforcement and export notes, and orphans (`MOD601`, `MOD604`) |
-| `LIB1xx` | standard library — unknown built-in (`LIB101`), deprecated built-in (`LIB102`) |
+| `LIB1xx` | standard library — unknown built-in (`LIB101`, naming the version needed), deprecated built-in (`LIB102`; none is deprecated yet, so it fires only for a test library) |
 | `INT1xx` | Interface incomplete — no base type, no picture |
 | `INT2xx` | the picture — not valid, does not read back |
 | `INT3xx` | binding — wrong base type, two defaults |
@@ -267,8 +268,10 @@ diffs cleanly.
 
 **Which subjects are affected** comes from the command, which reports the item
 UUIDs it touched, plus their dependents via the repository's `references_to`
-(§12). But not every rule is item-local, which is why `CodeDefinition` carries a
-`scope`:
+(§12). But not every rule is item-local, which is why each rule carries a
+`scope`. `[CHANGED]` In the code the scope belongs to the rule *group* that
+raises a code (`Checker._rules`); `CodeDefinition.scope` records the same and is
+kept in step with it:
 
 | Scope | Re-run when | Examples |
 |---|---|---|
@@ -279,7 +282,10 @@ UUIDs it touched, plus their dependents via the repository's `references_to`
 Without this distinction the incremental runner would either miss duplicate-name
 findings — the second item's rename does not touch the first — or re-scan the
 whole model on every edit. `model`-scope rules are the ones cheap to defer,
-because none of them is urgent while typing.
+because none of them is urgent while typing. Deferred is not forgotten: after an
+edit the session keeps the model-scope findings of the last full check, less
+any about an item that no longer exists, so a cycle or an `INT202` does not
+vanish from the status line until the next full check (fixed 20 October).
 
 ---
 
@@ -288,11 +294,13 @@ because none of them is urgent while typing.
 The record is `(code, subject, span, args, related, fix)`, all of it plain data
 with UUIDs and strings. It serialises to JSON with no special handling.
 
-That is not a v1 feature, but it is worth not breaking: `designer-model` is a
-standalone package with no GUI (§14.1), so `python -m designer_model check
-model.json --json` is a small script away, and a CI job that fails a build on any
-`error` becomes possible without touching the domain code. Keeping names and
-severities *out* of the record is what makes that report stable across versions.
+`designer-model` is a standalone package with no GUI (§14.1), and it installs
+`designer-check`, whose `--json` output a CI job can fail a build on. `[CHANGED]`
+That report is for reading, not for storing: each finding carries its code,
+severity, an abbreviated subject, the rendered message and whether it blocks an
+export — names and severities *in*, since that is what the reader wants. The
+record itself stays as above, names and severities *out*, which is what keeps it
+stable across versions.
 
 ---
 

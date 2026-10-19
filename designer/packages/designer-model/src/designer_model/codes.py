@@ -321,6 +321,14 @@ _ALL = [
         "a reference's target may not change in an override",
         blocks_export=True,
     ),
+    _d(
+        "MOD417",
+        Severity.ERROR,
+        Scope.ITEM,
+        "Wrong kind of argument",
+        "{item} gives {parameter} {got}, but a rule on {site} takes {wanted}",
+        blocks_export=True,
+    ),
     # --- MOD5xx  schemas ----------------------------------------------------
     _d(
         "MOD501",
@@ -440,7 +448,7 @@ _ALL = [
     _d(
         "INT302",
         Severity.ERROR,
-        Scope.ITEM,
+        Scope.MODEL,  # raised by the binding check, which runs with the model rules
         "Two defaults",
         "{item} has more than one default presentation",
         blocks_export=True,
@@ -514,6 +522,7 @@ _EXPRESSION = [
     ("EXP302", "Argument must be a literal", Scope.ITEM),
     ("EXP303", "Renamed or removed", Scope.ITEM),
     ("EXP304", "Outside the allowed types", Scope.ITEM),
+    ("EXP305", "Pattern does not compile", Scope.ITEM),
     ("EXP401", "List is not homogeneous", Scope.ITEM),
     ("EXP402", "Argument type mismatch", Scope.ITEM),
     ("EXP403", "Not a parameter", Scope.ITEM),

@@ -39,9 +39,27 @@ def test_the_app_depends_on_the_model_package() -> None:
     assert hasattr(designer_model, "Session")
 
 
-@pytest.mark.parametrize("module", ["designer_app.rows", "designer_app.selection", "designer_app.state"])
+HEADLESS = (
+    "rows",
+    "selection",
+    "state",
+    "slots",
+    "bindings",
+    "paths",
+    "forms",
+    "impact",
+    "findings",
+    "factory",
+    "exporting",
+    "testbench",
+    "preferences",
+)
+"""Every module README and HANDOVER name as tkinter-free."""
+
+
+@pytest.mark.parametrize("module", [f"designer_app.{name}" for name in HEADLESS])
 def test_the_headless_modules_never_import_tkinter(module) -> None:
-    """These four carry the logic worth testing, so none may require a display.
+    """These carry the logic worth testing, so none may require a display.
 
     `layout` joined them after an off-by-one in `restore` reached a user: a
     module that can only be exercised on a machine with a display is a module
@@ -345,3 +363,13 @@ def test_the_two_packages_are_released_together() -> None:
     app = tomllib.loads((root / "designer-app" / "pyproject.toml").read_text())["project"]
     assert app["version"] == model["version"]
     assert f"designer-model=={model['version']}" in app["dependencies"]
+
+
+def test_a_missing_file_on_the_command_line_starts_empty_with_a_note(config, tmp_path) -> None:
+    pytest.importorskip("tkinter")
+    from designer_app.main import _startup_model
+    from designer_app.state import Settings
+
+    session, complaint = _startup_model(Settings(), tmp_path / "missing.json")
+    assert session.path is None
+    assert complaint is not None and "missing.json" in complaint

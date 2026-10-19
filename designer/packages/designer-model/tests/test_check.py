@@ -668,3 +668,36 @@ def test_no_hint_when_nothing_narrows(model) -> None:
     model.entities.append(child)
     (finding,) = _findings(model, "MOD413")
     assert finding.fix is None
+
+
+# --- argument kinds and patterns (second crosscheck) ---------------------------------
+
+
+def test_a_rule_given_the_wrong_kind_of_argument_is_refused(model) -> None:
+    from designer_model.literals import ScalarLiteral
+    from designer_model.model import LiteralArg
+
+    any_slot = by_name(model.entities, "Customer").slots[0].uuid
+    by_name(model.types, "ShortText").validators.append(
+        Binding(uuid=uuid4(), validator=builtin_id("max_length"), arguments={"max": SlotArg(any_slot)})
+    )
+    sales = by_name(model.schemas, "sales_schema")
+    sales.validators[0].arguments["value"] = PathArg(())
+    found = sorted((f.args["got"], f.args["site"]) for f in _findings(model, "MOD417"))
+    assert found == [("a slot", "a Type"), ("an empty path", "a Schema")]
+    _ = ScalarLiteral, LiteralArg  # the literal kind is accepted everywhere
+
+
+def test_a_pattern_argument_that_does_not_compile_is_reported(model) -> None:
+    from designer_model.literals import ScalarLiteral
+    from designer_model.model import LiteralArg
+
+    by_name(model.types, "ShortText").validators.append(
+        Binding(
+            uuid=uuid4(),
+            validator=builtin_id("matches"),
+            arguments={"pattern": LiteralArg(ScalarLiteral("string", "[a-"))},
+        )
+    )
+    (finding,) = _findings(model, "EXP305")
+    assert "pattern" in finding.args["message"]

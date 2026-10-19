@@ -140,11 +140,19 @@ inferred parameter type. A parameter that unification leaves unconstrained — i
 appears nowhere in the expression — is the "parameter never used" warning
 from §5.6.
 
-Overload resolution during pass 1: try each signature for the key; if exactly one
-matches, take it; if several remain viable because an operand is still a variable
-or `unknown`, defer the node and retry after the rest of the walk; if it is still
-ambiguous at the end, yield `unknown`. Expressions here are small enough that a
-single retry pass is sufficient — there is no need for a general worklist.
+Overload resolution during pass 1 is as §1 describes: every signature is tried
+without side effects; one match decides; several match only while an argument is
+an open parameter, and then the call gives the result they agree on, or the
+open argument's type when each returns its own, or `unknown`. `[CHANGED]` There
+is no deferral and retry pass: an open argument's type flows back to it through
+the comparison the call stands in, which is the same answer in one walk.
+
+An untyped literal stays open as long as it can (§4). In a list, `[1.5, 2.5]`
+beside a `real` is a list of reals, and an open parameter in a list takes the
+list's type; in `min`/`max`, literals alone stay open for the context to settle;
+beside an open parameter (`x * 2`), the literal takes the parameter's type and
+the comparison then settles both. `/` is the exception: two integers make a
+real, so `x / 2` is not assumed to be `x`'s type.
 
 ---
 
@@ -197,7 +205,7 @@ point would destroy the exactness of the decimal. Convert explicitly with
 | `real` / `decimal` mixed | `/` | | **rejected**, as §6.2 |
 | `integer` | `%` | `integer` | `integer` |
 | `decimal` | `%` | `decimal` | `decimal` |
-| anything else | `%` | | **rejected** |
+| anything else | `%` | | no meaning (`EXP202`); `time` is rejected (`EXP203`) |
 
 `integer / integer → real` follows Python, and it has a sharp edge worth naming:
 `(a / b) < price` with a `decimal` price is a real/decimal rejection (`EXP201`),
@@ -346,7 +354,7 @@ counts digits as `NUMERIC(p, s)` does — `1234.50` is 6, `0.005` is 3 — and
 | `int(real)`, `int(decimal)`, `int(string)` | `integer` | truncates a number; a string must be a whole number |
 | `float(integer)`, `float(decimal)`, `float(string)` | `real` | the explicit escape from the firewall |
 | `str(T)` for any `T` | `string` | lists too |
-| `decimal(string)`, `decimal(integer)` | `decimal` | |
+| `decimal(string)`, `decimal(integer)` | `decimal` | `decimal(1.5)` is refused as no signature matching — a fraction literal is already a decimal, so write `1.5` |
 | `decimal(real)` | **rejected** | `EXP301`, with the dedicated message *"converting binary floating point to decimal captures rounding noise; use a decimal literal or a string"* |
 
 Two changes from §5.4's provisional list. `Decimal` is renamed **`decimal`**,
@@ -488,3 +496,12 @@ October (turn 157), each pinned by a test in `test_expressions.py`:
 3. ~~**`x in [1, 2]` with `x` a parameter was refused**.~~ **Fixed** — an open
    variable on the left of `in` takes the list's element type.
 4. ~~The two missing messages in §6.3 and §7.3.~~ **Built** on 19 October.
+
+The crosscheck of 20 October found more of the same kind as 1–3, all fixed
+then and pinned in `test_expressions.py`: a fraction literal in a list was fixed
+as `decimal` before its context was seen (`value in [1.5, 2.5]` on a real was
+refused); an open parameter inside a list was a "mixed list"; unary `-` and `+`
+refused an open parameter; `min(1, 2.5)` was refused; an open parameter beside a
+literal (`x * 2`) and in `min(value, x)` was never typed. The evaluator, for its
+part, now lets a fraction literal meet a real as a real (`float(value) + 0.5`),
+where it used to fail with a decimal/float mix.

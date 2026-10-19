@@ -111,3 +111,16 @@ def test_a_fraction_literal_is_an_exact_decimal():
 def test_a_fraction_literal_stays_binary_for_a_real():
     assert evaluate_leaf("value == 0.1", 0.1)
     assert evaluate_leaf("value + 0.5 > 1", 0.75)
+
+
+@pytest.mark.parametrize(
+    ("source", "value"),
+    [
+        ("float(value) + 0.5 > 1", "1"),
+        ("(0.5 + 1) * float(value) == 3", "2"),
+        ("value <= 0.1", 0.1),
+        ("-0.5 < value", Decimal("0")),
+    ],
+)
+def test_a_fraction_literal_meets_a_real_as_a_real(source, value) -> None:
+    assert evaluate_leaf(source, value)

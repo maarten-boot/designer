@@ -60,7 +60,12 @@ def _startup_model(settings, path: Path | None):
         Session().clear_autosave(config_dir())
 
     if path is not None:
-        return Session.open(path, undo_limit=settings.undo_limit), None
+        # a file named on the command line is held to the same promise as the
+        # last file: never a traceback at startup
+        try:
+            return Session.open(path, undo_limit=settings.undo_limit), None
+        except Exception as error:
+            return Session(undo_limit=settings.undo_limit), f"{path}: {error}"
 
     if settings.last_file and Path(settings.last_file).exists():
         try:

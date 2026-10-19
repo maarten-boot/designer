@@ -137,3 +137,24 @@ def test_an_integer_is_a_fine_real() -> None:
     from designer_model.literals import decode
 
     assert decode({"real": 2}).value == 2.0
+
+
+@pytest.mark.parametrize(
+    ("raw", "reason"),
+    [
+        ({"decimal": "abc"}, "decimal is written as"),
+        ({"decimal": "NaN"}, "decimal is written as"),
+        ({"list": {"string": "abc"}}, "holds an array"),
+        ({"date": "20260829"}, "date is written as"),
+        ({"time": "1430"}, "time is written as"),
+        ({"datetime": "2026-08-29 14:30Z"}, "datetime is written as"),
+        ({"real": float("inf")}, "not a finite real"),
+    ],
+)
+def test_a_literal_has_one_spelling(raw, reason) -> None:
+    """The file holds one spelling of each value (spec §4.1); another would
+    read and then be rewritten on save, or crash the load."""
+    from designer_model.literals import LiteralError, decode
+
+    with pytest.raises(LiteralError, match=reason):
+        decode(raw)

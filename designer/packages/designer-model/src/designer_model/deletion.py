@@ -234,6 +234,9 @@ class _RemoveInterfaceBinding(Command):
     def undo(self, model: Model) -> None:
         _find(model, self.owner_uuid).interfaces.insert(getattr(self, "_index", 0), self.binding)
 
+    def touches(self) -> set[UUID]:
+        return {self.owner_uuid}
+
 
 def _binding_fixups(owner, targets: set[UUID], consequences: list, commands: list, at) -> None:
     for binding in list(owner.validators):

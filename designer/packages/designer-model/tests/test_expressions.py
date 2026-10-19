@@ -452,3 +452,36 @@ def test_a_real_from_integer_division_says_where_it_came_from() -> None:
     # an ordinary real gets the ordinary message
     (plain,) = check_leaf('value * 1.0 < decimal("1.5")', REAL).findings
     assert "integer division" not in plain.message
+
+
+# --- the gaps the second crosscheck found ---------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("source", "value", "params", "expected_codes", "expected"),
+    [
+        ("value in [1.5, 2.5]", REAL, (), [], {}),
+        ("value in [1.5]", INTEGER, (), ["EXP202"], {}),
+        ("value in [x, 2]", INTEGER, ("x",), [], {"x": "integer"}),
+        ("-x < value", DECIMAL, ("x",), [], {"x": "decimal"}),
+        ("min(1, 2.5) < value", DECIMAL, (), [], {}),
+        ("min(0.5, 1) < value", REAL, (), [], {}),
+        ("x * 2 < value", DECIMAL, ("x",), [], {"x": "decimal"}),
+        ("min(value, x) < 3", INTEGER, ("x",), [], {"x": "integer"}),
+    ],
+)
+def test_literals_and_parameters_take_their_context(source, value, params, expected_codes, expected) -> None:
+    result = check_leaf(source, value, params)
+    assert [f.code for f in result.findings] == expected_codes
+    assert {k: str(t) for k, t in result.parameters.items()} == expected
+
+
+def test_a_pattern_that_does_not_compile_says_why() -> None:
+    (finding,) = check_leaf('regex_full_match(value, "[a-")', STRING).findings
+    assert finding.code == "EXP305"
+
+
+def test_an_unnamed_operand_shows_as_its_identity_not_as_deleted() -> None:
+    uuid = UUID("3f2a91c4-0000-4000-8000-000000000001")
+    shown = tokens.to_display(f"{uuid} AND {uuid}", {uuid: ""})
+    assert "deleted" not in shown.text and str(uuid) in shown.text

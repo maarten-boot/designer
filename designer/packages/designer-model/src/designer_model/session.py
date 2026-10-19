@@ -21,6 +21,7 @@ from uuid import UUID
 
 from . import persistence
 from .check import Checker, Report
+from .codes import severity
 from .commands import Command, CommandStack
 from .deletion import DeletePlan, plan_delete
 from .diagnostics import Scope
@@ -55,6 +56,9 @@ class Session:
         self._dirty = False
         self._autosave_owed = False
         self._report: Report | None = None
+        self._model_findings: tuple = ()
+        """The model-scope findings of the last full check, kept between full
+        checks: deferring a rule is not the same as forgetting what it found."""
 
     # --- opening and saving -------------------------------------------------
 
@@ -142,19 +146,30 @@ class Session:
         running them on every keystroke is what makes an incremental check
         pointless.
         """
-        checker = Checker(self.model, self.library)
-        self._report = checker.run(frozenset({Scope.ITEM, Scope.CONTEXT})) if touched is not None else checker.run()
+        if touched is None:
+            return self.full_check()
+        # the item and context rules again; the model-scope findings kept from
+        # the last full check, less any about an item that no longer exists —
+        # replacing the whole report made cycles and the INT checks vanish
+        # from the status line after any edit (appendix *diagnostics* §9)
+        fresh = Checker(self.model, self.library).run(frozenset({Scope.ITEM, Scope.CONTEXT}))
+        index = self.model.index()
+        kept = tuple(f for f in self._model_findings if f.subject.item_uuid in index)
+        self._report = Report(tuple(sorted((*fresh.findings, *kept), key=_order)))
         return self._report
 
     @property
     def report(self) -> Report:
         if self._report is None:
-            self._report = Checker(self.model, self.library).run()
+            return self.full_check()
         return self._report
 
     def full_check(self) -> Report:
         """Every rule, including model scope. On demand, and before export."""
-        self._report = Checker(self.model, self.library).run()
+        checker = Checker(self.model, self.library)
+        self._model_findings = checker.run(frozenset({Scope.MODEL})).findings
+        everything = (*checker.run(frozenset({Scope.ITEM, Scope.CONTEXT})).findings, *self._model_findings)
+        self._report = Report(tuple(sorted(everything, key=_order)))
         return self._report
 
     # --- autosave -----------------------------------------------------------
@@ -203,3 +218,8 @@ def read_autosave(directory: str | Path) -> AutosaveRecord | None:
     saved_at = dt.datetime.fromisoformat(payload["saved_at"].replace("Z", "+00:00"))
     belongs_to = payload.get("path")
     return AutosaveRecord(model, Path(belongs_to) if belongs_to else None, saved_at)
+
+
+def _order(finding):
+    """The order `Checker.run` gives, worst first."""
+    return (severity(finding.code), finding.code, str(finding.subject))

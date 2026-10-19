@@ -220,3 +220,13 @@ def test_declining_leaves_the_schema_unclosed(session) -> None:
     order_line = uuid_of(model, "entities", "OrderLine")
     session.execute(mb.plan_add(model, schema.uuid, order_line).only_named().command())
     assert Deriver(model).unclosed_references(schema)
+
+
+def test_removing_names_only_what_it_newly_leaves_dangling(session) -> None:
+    """A reference already pointing outside is not this removal's doing."""
+    model = session.model
+    schema = by_name(model.schemas, "sales_schema")
+    customer = uuid_of(model, "entities", "Customer")
+    schema.members = tuple(m for m in schema.members if m != customer)  # Order.customer now dangles already
+    plan = mb.plan_remove(model, schema.uuid, uuid_of(model, "entities", "Order"))
+    assert [slot for _, slot, _ in plan.dangling] == ["order"]  # OrderLine.order, newly

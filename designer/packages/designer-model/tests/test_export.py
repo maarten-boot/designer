@@ -342,3 +342,18 @@ def test_a_string_mentioning_the_clock_is_not_a_clock_rule(model):
     assert check(model).codes.count("MOD602") == 1  # Auditable's in_past, as before
     name = column(export(model), "Customer", "name")
     assert "not_the_word" in [r["rule"] for r in name["check"]]
+
+
+def test_the_broken_example_is_blocked_by_what_it_is_built_to_show():
+    """examples/sales_broken.json: Customer missing from sales_schema, and a
+    widening override — the export is refused, and every blocker offers a fix."""
+    from designer_model import check
+
+    m = load(EXAMPLES / "sales_broken.json")
+    with pytest.raises(ExportError) as raised:
+        export_schema(m, named(m.schemas, "sales_schema").uuid)
+    blockers = sorted(raised.value.blockers, key=lambda f: f.code)
+    assert [f.code for f in blockers] == ["MOD413", "MOD503", "MOD509"]
+    assert all(f.fix is not None for f in blockers)
+    export_schema(m, named(m.schemas, "support_schema").uuid)  # untouched, still exports
+    assert sorted(check(m).codes) == ["MOD101", "MOD413", "MOD503", "MOD509", "MOD601", "MOD601", "MOD602"]

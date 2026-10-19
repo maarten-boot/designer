@@ -103,6 +103,46 @@ def _functions(value: Any) -> dict[str, Callable[..., Any]]:
     }
 
 
+def _real_or_exact(operation):
+    """An `_Exact` operation: as a float against a float, otherwise exact and
+    still `_Exact`, so `(0.5 + 1) * float(value)` works as well as `0.5 * x`."""
+
+    def apply(self, other):
+        if isinstance(other, float):
+            return getattr(float(self), operation)(other)
+        result = getattr(Decimal, operation)(self, other)
+        return _Exact(result) if isinstance(result, Decimal) else result
+
+    return apply
+
+
+class _Exact(Decimal):
+    """A fraction literal: exact against decimals and integers, binary floating
+    point against a real (signature table §4 — the literal takes its context's
+    type). Comparisons follow the same rule, so `value == 0.1` holds for the real
+    0.1 and for the decimal 0.1 alike."""
+
+    __add__ = _real_or_exact("__add__")
+    __radd__ = _real_or_exact("__radd__")
+    __sub__ = _real_or_exact("__sub__")
+    __rsub__ = _real_or_exact("__rsub__")
+    __mul__ = _real_or_exact("__mul__")
+    __rmul__ = _real_or_exact("__rmul__")
+    __truediv__ = _real_or_exact("__truediv__")
+    __rtruediv__ = _real_or_exact("__rtruediv__")
+    __mod__ = _real_or_exact("__mod__")
+    __rmod__ = _real_or_exact("__rmod__")
+    __neg__ = lambda self: _Exact(Decimal.__neg__(self))  # noqa: E731
+    __pos__ = lambda self: _Exact(Decimal.__pos__(self))  # noqa: E731
+    __eq__ = _real_or_exact("__eq__")
+    __ne__ = _real_or_exact("__ne__")
+    __lt__ = _real_or_exact("__lt__")
+    __le__ = _real_or_exact("__le__")
+    __gt__ = _real_or_exact("__gt__")
+    __ge__ = _real_or_exact("__ge__")
+    __hash__ = Decimal.__hash__
+
+
 def _exact_fractions(tree: ast.Expression, source: str, names: dict[str, Any]) -> ast.Expression:
     """Fraction literals as the decimals they were written as.
 
@@ -110,8 +150,9 @@ def _exact_fractions(tree: ast.Expression, source: str, names: dict[str, Any]) -
     defaulting to decimal "because the source text is exact" (signature table
     §4). Python reads `0.1` as binary floating point, so `value == 0.1` would be
     false for the decimal 0.1 and `value + 0.5` would not run at all. Each one is
-    bound instead to a `Decimal` of its own source text. Left alone when the
-    value is a `real`, where binary floating point is what was asked for.
+    bound instead to an `_Exact` of its own source text: a decimal, which turns
+    into a float only when it meets one — `float(value) + 0.5` is a real context
+    whatever `value` is, and binary floating point is what was asked for there.
     """
 
     class Exact(ast.NodeTransformer):
@@ -120,7 +161,7 @@ def _exact_fractions(tree: ast.Expression, source: str, names: dict[str, Any]) -
                 return node
             text = ast.get_source_segment(source, node) or repr(node.value)
             name = f"_fraction{len(names)}"
-            names[name] = Decimal(text)
+            names[name] = _Exact(text)
             return ast.copy_location(ast.Name(id=name, ctx=ast.Load()), node)
 
     return ast.fix_missing_locations(Exact().visit(tree))
@@ -136,8 +177,7 @@ def evaluate_leaf(source: str, value: Any, arguments: Mapping[str, Any] | None =
     if violations:
         raise EvaluationError(violations[0].message)
     names = {**_functions(value), **(arguments or {}), "value": value}
-    if not isinstance(value, float):
-        tree = _exact_fractions(tree, source, names)
+    tree = _exact_fractions(tree, source, names)
     try:
         # the whitelist walk above is what makes this defensible: no attribute
         # access, no builtins, and only the functions the signature table names

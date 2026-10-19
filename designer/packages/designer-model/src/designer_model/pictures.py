@@ -221,7 +221,8 @@ def _parse_numeric(picture: Numeric, text: str, lenient: bool):
         cleaned = cleaned[1:]
     cleaned = cleaned.removesuffix("%") if picture.percent else cleaned
     grouped = picture.group_mark and picture.group_mark in cleaned
-    if not lenient and picture.grouping and not grouped:
+    # an empty mark writes no separator, so none can be missing
+    if not lenient and picture.grouping and picture.group_mark and not grouped:
         whole = cleaned.partition(picture.decimal_point)[0]
         if len(whole) > picture.grouping:
             raise ParseError(f"{text!r} is missing its grouping separators")
@@ -326,6 +327,11 @@ def _compile_temporal(base_type: str, text: str) -> Temporal:
             raise PictureError(f"{token} is not a field of {base_type}")
     if len(set(used)) != len(used):
         raise PictureError("a field appears twice")
+    # literal text goes in quotes (appendix *interfaces* §5.3); an unquoted
+    # letter is almost always a field written wrong — `d-M-yyyy` meant `dd-MM`
+    for part in parts:
+        if len(part) == 1 and part.isalpha():
+            raise PictureError(f"{part!r} is not a field; put literal text in quotes, like 'T'")
     return Temporal(base_type, parts, text)
 
 
@@ -517,7 +523,7 @@ def readable(value) -> str:
     return repr(value) if isinstance(value, str) else str(value)
 
 
-def check_round_trip(picture: Compiled, samples) -> RoundTrip:
+def check_round_trip(picture: Compiled, samples, lenient: bool = True) -> RoundTrip:
     """`parse(present(v)) == v` for each sample.
 
     This is where most picture mistakes live: a format that rounds on the way
@@ -532,7 +538,7 @@ def check_round_trip(picture: Compiled, samples) -> RoundTrip:
             result.failures.append((value, "", f"nothing: {error}"))
             continue
         try:
-            back = parse(picture, shown)
+            back = parse(picture, shown, lenient)
         except ParseError as error:
             result.failures.append((value, shown, f"unreadable: {error}"))
             continue

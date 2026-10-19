@@ -150,3 +150,13 @@ def test_validators_come_before_types() -> None:
         "entity",
         "schema",
     )
+
+
+@pytest.mark.parametrize("text", ["[]", '{"collapsed_columns": null}', '{"undo_limit": "lots"}', '"x"'])
+def test_settings_of_the_wrong_shape_are_replaced_with_defaults(tmp_path, text) -> None:
+    """Valid JSON, wrong shape: never fatal (spec §14.3)."""
+    from designer_app.state import SETTINGS_NAME, Settings
+
+    (tmp_path / SETTINGS_NAME).write_text(text)
+    loaded = Settings.load(tmp_path)
+    assert loaded.undo_limit == Settings().undo_limit

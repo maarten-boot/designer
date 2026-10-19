@@ -39,6 +39,8 @@ answer in the specification.
                                 logic worth testing; the widget modules are
                                 thin adapters over them.
     examples/sales.json         the worked example, and the main test fixture.
+    examples/sales_broken.json  the same model, broken on purpose: a schema
+                                that will not export, with a Fix for each cause.
     examples/sales_interfaces.json
                                 the same model at schema_version 2, with eight
                                 Interfaces (docs/designer-example-notes.md §8).
@@ -96,8 +98,10 @@ Validator column marks it, its form says since when and what to use instead,
 the rule pickers stop offering it (except to the rule already using it), and a
 model that uses it gets the note `LIB102`. None is deprecated yet.
 
-Everything the specification describes is built. YAML export was dropped: an
-external tool can convert the JSON.
+Almost everything the specification describes is built; what is not is listed
+in spec §16 — the JSON tab, the operand picker — with two open questions there
+(refusing a Context move, inheriting a slot default). YAML export was dropped:
+an external tool can convert the JSON.
 
 Schema membership is editable: add, remove, and add-missing-referenced-entities,
 each a single undo step. Adding one entity names the cascade before it happens —
@@ -225,7 +229,7 @@ check, as `make model` runs it) and `designer-export` (a Schema's export, as
 `make release` builds the wheels and sdists into `dist/` and installs them into
 a fresh environment from `dist/` alone — it needs nothing installed beyond
 Python with `venv`: without the `build` module it makes its own environment in
-`~/.cache/designer-release/`, the first time — then runs `designer-check` and
+`~/.cache/designer-release/py3.X` (under `$XDG_CACHE_HOME` if set), the first time — then runs `designer-check` and
 `designer-export` on the worked example — a release that has only been built has
 not been verified.
 

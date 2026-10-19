@@ -13,6 +13,8 @@ envelope is a single-key object naming the BaseType:
 from __future__ import annotations
 
 import datetime as dt
+import math
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -90,6 +92,15 @@ as `0.1000000000000000055…`, which is the loss the tagged string exists to
 prevent. Conversions are never applied on load: `1.9` is not an integer and
 `"false"` is not a boolean, and saying so beats storing 1 and true."""
 
+_CANONICAL = {
+    "decimal": re.compile(r"-?\d+(\.\d+)?"),
+    "date": re.compile(r"\d{4}-\d{2}-\d{2}"),
+    # a zone is allowed by the shape so that `_decode_time` can say what is wrong with it
+    "time": re.compile(r"\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})?"),
+    "datetime": re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})"),
+}
+"""The one spelling the file uses for each, as `encode` writes it (spec §4.1)."""
+
 _WRITTEN_AS = {
     "integer": "a whole number",
     "real": "a number",
@@ -108,7 +119,20 @@ def _decode_scalar(base_type: str, raw: Any) -> Any:
     allowed = _JSON_KINDS.get(base_type)
     if allowed is not None and (not isinstance(raw, allowed) or (base_type == "real" and isinstance(raw, bool))):
         raise LiteralError(f"{base_type} is written as {_WRITTEN_AS[base_type]}, not {raw!r}")
-    return _DECODERS[base_type](raw)
+    shape = _CANONICAL.get(base_type)
+    if shape is not None and not shape.fullmatch(raw):
+        # `20260829` or `1430` would read, and be rewritten on save: the file
+        # holds one spelling of each value, so anything else is refused
+        raise LiteralError(f"{base_type} is written as {_WRITTEN_AS[base_type]}, not {raw!r}")
+    try:
+        value = _DECODERS[base_type](raw)
+    except LiteralError:
+        raise  # already says what is wrong
+    except (ValueError, ArithmeticError) as error:  # decimal raises InvalidOperation
+        raise LiteralError(f"{raw!r} is not a {base_type}") from error
+    if base_type in {"decimal", "real"} and not math.isfinite(value):
+        raise LiteralError(f"{raw!r} is not a finite {base_type}")
+    return value
 
 
 def _encode_scalar(base_type: str, value: Any) -> Any:
@@ -129,6 +153,11 @@ def decode(raw: dict[str, Any]) -> Literal:
         if not isinstance(body, dict) or len(body) != 1:
             raise LiteralError("a list literal is one tagged key holding an array")
         ((element_type, values),) = body.items()
+        if element_type not in BASE_TYPES:
+            raise LiteralError(f"unknown element type {element_type!r}")
+        if not isinstance(values, list):
+            # a string is iterable, and `"abc"` would load as three letters
+            raise LiteralError(f"a list literal holds an array, not {values!r}")
         return ListLiteral(element_type, tuple(_decode_scalar(element_type, v) for v in values))
     if tag not in BASE_TYPES:
         raise LiteralError(f"unknown literal tag {tag!r}")

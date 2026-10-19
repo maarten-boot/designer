@@ -334,3 +334,15 @@ def test_regional_grouping_is_checked_too() -> None:
     assert p.parse(german, "1.234,50") == Decimal("1234.50")
     with pytest.raises(p.ParseError):
         p.parse(german, "1.2.3")
+
+
+@pytest.mark.parametrize("picture", ["d-M-yyyy", "yyyy z"])
+def test_an_unquoted_letter_in_a_date_picture_is_refused(picture) -> None:
+    with pytest.raises(p.PictureError, match="put literal text in quotes"):
+        p.compile_picture("date", picture)
+
+
+def test_an_empty_grouping_mark_reads_back_strictly() -> None:
+    picture = p.compile_picture("decimal", "#,##0.00", ".", "")
+    shown = p.present(picture, Decimal("1234567.50"))
+    assert p.parse(picture, shown, lenient=False) == Decimal("1234567.50")

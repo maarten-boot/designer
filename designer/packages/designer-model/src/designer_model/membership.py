@@ -146,8 +146,14 @@ def plan_remove(model: Model, schema: UUID, entity: UUID) -> MembershipPlan:
         members=after,
         validators=target.validators,
     )
+    # only what removing it newly leaves dangling: a reference that already
+    # pointed outside is not this removal's doing (spec §9.2)
+    deriver = Deriver(model)
+    before = {(member, slot.uuid) for member, slot, _ in deriver.unclosed_references(target)}
     dangling = tuple(
-        (member, slot.slot_name, slot_target) for member, slot, slot_target in Deriver(model).unclosed_references(probe)
+        (member, slot.slot_name, slot_target)
+        for member, slot, slot_target in deriver.unclosed_references(probe)
+        if (member, slot.uuid) not in before
     )
     return MembershipPlan(schema, after, removed=(entity,), dangling=dangling)
 

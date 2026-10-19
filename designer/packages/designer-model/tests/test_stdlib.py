@@ -200,6 +200,13 @@ def test_a_built_in_passes_and_fails_its_examples(library, name) -> None:
     from designer_model.literals import ListLiteral, decode
 
     def plain(raw):
+        # infinity and NaN are what is_finite is for, and what a model file
+        # refuses; this file is test data, so they are read as they are
+        if (isinstance(raw.get("real"), float) and raw["real"] != raw["real"]) or raw.get("real") in (
+            float("inf"),
+            float("-inf"),
+        ):
+            return raw["real"]
         literal = decode(raw)
         return list(literal.values) if isinstance(literal, ListLiteral) else literal.value
 

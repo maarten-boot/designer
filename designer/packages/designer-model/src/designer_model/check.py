@@ -13,6 +13,7 @@ parse, which is enough to find a deleted operand or a clock call.
 
 from __future__ import annotations
 
+import ast
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ from .expressions import check_leaf
 from .expressions.composite import ParseError
 from .expressions.composite import parse as parse_composite
 from .expressions.evaluate import EvaluationError, evaluate_composite, evaluate_leaf
+from .expressions.infer import pattern_problem
 from .expressions.sandbox import reads_clock
 from .expressions.tokens import UUID_PATTERN, unresolved_names
 from .expressions.types import UNKNOWN, ExprType, ListOf, Scalar
@@ -191,6 +193,8 @@ class Checker:
                 at,
                 {"item": ItemRef(owner.uuid), "validator": ItemRef(binding.validator), "parameters": ", ".join(unset)},
             )
+        yield from self._check_argument_kinds(owner, binding, at)
+        yield from self._check_patterns(binding, at)
         yield from self._check_expression(binding, self._binding_value(owner, binding), at)
         if not self._deterministic(binding.validator):
             yield Diagnostic("MOD602", at, {"item": ItemRef(owner.uuid), "validator": ItemRef(binding.validator)})
@@ -227,6 +231,46 @@ class Checker:
             return
         for operand in operand_uuids(validator.expression):
             yield from self._leaf_expressions(self._validator_of(operand), depth + 1)
+
+    def _check_argument_kinds(self, owner, binding: Binding, at: Subject) -> Iterator[Diagnostic]:
+        """Each site takes its own kind of argument (spec §5.6): a Type rule
+        only literals, an Entity rule literals and slots, a Schema rule
+        literals and paths, and a path has at least one step. Anything else
+        exported as a rule with nothing substituted."""
+        site, allowed, wanted = {
+            "Type": ("a Type", (LiteralArg,), "literals"),
+            "Entity": ("an Entity", (LiteralArg, SlotArg), "literals and slots"),
+            "Schema": ("a Schema", (LiteralArg, PathArg), "literals and paths"),
+        }.get(type(owner).__name__, ("", (), ""))
+        if not site:
+            return
+        for name, argument in binding.arguments.items():
+            got = ""
+            if not isinstance(argument, allowed):
+                got = {SlotArg: "a slot", PathArg: "a path", LiteralArg: "a literal"}.get(type(argument), "something")
+            elif isinstance(argument, PathArg) and not argument.path:
+                got = "an empty path"
+            if got:
+                yield Diagnostic(
+                    "MOD417",
+                    at,
+                    {"item": ItemRef(owner.uuid), "parameter": name, "got": got, "site": site, "wanted": wanted},
+                )
+
+    def _check_patterns(self, binding: Binding, at: Subject) -> Iterator[Diagnostic]:
+        """A pattern supplied as an argument compiles (EXP305) — `matches` and
+        any rule of your own that passes a parameter to `regex_full_match`."""
+        validator = self._validator_of(binding.validator) if binding.validator else None
+        if validator is None:
+            return
+        for leaf in self._leaf_expressions(validator):
+            for name in _pattern_parameters(leaf.expression):
+                argument = binding.arguments.get(name)
+                if not isinstance(argument, LiteralArg) or not isinstance(argument.literal, ScalarLiteral):
+                    continue
+                problem = pattern_problem(argument.literal.value)
+                if problem:
+                    yield Diagnostic("EXP305", at, {"message": f"{name}: the pattern does not compile: {problem}"})
 
     def _unset_arguments(self, owner, binding: Binding) -> list[str]:
         """The parameters a binding has to supply and does not. A composite
@@ -439,7 +483,8 @@ class Checker:
         here = at.then("interfaces", binding.uuid)
         names = {"interface": ItemRef(face.uuid), "item": ItemRef(item.uuid)}
         admitted = [v for v in pictures.PROBES.get(face.base_type, ()) if self._admits(item, v)]
-        trip = pictures.check_round_trip(compiled, admitted)
+        # read back the way this Interface reads, strict or lenient
+        trip = pictures.check_round_trip(compiled, admitted, face.parse_lenient)
         if not trip.holds:
             yield Diagnostic("INT202", here, {**names, "detail": trip.why()})
         elif isinstance(compiled, pictures.Numeric) and compiled.base_type == "decimal":
@@ -527,7 +572,7 @@ class Checker:
             for b in owner.validators if owner else ():
                 validator = self._validator_of(b.validator) if b.validator else None
                 if validator is None:
-                    continue
+                    return False  # cannot answer, so refusing (interfaces §7.3)
                 arguments = {
                     k: list(a.literal.values) if isinstance(a.literal, ListLiteral) else a.literal.value
                     for k, a in b.arguments.items()
@@ -775,7 +820,9 @@ class Checker:
         missing = self.d.closure(list(sc.members)) - set(sc.members)
         return FixHint(
             "add_schema_closure",
-            f"Add the {len(missing)} missing referenced entities",
+            "Add the missing referenced entity"
+            if len(missing) == 1
+            else f"Add the {len(missing)} missing referenced entities",
             {"schema": str(sc.uuid), "count": len(missing)},
         )
 
@@ -946,3 +993,20 @@ def _literal_type(literal) -> ExprType | None:
     if isinstance(literal, ListLiteral):
         return ListOf(Scalar(literal.element_type))
     return None
+
+
+def _pattern_parameters(source: str) -> list[str]:
+    """The parameters a leaf passes as a `regex_full_match` pattern."""
+    try:
+        tree = ast.parse(source, mode="eval")
+    except SyntaxError:
+        return []
+    return [
+        node.args[1].id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "regex_full_match"
+        and len(node.args) > 1
+        and isinstance(node.args[1], ast.Name)
+    ]

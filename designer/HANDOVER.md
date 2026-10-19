@@ -34,8 +34,8 @@ the logic worth testing can be tested without a display.
 
 ## Where things stand
 
-`xvfb-run -a make check` green on 17 October: 1059 tests, none skipped, after
-the crosscheck that evening. Re-run it rather than trusting
+`xvfb-run -a make check` green on 20 October: 1149 tests, none skipped, after
+the second crosscheck (turn 177). Released as 0.4.0; the release steps are below. Re-run it rather than trusting
 the number. The machine has pip, tkinter and Xvfb but no system-wide ruff, mypy
 or pytest, so put them in a virtual environment and its `bin` first on `PATH`.
 Without `xvfb-run` the widget suite skips and `make check` still says green.
@@ -43,10 +43,19 @@ Without `xvfb-run` the widget suite skips and `make check` still says green.
 Almost everything in the specification is built and editable — `INT202` by
 sampling (`pictures.PROBES`, appendix *interfaces* §7.3), with the project's
 first evaluator, `expressions/evaluate.py`. What is not is listed in spec §16
-and marked `[NOT BUILT]` where it is specified; the crosscheck of 17 October
-(turn 139) found it. One question there is still the user's to answer: refusing a
-Context move or allowing and reporting it (spec §10.1). Shadowing a built-in was
-decided in turn 144 — a note, as built.
+and marked `[NOT BUILT]` where it is specified; the crosschecks of 17 and 20
+October (turns 139 and 177) found it. Two questions there are still the user's
+to answer: refusing a Context move or allowing and reporting it (§10.1), and
+whether an override inherits the slot default it does not replace (§8.1).
+Shadowing a built-in was decided in turn 144 — a note, as built.
+
+Since 0.2.0: the type checker resolves overloads without side effects and lets
+literals and open parameters take their context (signature table §12); new
+checks `MOD114`, `MOD415`, `MOD416`, `MOD417`, `EXP305`, and a Validator's own
+expression checked where it is written; the findings window's **Fix** button
+for `MOD503`, `MOD509`, `MOD413`; grouping marks checked for position; model
+literals with one spelling each. After an edit the session keeps the last full
+check's model-scope findings (§9 of the diagnostics appendix).
 
 **Done, with what is worth knowing:**
 

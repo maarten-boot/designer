@@ -213,6 +213,9 @@ class AddInterfaceBinding(Command):
     def undo(self, model: Model) -> None:
         _find(model, self.owner_uuid).interfaces.remove(self.binding)
 
+    def touches(self) -> set[UUID]:
+        return {self.owner_uuid}
+
 
 @dataclass
 class RemoveInterfaceBinding(Command):
@@ -228,6 +231,9 @@ class RemoveInterfaceBinding(Command):
 
     def undo(self, model: Model) -> None:
         _find(model, self.owner_uuid).interfaces.insert(self.index or 0, self.binding)
+
+    def touches(self) -> set[UUID]:
+        return {self.owner_uuid}
 
 
 @dataclass
@@ -252,6 +258,9 @@ class SetDefaultPresentation(Command):
     def undo(self, model: Model) -> None:
         for binding, was in zip(_find(model, self.owner_uuid).interfaces, self.old, strict=False):
             binding.is_default = was
+
+    def touches(self) -> set[UUID]:
+        return {self.owner_uuid}
 
 
 @dataclass

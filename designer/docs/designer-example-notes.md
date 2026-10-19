@@ -1,8 +1,9 @@
 # Designer — Worked Example
 
 29 August 2026, corrected 30 August, brought up to date 17 October. Companion to
-`examples/sales.json`, its sister `examples/sales_interfaces.json`, the export
-files beside them, and `tools/check_model.py`.
+`examples/sales.json`, its sisters `examples/sales_interfaces.json` and
+`examples/sales_broken.json`, the export files beside them, and
+`tools/check_model.py`.
 
 `[CORRECTED]` The two original files were called `designer-example-sales.json`
 and `designer-check.py` when this was written, before the repository had a shape.
@@ -164,3 +165,22 @@ to carry them:
 
 It carries exactly the three findings of §4 plus `INT402`, and no `INT202`: every
 other pairing reads back every value its Type admits.
+
+## 9. `sales_broken.json`
+
+The same model with two of §5's mutations built in, so the case that matters
+most to a user — a Schema that will not export, and what to do about it — is a
+file rather than a paragraph:
+
+- `Customer` is removed from `sales_schema`: `MOD503` (not closed) and `MOD509`
+  (the cross-entity path leaves the schema), offering *Add the missing
+  referenced entity* and *Add Customer to the schema*.
+- `OrderLine.line_total` is overridden with `ShortText` instead of
+  `PositiveMoney`: `MOD413`, offering *Choose a Type that narrows Money*. With
+  the override changed, nothing references `PositiveMoney` any more, so a second
+  `MOD601` joins the one for `Weight`.
+
+`sales_schema` is blocked by exactly those three, each with a **Fix** in the
+findings window; `support_schema`, which reaches none of it, still exports.
+`test_the_broken_example_is_blocked_by_what_it_is_built_to_show` holds it to
+that.

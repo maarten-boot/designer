@@ -123,8 +123,9 @@ The standard library (§5.7) is global on the same terms.
 
 **Precision and scale** for `decimal` are expressed with the built-in
 `max_precision` and `max_scale` validators, which the exporter recognises **by
-UUID** to emit `NUMERIC(p, s)`. Recognition is by identity, not by parsing, so a
-forked copy (§5.7) is not recognised.
+UUID** to emit `numeric: {precision, scale}` — what a generator turns into
+`NUMERIC(p, s)` (§9.6). Recognition is by identity, not by parsing, so a forked
+copy (§5.7) is not recognised.
 
 ### 4.1 Literals
 
@@ -141,7 +142,9 @@ A **list literal** (§5.6) is a JSON array of these forms, homogeneous in BaseTy
 
 `datetime` is **timezone-aware and always UTC**, serialised with a `Z` suffix. A
 naive literal is rejected on entry and on load; a non-UTC offset is normalised to
-UTC and the original is not retained. Export maps `datetime` to `timestamptz`.
+UTC and the original is not retained. The export says `base: "datetime"`; a
+generator maps it to its own type (`timestamptz` in PostgreSQL) — §9.6 leaves
+SQL types to the consumer.
 Two `datetime` values are therefore always comparable.
 
 `date` and `time` remain zone-free, because a calendar date and a wall-clock time
@@ -234,8 +237,10 @@ is wrong here: `and` and `or` short-circuit and return operands rather than
 booleans, and Python has no `xor` keyword.
 
 **Leaf expressions are evaluated with `eval` for v1**, parsed and type-checked
-first (§5.6). All expression handling goes through one `expressions` module
-exposing `parse`, `check`, `evaluate`, and the substitution helpers from §5.2.
+first (§5.6). All expression handling goes through one `expressions` package:
+`parse_composite`, `check_leaf`, `evaluate.evaluate_leaf` and
+`evaluate.evaluate_composite`, and the substitution helpers from §5.2. A pattern
+literal that does not compile is `EXP305`, with the compile message.
 Nothing else calls `eval` or `compile`, so the linter suppression lives in
 exactly one file (§14.2).
 
@@ -336,7 +341,11 @@ Three binding sites:
 The check applies to all three because a Validator is reusable: an expression
 sound for the Type it was written against can be nonsense for the next Type that
 attaches it. The mismatch is a property of the binding, never of the Validator
-alone. A binding whose type cannot yet be determined is `incomplete`.
+alone. `[CHANGED]` A binding whose type cannot yet be determined reports nothing
+itself: the unfinished owner is what is reported (`MOD101`, `MOD102`), and the
+binding is checked once that is done. Its arguments must be of the site's kind —
+literals on a Type, literals and slots on an Entity, literals and paths on a
+Schema (`MOD417`).
 
 **The checker** infers a type for every node and reports:
 
@@ -550,6 +559,9 @@ cost.
   does, overridden or not: the slot's base type, and the Type's rules (`MOD415`,
   naming the rules that refuse it). A rule that cannot answer is not counted
   against a default; it is reported where the rule is.
+- `[OPEN]` An override replaces the whole slot, its `default` included: an
+  override without a default of its own has none, rather than the one it
+  inherits. Whether a default should be inherited unless replaced is open.
 - A **reference slot's target may not be narrowed** (`MOD416`): an override
   that points a reference anywhere else is an error, since under flat
   materialization a foreign key to a narrower table is a different key.
@@ -733,7 +745,7 @@ Decided before any of it was built (`HISTORY.md`, turn 103):
 - **Constraints are resolved, not referenced.** Each column carries its
   effective rules: inherited ones collected along the Type chain, composites
   expanded, built-ins and shadowed names resolved, `max_precision` and
-  `max_scale` mapped to `NUMERIC(p, s)`, and every rule sorted into a database
+  `max_scale` mapped to `numeric: {precision, scale}`, and every rule sorted into a database
   CHECK or application enforcement (§9.4). The Type's name stays on the column
   as a label. The file needs neither the standard library nor the Context tree
   to be read, and it is not loadable as a model: it is output, not a document.
@@ -921,9 +933,10 @@ registry (`codes.py`, appendix *diagnostics* §8) is the authority and holds mor
 codes in each — the Interface checks (`INT`) among them.
 
 **Incomplete** — unset Type parent, unset Property type, unset slot Property or
-target, unset validator anchor, blank names, bindings whose type cannot resolve,
-bindings that leave an argument unset (`MOD108`; on an Entity or a Schema that
-includes `value`).
+target, unset validator anchor, blank names, a binding that names no validator
+(`MOD107`) or leaves an argument unset (`MOD108`; on an Entity or a Schema that
+includes `value`), a concrete Entity with no identity (`MOD406`), an Interface
+with no base type or picture (`INT101`, `INT102`).
 
 **Errors** — dangling references; Type parent cycles, Entity extension cycles,
 Validator cycles; expression parse failures — reported on the Validator itself,
@@ -937,7 +950,9 @@ member not visible from the Schema's Context; Schema validator anchor that is no
 a member; path entity that is not a member; unresolvable paths, paths ending on a
 reference slot, paths exceeding four segments; Entity validator bound to a
 reference slot; reference slot targeting an abstract Entity or one without
-identity; slot overrides that widen, or retarget a reference (`MOD416`); a
+identity; a rule argument of the wrong kind for its site (`MOD417`); a pattern
+that does not compile (`EXP305`); slot overrides that widen, or retarget a
+reference (`MOD416`); a
 slot default its type does not admit (`MOD415`); `set_null` on a required slot;
 duplicate names.
 
@@ -1201,7 +1216,7 @@ Each column's header carries three buttons: **+** New, **=** Duplicate and
 right-click menu or in the Edit menu. Delete opens the impact dialog (§11.1).
 
 **New creates an empty item** in the active Context and selects it, with focus in
-the name field. Duplicate copies every field except `uuid`, `created` and `name`,
+the name field. Duplicate copies every field except `uuid`, `created`, `modified` and `name`,
 left blank so the user names it deliberately. The slots, bindings and Interface
 bindings it copies get identities of their own, and the copy's identity,
 indexes, default order and slot-bound rules point at its own slots — sharing
@@ -1216,6 +1231,22 @@ check's headline — the counts at the level View ▸ Findings shown chooses, an
 many would block an export. Clicking it opens the findings. The selected item is
 named in the editor's title and the Context path in the breadcrumb.
 
+### 13.11 Menus and the findings window
+
+| Menu | Entry | Key |
+|---|---|---|
+| File | Open…, Open Recent, Save, Save As…, Export Schema…, Quit | Ctrl+O, Ctrl+S |
+| Edit | Undo, Redo, Preferences… | Ctrl+Z, Ctrl+Y |
+| View | a checkbutton per column, Show built-in validators, Findings shown, Reset layout | |
+| Model | Check model and list findings…, Try a value… | F5, Ctrl+T |
+
+The **findings window** lists every finding at the level View ▸ Findings shown
+chooses, worst first; double-clicking one takes the selection to its item,
+context included. A finding with a one-step remedy offers it on a **Fix** button
+named for what it does (appendix *diagnostics* §7). The list follows the model:
+after an edit the item and context rules re-run, and the model-scope findings of
+the last full check are kept, less any about an item that is gone.
+
 ---
 
 ## 14. Packaging and runtime `[DECIDED]`
@@ -1227,8 +1258,12 @@ named in the editor's title and the Context path in the breadcrumb.
 | `designer-model` | Domain items, expressions module, path resolver, model check, JSON persistence, repository interface, **the standard library JSON fragment as package data** | **Standard library only** |
 | `designer-app` | tkinter UI, application state, layout | `designer-model` |
 
-The domain model goes to PyPI so later tools depend on it without a GUI, and it
-carries the validator library with it — a generator or CLI needs the same
+`[CHANGED]` Both packages are released as wheels on GitHub (decided in turn 146),
+MIT licensed, `designer-app` pinning exactly its own `designer-model` version;
+`make release` (`tools/release.py`) builds them and verifies them in a clean
+environment. Installed, they give three commands: `designer`, `designer-check`
+and `designer-export`. The domain model is a package of its own so later tools
+depend on it without a GUI, and it carries the validator library with it — a generator or CLI needs the same
 built-ins the UI does. **`designer-model` must never import tkinter**, and a test
 asserts it.
 
@@ -1353,6 +1388,7 @@ where it is specified:
 - the JSON tab and the Validator operand picker (§13.6);
 - refusing a Context move that would hide an item from what uses it (§10.1);
 
-One question is open rather than unbuilt: whether a Context move is refused or
-allowed and reported (§10.1). Shadowing a built-in was the other, decided in
+Two questions are open rather than unbuilt: whether a Context move is refused or
+allowed and reported (§10.1), and whether an override inherits the slot default
+it does not replace (§8.1). Shadowing a built-in was the other, decided in
 turn 144: a note (§10.1).

@@ -184,6 +184,12 @@ A grammar that is ambiguous in its commonest case is not a grammar to build on.
 Allowed: `.` `,` `'` space and non-breaking space; empty for grouping, to write
 a group size that shows no separator. The two must differ.
 
+An empty grouping mark writes no separator, so a strict parse does not ask for
+one (fixed 20 October: it used to, and such a picture could not read back what
+it wrote). `INT202` asks the round trip the way the Interface reads — strict or
+lenient — so a picture that only reads back leniently is not passed for a strict
+one.
+
 **Dates need no equivalent.** A region writing `30/08/2026` writes
 `dd/MM/yyyy`: the separator there is literal text, not a role, so a different
 picture is the honest answer rather than a setting.
@@ -217,7 +223,9 @@ If a length is meant to be a limit, that is `max_length`, and it is a rule.
 ### 5.3 date, time, datetime
 
 `yyyy MM dd HH mm ss` with the usual meanings, `yy` for a two-digit year, `SSS`
-for milliseconds, `ZZ` for the offset. Literal text in quotes.
+for milliseconds, `ZZ` for the offset. Literal text in quotes; an unquoted letter
+is refused (`INT201`), since `d-M-yyyy` almost always meant `dd-MM-yyyy`.
+Punctuation and spaces need no quotes.
 
     dd-MM-yyyy              2026-08-30  ▶  30-08-2026
     yyyy-MM-dd'T'HH:mm:ssZZ             ▶  2026-08-30T14:22:05+00:00

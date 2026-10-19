@@ -290,3 +290,34 @@ def test_an_edit_stamps_the_item_it_changed(session) -> None:
     assert money.modified > before
     assert short.modified == untouched
     assert money.modified.microsecond == 0
+
+
+def test_an_edit_keeps_the_model_scope_findings_until_the_next_full_check(session) -> None:
+    """Model-scope rules are deferred while editing, not forgotten: a finding
+    they made stays in the report after an unrelated edit (diagnostics §9)."""
+    from designer_model.commands import SetField
+
+    session.full_check()
+    assert "MOD601" in session.report.codes  # model scope: Weight is referenced by nothing
+    money = by_name(session.model.types, "Money")
+    session.execute(SetField(money.uuid, "description", "changed"))
+    assert "MOD601" in session.report.codes, "a model-scope finding vanished after an edit"
+
+
+def test_a_kept_finding_about_a_deleted_item_goes(session) -> None:
+    session.full_check()
+    weight = by_name(session.model.types, "Weight")
+    session.apply(session.plan_delete(weight.uuid))
+    assert "MOD601" not in session.report.codes
+
+
+def test_a_presentation_change_stamps_its_type(session) -> None:
+    from uuid import uuid4
+
+    from designer_model.commands import AddInterfaceBinding
+    from designer_model.model import InterfaceBinding
+
+    money = by_name(session.model.types, "Money")
+    before = money.modified
+    session.execute(AddInterfaceBinding(money.uuid, InterfaceBinding(uuid=uuid4(), interface=uuid4())))
+    assert money.modified > before

@@ -10,9 +10,9 @@ and a model document has no place for "do not use this any more". A deprecated
 built-in is never removed (spec §5.7) — it still resolves and still works — so
 the only things that change are what the interface offers and a note saying why.
 
-Determinism is derived here by scanning for the clock functions rather than by
-storing a flag. The scan is a token match, not a parse, so it works before the
-expression checker exists; phase 2's checker supersedes it with the same answer.
+Determinism is derived here, not stored: a leaf reads the clock when its syntax
+tree calls `now`, `today` or `current` (`sandbox.reads_clock` — a string that
+merely contains `now()` does not count), and a composite when any operand does.
 """
 
 from __future__ import annotations
