@@ -437,3 +437,18 @@ def test_the_clock_is_found_as_a_call_not_as_text() -> None:
     assert not reads_clock('value != "now()"')
     assert not reads_clock("value < max(1, 2)")
     assert not reads_clock("this does not parse (")
+
+
+def test_decimal_of_a_real_says_why() -> None:
+    (finding,) = check_leaf("decimal(value) > 0", REAL).findings
+    assert finding.code == "EXP301"
+    assert "rounding noise" in finding.message
+
+
+def test_a_real_from_integer_division_says_where_it_came_from() -> None:
+    (finding,) = check_leaf('value / 3 < decimal("1.5")', INTEGER).findings
+    assert finding.code == "EXP201"
+    assert "integer division produces a real" in finding.message
+    # an ordinary real gets the ordinary message
+    (plain,) = check_leaf('value * 1.0 < decimal("1.5")', REAL).findings
+    assert "integer division" not in plain.message

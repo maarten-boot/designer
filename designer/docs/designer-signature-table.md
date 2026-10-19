@@ -202,9 +202,9 @@ point would destroy the exactness of the decimal. Convert explicitly with
 `integer / integer → real` follows Python, and it has a sharp edge worth naming:
 `(a / b) < price` with a `decimal` price is a real/decimal rejection (`EXP201`),
 because the division produced a real — when `a` and `b` are known integers.
-`[NOT BUILT]` The message does not yet add the hint *"integer division produces
-`real`…"*, and when `a` and `b` are parameters whose types are still open the
-pair is not rejected at all: nothing forces them to integer. Floor division `//` is
+The message then adds *"integer division produces a real; use % or compare
+against a real"* (built 19 October). When `a` and `b` are parameters whose types
+are still open the pair is not rejected at all: nothing forces them to integer. Floor division `//` is
 not supported — one division operator is enough and the second invites confusion
 about which one a rule meant.
 
@@ -347,7 +347,7 @@ counts digits as `NUMERIC(p, s)` does — `1234.50` is 6, `0.005` is 3 — and
 | `float(integer)`, `float(decimal)`, `float(string)` | `real` | the explicit escape from the firewall |
 | `str(T)` for any `T` | `string` | lists too |
 | `decimal(string)`, `decimal(integer)` | `decimal` | |
-| `decimal(real)` | **rejected** | `EXP301`, no signature matches. `[NOT BUILT]` the dedicated message *"converting binary floating point to decimal captures rounding noise; use a decimal literal or a string"* |
+| `decimal(real)` | **rejected** | `EXP301`, with the dedicated message *"converting binary floating point to decimal captures rounding noise; use a decimal literal or a string"* |
 
 Two changes from §5.4's provisional list. `Decimal` is renamed **`decimal`**,
 lowercase, to match every other type name in the language — the capitalised form
@@ -487,4 +487,4 @@ October (turn 157), each pinned by a test in `test_expressions.py`:
    after the others have given the variable its type.
 3. ~~**`x in [1, 2]` with `x` a parameter was refused**.~~ **Fixed** — an open
    variable on the left of `in` takes the list's element type.
-4. The two `[NOT BUILT]` messages in §6.3 and §7.3 — still open.
+4. ~~The two missing messages in §6.3 and §7.3.~~ **Built** on 19 October.

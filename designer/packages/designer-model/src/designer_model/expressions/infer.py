@@ -18,12 +18,15 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass, field
+from itertools import pairwise
 
 from . import signatures as sig
 from .sandbox import Violation, _span, scan
 from .types import (
     BOOLEAN,
+    INTEGER,
     NUMERIC,
+    REAL,
     STRING,
     UNKNOWN,
     ExprType,
@@ -72,6 +75,9 @@ class Inferencer:
         else:
             self.bindings["value"] = value
         self.findings: list[Finding] = []
+        self.integer_divisions: set[int] = set()
+        """Nodes that divide an integer by an integer, so a later real/decimal
+        rejection can say where the real came from."""
         self.deterministic = True
         self.used: set[str] = set()
 
@@ -194,9 +200,12 @@ class Inferencer:
             return self.report(code, message, node)
         left = self.resolve(self.infer(node.left))
         right = self.resolve(self.infer(node.right))
-        return self._apply_binary(op, left, right, node)
+        # an integer-shaped literal beside an integer is one too
+        if op == "/" and settle(left) == INTEGER and settle(right) == INTEGER:
+            self.integer_divisions.add(id(node))
+        return self._apply_binary(op, left, right, node, (node.left, node.right))
 
-    def _apply_binary(self, op: str, left: ExprType, right: ExprType, node) -> ExprType:
+    def _apply_binary(self, op: str, left: ExprType, right: ExprType, node, operands=()) -> ExprType:
         if is_unknown(left) or is_unknown(right):
             return UNKNOWN
         # an untyped literal takes the other side's type
@@ -217,18 +226,26 @@ class Inferencer:
         if outcome is None:
             return self.report("EXP202", f"{left} {op} {right} has no meaning", node)
         if isinstance(outcome, sig.Reject):
-            return self.reject(outcome, node)
+            return self.reject(self._explained(outcome, operands), node)
+        return outcome
+
+    def _explained(self, outcome: sig.Reject, operands) -> sig.Reject:
+        """A real/decimal rejection says so when the real is an integer
+        division, which is the case that surprises people."""
+        if outcome is sig.MIXED_EXACTNESS and any(id(n) in self.integer_divisions for n in operands):
+            return sig.Reject(outcome.code, outcome.hint + sig.INTEGER_DIVISION)
         return outcome
 
     def _compare(self, node: ast.Compare) -> ExprType:
         # chained comparisons are one node with several comparators, and half
         # the standard library is written that way
-        operands = [self.infer(node.left)] + [self.infer(c) for c in node.comparators]
-        for op, left, right in zip(node.ops, operands, operands[1:], strict=False):
-            self._apply_comparison(op, left, right, node)
+        nodes = [node.left, *node.comparators]
+        operands = [self.infer(n) for n in nodes]
+        for op, left, right, pair in zip(node.ops, operands, operands[1:], pairwise(nodes), strict=False):
+            self._apply_comparison(op, left, right, node, pair)
         return BOOLEAN
 
-    def _apply_comparison(self, op, left: ExprType, right: ExprType, node) -> None:
+    def _apply_comparison(self, op, left: ExprType, right: ExprType, node, operands=()) -> None:
         if isinstance(op, (ast.In, ast.NotIn)):
             self._apply_membership(left, right, node)
             return
@@ -254,7 +271,7 @@ class Inferencer:
             symbol = EQUALITIES.get(type(op)) or COMPARISONS.get(type(op), "?")
             self.report("EXP202", f"{left} {symbol} {right} has no meaning", node)
         elif isinstance(outcome, sig.Reject):
-            self.reject(outcome, node)
+            self.reject(self._explained(outcome, operands), node)
 
     def _apply_membership(self, element: ExprType, container: ExprType, node) -> None:
         element, container = self.resolve(element), self.resolve(container)
@@ -331,6 +348,8 @@ class Inferencer:
         # open variable is bindable, so _match has already had its chance
         if any(is_unknown(a) for a in arguments):
             return UNKNOWN
+        if name == "decimal" and any(settle(self.resolve(a)) == REAL for a in arguments):
+            return self.reject(sig.DECIMAL_FROM_REAL, node)
         shown = ", ".join(str(a) for a in arguments)
         return self.report("EXP301", f"no signature of {name} accepts ({shown})", node)
 

@@ -1260,7 +1260,7 @@ class DesignerApp(tk.Tk):
                 messagebox.showwarning("Cannot export", outcome.headline)
                 return
             if self._findings_window is None or not self._findings_window.winfo_exists():
-                self._findings_window = FindingsWindow(self, outcome.blockers, self._go_to_finding)
+                self._findings_window = FindingsWindow(self, outcome.blockers, self._go_to_finding, self._apply_fix)
             self._findings_window.show(outcome.blockers, outcome.headline)
             self._findings_window.deiconify()
             self._findings_window.lift()
@@ -1351,11 +1351,32 @@ class DesignerApp(tk.Tk):
         )
         headline = findingview.headline(report, self.settings.finding_level)
         if self._findings_window is None or not self._findings_window.winfo_exists():
-            self._findings_window = FindingsWindow(self, rows, self._go_to_finding)
+            self._findings_window = FindingsWindow(self, rows, self._go_to_finding, self._apply_fix)
         self._findings_window.show(rows, headline)
         self._findings_window.deiconify()
         self._findings_window.lift()
         self._update_status()
+
+    def _apply_fix(self, row) -> None:
+        """Carry out a finding's one-step remedy (appendix *diagnostics* §7).
+
+        Each goes through the same path as the button it stands for — the
+        cascade prompt for membership, the slot dialog for a type — so a fix
+        is one undo step and shows what it will do first, like everything else.
+        """
+        fix = row.fix
+        if fix is None:
+            return
+        args = {k: str(v) for k, v in fix.args.items()}
+        if fix.action == "add_schema_closure":
+            self._close_schema(UUID(args["schema"]))
+        elif fix.action == "add_schema_member":
+            self.apply_membership(membership.plan_add(self.session.model, UUID(args["schema"]), UUID(args["entity"])))
+        elif fix.action == "choose_narrowing_type":
+            self._edit_slot(UUID(args["entity"]), args["slot"])
+        else:
+            return
+        self.refresh()
 
     def _go_to_finding(self, row) -> None:
         """Take the selection to what a finding is about.

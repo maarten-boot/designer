@@ -22,6 +22,7 @@ from .codes import blocks_export, severity
 from .derive import Deriver
 from .diagnostics import (
     Diagnostic,
+    FixHint,
     ItemRef,
     Kind,
     Related,
@@ -654,7 +655,29 @@ class Checker:
                     "MOD413",
                     here,
                     {**args, "chosen": self._type_arg(new), "inherited": self._type_arg(old)},
+                    fix=self._narrowing_fix(e, s, old),
                 )
+
+    def _narrowing_fix(self, e: Entity, s: Slot, old: AnyTypeRef) -> FixHint | None:
+        """A hint only when there is something to choose: a Type that narrows
+        the inherited one (appendix *diagnostics* §7). The slot dialog then
+        offers exactly those."""
+        # an unfinished Type is not a choice: its chain says nothing yet
+        narrowing = [
+            t
+            for t in self.model.types
+            if TypeRef(t.uuid) != old
+            and self.d.base_type_of(TypeRef(t.uuid)) is not None
+            and self._narrows_ref(TypeRef(t.uuid), old)
+        ]
+        if not narrowing:
+            return None
+        inherited = self.d.types[old.type_uuid].name if isinstance(old, TypeRef) else old.base_type
+        return FixHint(
+            "choose_narrowing_type",
+            f"Choose a Type that narrows {inherited}",
+            {"entity": str(e.uuid), "slot": str(s.uuid)},
+        )
 
     def _narrows_ref(self, new: AnyTypeRef, old: AnyTypeRef) -> bool:
         """Whether `new` admits no more than `old` (spec §8.1).
@@ -749,8 +772,6 @@ class Checker:
                 yield from self._check_schema_binding(sc, b, at, members)
 
     def _closure_fix(self, sc: Schema):
-        from .diagnostics import FixHint
-
         missing = self.d.closure(list(sc.members)) - set(sc.members)
         return FixHint(
             "add_schema_closure",
@@ -798,7 +819,17 @@ class Checker:
                 yield Diagnostic("MOD508", here, {**base, "slot": slot.slot_name})
                 return
             if slot.target not in members:
-                yield Diagnostic("MOD509", here, {**base, "target": ItemRef(slot.target)})
+                target = self.d.entities.get(slot.target) if slot.target else None
+                fix = (
+                    FixHint(
+                        "add_schema_member",
+                        f"Add {target.name or 'the entity'} to the schema",
+                        {"schema": str(sc.uuid), "entity": str(target.uuid)},
+                    )
+                    if target is not None
+                    else None
+                )
+                yield Diagnostic("MOD509", here, {**base, "target": ItemRef(slot.target)}, fix=fix)
             current = slot.target
 
     # --- naming -------------------------------------------------------------

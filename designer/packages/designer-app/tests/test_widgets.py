@@ -2637,3 +2637,37 @@ def test_duplicating_a_built_in_copies_it_into_the_model(app: DesignerApp, quiet
     assert len(app.session.model.validators) == before + 1
     assert app.session.model.validators[-1].name == "max_length"
     assert not [title for title, _ in quiet["info"] if title == "Not yet"]
+
+
+# --- the Fix button in the findings window ------------------------------------------
+
+
+def test_a_finding_with_a_remedy_offers_it_and_carries_it_out(app: DesignerApp, quiet: dict) -> None:
+    model = app.session.model
+    schema = next(s for s in model.schemas if s.name == "sales_schema")
+    customer = next(e for e in model.entities if e.name == "Customer")
+    schema.members = tuple(m for m in schema.members if m != customer.uuid)
+    app.settings.finding_level = "everything"
+    app.show_findings()
+    settle(app)
+    window = app._findings_window
+    row = next(r for r in window.tree.get_children() if window.tree.set(r, "code") == "MOD509")
+    window.tree.selection_set(row)
+    settle(app)
+    assert str(window.fix_button.cget("text")) == "Add Customer to the schema"
+    assert not window.fix_button.instate(["disabled"])
+    window.fix()
+    settle(app)
+    assert customer.uuid in schema.members
+    assert len(app.session.stack) == 1, "a fix is one undo step"
+
+
+def test_a_finding_without_a_remedy_offers_nothing(app: DesignerApp, quiet: dict) -> None:
+    app.settings.finding_level = "everything"
+    app.show_findings()
+    settle(app)
+    window = app._findings_window
+    row = next(r for r in window.tree.get_children() if window.tree.set(r, "code") == "MOD602")
+    window.tree.selection_set(row)
+    settle(app)
+    assert window.fix_button.instate(["disabled"])

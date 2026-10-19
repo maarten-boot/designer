@@ -193,6 +193,23 @@ def _apply_negative(picture: Numeric, shown: str) -> str:
     return body.replace("\x00", shown, 1)
 
 
+def _check_grouping(picture: Numeric, cleaned: str, text: str) -> None:
+    """Grouping marks only where the picture puts them.
+
+    Leaving one out is lenient (appendix *interfaces* §6); putting one in the
+    wrong place is not, because it changes what was meant — `1,2,3` is not
+    obviously 123, and reading it as 123 hid a typing mistake as a number.
+    """
+    whole, _, fraction = cleaned.partition(picture.decimal_point)
+    if picture.group_mark in fraction:
+        raise ParseError(f"{text!r} has a grouping separator after the decimal separator")
+    if not picture.grouping:
+        raise ParseError(f"{text!r} has grouping separators, but the picture groups nothing")
+    first, *rest = whole.split(picture.group_mark)
+    if not 1 <= len(first) <= picture.grouping or any(len(group) != picture.grouping for group in rest):
+        raise ParseError(f"{text!r} has its grouping separators in the wrong places")
+
+
 def _parse_numeric(picture: Numeric, text: str, lenient: bool):
     cleaned = text.strip() if lenient else text
     negative = False
@@ -208,6 +225,8 @@ def _parse_numeric(picture: Numeric, text: str, lenient: bool):
         whole = cleaned.partition(picture.decimal_point)[0]
         if len(whole) > picture.grouping:
             raise ParseError(f"{text!r} is missing its grouping separators")
+    if picture.group_mark and grouped:
+        _check_grouping(picture, cleaned, text)
     if picture.group_mark:
         cleaned = cleaned.replace(picture.group_mark, "")
     # to canonical form, so Decimal can read it whatever the region writes

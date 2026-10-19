@@ -13,7 +13,7 @@ from uuid import UUID
 
 from designer_model import Model, Report
 from designer_model.codes import blocks_export, definition
-from designer_model.diagnostics import Severity
+from designer_model.diagnostics import FixHint, Severity
 from designer_model.ids import short
 from designer_model.stdlib import Library
 
@@ -66,6 +66,8 @@ class FindingRow:
     kind: str
     field: str
     blocks_export: bool
+    fix: FixHint | None = None
+    """A one-step remedy, when the finding has one (appendix *diagnostics* §7)."""
 
     @property
     def cells(self) -> tuple[str, ...]:
@@ -110,6 +112,7 @@ def summarise(model: Model, report: Report, library: Library | None = None) -> l
                 item=finding.subject.item_uuid,
                 kind=type(item).__name__ if item else "",
                 field=field,
+                fix=finding.fix,
                 blocks_export=blocks_export(finding.code),
             )
         )

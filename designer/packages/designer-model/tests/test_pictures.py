@@ -304,3 +304,33 @@ def test_dates_need_no_such_setting() -> None:
     there is literal text rather than a role."""
     assert shown("date", "dd/MM/yyyy", dt.date(2026, 8, 30)) == "30/08/2026"
     assert shown("date", "dd.MM.yyyy", dt.date(2026, 8, 30)) == "30.08.2026"
+
+
+# --- grouping marks only where the picture puts them --------------------------
+
+
+@pytest.mark.parametrize("text", ["1,234.50", "1234.50", "12,345,678.9", " 1,234.50 ", "(1,234.50)", "-1,234.50"])
+def test_grouping_where_the_picture_puts_it_reads(text) -> None:
+    picture = p.compile_picture("decimal", "#,##0.00;(#,##0.00)")
+    assert abs(p.parse(picture, text)) in (Decimal("1234.50"), Decimal("12345678.9"))
+
+
+@pytest.mark.parametrize(
+    ("picture", "text", "reason"),
+    [
+        ("#,##0.00", "1,2,3", "wrong places"),
+        ("#,##0.00", "12,34.5", "wrong places"),
+        ("#,##0.00", "1,234.5,6", "after the decimal separator"),
+        ("0.00", "1,234.00", "groups nothing"),
+    ],
+)
+def test_grouping_anywhere_else_is_refused(picture, text, reason) -> None:
+    with pytest.raises(p.ParseError, match=reason):
+        p.parse(p.compile_picture("decimal", picture), text)
+
+
+def test_regional_grouping_is_checked_too() -> None:
+    german = p.compile_picture("decimal", "#,##0.00", ",", ".")
+    assert p.parse(german, "1.234,50") == Decimal("1234.50")
+    with pytest.raises(p.ParseError):
+        p.parse(german, "1.2.3")

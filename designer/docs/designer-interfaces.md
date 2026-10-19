@@ -281,8 +281,11 @@ the presented form in ways that cannot change the value:
 list implies. Whitespace around a number, padding around a string with positions,
 and a missing `+` are accepted either way; turning leniency off only makes
 grouping separators required and boolean labels case-sensitive. And in both
-modes grouping marks are never checked for position — `1,2,3` reads as `123`.
-That last is a gap rather than a choice, and the first thing to tighten.
+modes grouping marks are checked for position (since 19 October; they used not
+to be, and `1,2,3` read as `123`): a mark may only stand where the picture puts
+one, never after the decimal separator, and not at all in a picture that groups
+nothing. Leaving marks out stays lenient; putting one in the wrong place is
+refused, because it changes what was meant.
 
 Anything else fails to parse, and a parse failure is *not* a validation failure:
 the application has nothing to hand to the validators, so it reports the input

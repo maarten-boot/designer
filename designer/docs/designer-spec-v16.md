@@ -1352,10 +1352,6 @@ where it is specified:
 
 - the JSON tab and the Validator operand picker (§13.6);
 - refusing a Context move that would hide an item from what uses it (§10.1);
-- fix hints for `MOD509` and `MOD413` (appendix *diagnostics* §7);
-- two dedicated diagnostic messages (appendix *signature table* §12; its three
-  type-inference gaps were fixed on 19 October);
-- grouping marks checked for position when parsing (appendix *interfaces* §6).
 
 One question is open rather than unbuilt: whether a Context move is refused or
 allowed and reported (§10.1). Shadowing a built-in was the other, decided in

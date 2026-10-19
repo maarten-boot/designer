@@ -315,7 +315,11 @@ window says which, about what, and in words. Double-clicking a finding takes the
 selection to the item — including its context, since the item may well be
 somewhere the columns are not currently looking.
 
-A list left open follows the model rather than going stale.
+A list left open follows the model rather than going stale. A finding with a
+one-step remedy — add the missing entities, add the entity a path needs, choose
+a Type that narrows — offers it on a **Fix** button named for what it does; it
+goes through the same prompt and dialog as the form's own button, and is one
+undo step.
 
 **View ▸ Findings shown** sets how much appears: errors only, warnings and
 errors (the default), unfinished items too, or everything including notes. The

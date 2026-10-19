@@ -50,6 +50,19 @@ MIXED_EXACTNESS = Reject(
     "the decimal's exactness. Convert explicitly with float(...) if that is the intent.",
 )
 
+INTEGER_DIVISION = (
+    " Here the real comes from dividing two integers: integer division produces "
+    "a real; use % or compare against a real."
+)
+"""Added to MIXED_EXACTNESS when one side is an integer divided by an integer —
+`(a / b) < price` reads as exact arithmetic and is not (signature table §6.3)."""
+
+DECIMAL_FROM_REAL = Reject(
+    "EXP301",
+    "decimal(real): converting binary floating point to decimal captures rounding "
+    "noise; use a decimal literal or a string",
+)
+
 # +, -, * over the nine numeric pairs
 ARITHMETIC: dict[tuple[str, str], Scalar | Reject] = {
     ("integer", "integer"): INTEGER,

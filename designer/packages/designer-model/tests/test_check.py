@@ -635,3 +635,36 @@ def test_a_composite_that_does_not_parse_is_reported(model) -> None:
 def test_an_unfinished_validator_says_nothing_yet(model) -> None:
     _authored(model, "later", "")
     assert not [f for f in check(model).findings if f.code.startswith("EXP")]
+
+
+# --- fix hints (appendix diagnostics §7) -------------------------------------------
+
+
+def test_a_path_leaving_the_schema_offers_to_add_the_entity(model) -> None:
+    schema = by_name(model.schemas, "sales_schema")
+    customer = by_name(model.entities, "Customer")
+    schema.members = tuple(m for m in schema.members if m != customer.uuid)
+    (finding,) = _findings(model, "MOD509")
+    assert finding.fix.action == "add_schema_member"
+    assert finding.fix.args == {"schema": str(schema.uuid), "entity": str(customer.uuid)}
+    assert finding.fix.label == "Add Customer to the schema"
+
+
+def test_a_widening_override_offers_a_narrowing_type_when_there_is_one(model) -> None:
+    slot = next(s for s in by_name(model.entities, "OrderLine").slots if s.slot_name == "line_total")
+    slot.type_override = by_name(model.types, "ShortText").uuid  # inherits Money; PositiveMoney narrows it
+    (finding,) = _findings(model, "MOD413")
+    assert finding.fix.action == "choose_narrowing_type"
+    assert finding.fix.label == "Choose a Type that narrows Money"
+
+
+def test_no_hint_when_nothing_narrows(model) -> None:
+    from dataclasses import replace
+
+    line = by_name(model.entities, "OrderLine")
+    child = replace(line, uuid=uuid4(), name="BulkLine", abstract=False, extends=line.uuid, slots=[], validators=[])
+    quantity = next(s for s in line.slots if s.slot_name == "quantity")  # a plain integer: no Type narrows it
+    child.slots = [replace(quantity, uuid=uuid4(), type_override=by_name(model.types, "ShortText").uuid, default=None)]
+    model.entities.append(child)
+    (finding,) = _findings(model, "MOD413")
+    assert finding.fix is None

@@ -208,9 +208,11 @@ stays free of UI, and the mapping lives where the command stack does.
 
 Populate it for the few findings with a genuine one-step remedy: unclosed Schema
 (§9.2), a path entity that is not a member (§9.3), a widening override where a
-narrowing Type exists. Leave it `None` everywhere else. `[NOT BUILT]` Only the
-first exists — `MOD503` carries `add_schema_closure`; `MOD509` and `MOD413` have
-no hint yet. It is cheap now and
+narrowing Type exists. Leave it `None` everywhere else. Built: `MOD503` carries
+`add_schema_closure`, `MOD509` `add_schema_member` (the entity the path needs),
+and `MOD413` `choose_narrowing_type` — only when a finished Type that narrows
+exists, since otherwise there is nothing to choose. The findings window offers
+the hint on a **Fix** button named for what it does. It is cheap now and
 awkward to retrofit, because retrofitting means revisiting every rule.
 
 Whatever a hint triggers must be **one command** (§13.8) — a fix the user has to

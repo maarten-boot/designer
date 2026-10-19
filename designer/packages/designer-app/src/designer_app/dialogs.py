@@ -60,11 +60,12 @@ class FindingsWindow(tk.Toplevel):
     to show it rather than a count.
     """
 
-    def __init__(self, parent: tk.Misc, rows, on_open) -> None:
+    def __init__(self, parent: tk.Misc, rows, on_open, on_fix=None) -> None:
         super().__init__(parent)
         self.title("Model findings")
         self.geometry("900x420")
         self._on_open = on_open
+        self._on_fix = on_fix
 
         top = ttk.Frame(self, padding=(10, 10, 10, 4))
         top.pack(fill="x")
@@ -99,6 +100,12 @@ class FindingsWindow(tk.Toplevel):
         self.tree.bind("<Control-c>", lambda _e: self.copy(selected_only=True))
         buttons = ttk.Frame(self, padding=(12, 0, 12, 8))
         buttons.pack(fill="x")
+        # a finding with a one-step remedy offers it here, named for what it
+        # does; one press is one undo step, like any other action
+        self.fix_button = ttk.Button(buttons, text="Fix", command=self.fix)
+        self.fix_button.pack(side="left")
+        self.fix_button.state(["disabled"])
+        self.tree.bind("<<TreeviewSelect>>", lambda _e: self._offer_fix(), add="+")
         ttk.Button(buttons, text="Copy all", command=self.copy).pack(side="right")
         ttk.Button(buttons, text="Copy selected", command=lambda: self.copy(selected_only=True)).pack(
             side="right", padx=(0, 6)
@@ -137,11 +144,30 @@ class FindingsWindow(tk.Toplevel):
         for row in rows:
             self.tree.insert("", "end", iid=row.id, values=row.cells, tags=(row.marker,))
         self._summary.configure(text=headline or ("nothing to report" if not rows else f"{len(rows)} findings"))
+        self._offer_fix()
 
     def _open(self, _event: object = None) -> None:
         chosen = self.tree.selection()
         if chosen and chosen[0] in self._rows:
             self._on_open(self._rows[chosen[0]])
+
+    def _selected(self):
+        chosen = self.tree.selection()
+        return self._rows.get(chosen[0]) if chosen else None
+
+    def _offer_fix(self) -> None:
+        row = self._selected()
+        if row is not None and row.fix is not None and self._on_fix is not None:
+            self.fix_button.configure(text=row.fix.label)
+            self.fix_button.state(["!disabled"])
+        else:
+            self.fix_button.configure(text="Fix")
+            self.fix_button.state(["disabled"])
+
+    def fix(self) -> None:
+        row = self._selected()
+        if row is not None and row.fix is not None and self._on_fix is not None:
+            self._on_fix(row)
 
 
 class TestBenchWindow(tk.Toplevel):
