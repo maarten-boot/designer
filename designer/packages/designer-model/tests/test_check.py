@@ -524,3 +524,114 @@ def _mutate_path(m):
 def test_the_example_notes_mutations_produce_what_they_say(model, mutate, expected) -> None:
     mutate(model)
     assert new_codes(model) == expected
+
+
+# --- the checks added on 19 October -----------------------------------------------
+
+
+def _findings(model, code):
+    return [f for f in check(model).findings if f.code == code]
+
+
+def test_a_misspelled_base_type_is_reported(model) -> None:
+    from designer_model.model import BaseTypeRef
+
+    by_name(model.types, "ShortText").parent = BaseTypeRef("strng")
+    by_name(model.properties, "quantity").type = BaseTypeRef("integr")
+    found = _findings(model, "MOD114")
+    assert sorted(f.args["name"] for f in found) == ["integr", "strng"]
+    assert "integer" in found[0].args["known"]
+
+
+def test_a_default_of_the_wrong_base_type_is_refused(model) -> None:
+    from designer_model.literals import ScalarLiteral
+
+    quantity = next(s for s in by_name(model.entities, "OrderLine").slots if s.slot_name == "quantity")
+    quantity.default = ScalarLiteral("string", "one")
+    (finding,) = _findings(model, "MOD415")
+    assert finding.args["reason"] == "is a string, but the slot holds integer"
+
+
+def test_a_default_the_type_refuses_is_reported_with_the_rule(model) -> None:
+    from decimal import Decimal
+
+    from designer_model.literals import ScalarLiteral
+
+    line_total = next(s for s in by_name(model.entities, "OrderLine").slots if s.slot_name == "line_total")
+    line_total.default = ScalarLiteral("decimal", Decimal("0.00"))  # PositiveMoney: positive
+    (finding,) = _findings(model, "MOD415")
+    assert finding.args["reason"] == "the slot's type refuses (positive)"
+
+
+def test_a_default_the_type_admits_says_nothing(model) -> None:
+    # Order.total defaults to 0.00 on Money, which allows zero
+    assert _findings(model, "MOD415") == []
+
+
+def test_a_default_is_not_blamed_for_a_rule_that_cannot_answer(model) -> None:
+    from decimal import Decimal
+
+    from designer_model.literals import ScalarLiteral
+
+    money = by_name(model.types, "Money")
+    money.validators.append(Binding(uuid=uuid4(), validator=builtin_id("max_value")))  # no `max`: MOD108
+    total = next(s for s in by_name(model.entities, "Order").slots if s.slot_name == "total")
+    total.default = ScalarLiteral("decimal", Decimal("1.00"))
+    assert _findings(model, "MOD415") == []
+    assert _findings(model, "MOD108")
+
+
+def test_an_override_may_not_retarget_a_reference(model) -> None:
+    from dataclasses import replace
+
+    line = by_name(model.entities, "OrderLine")
+    child = replace(line, uuid=uuid4(), name="ReturnLine", abstract=False, extends=line.uuid, slots=[], validators=[])
+    order = next(s for s in line.slots if s.slot_name == "order")
+    child.slots = [replace(order, uuid=uuid4(), target=by_name(model.entities, "Customer").uuid)]
+    model.entities.append(child)
+    (finding,) = _findings(model, "MOD416")
+    assert finding.args["inherited"] == ItemRef(by_name(model.entities, "Order").uuid)
+
+
+def _authored(model, name, expression, kind="leaf", parameters=()):
+    from designer_model.model import Validator
+
+    v = Validator(
+        uuid=uuid4(),
+        name=name,
+        description="",
+        created=model.validators[0].created,
+        modified=model.validators[0].modified,
+        context=model.contexts[0].uuid,
+        kind=kind,
+        parameters=tuple(parameters),
+        expression=expression,
+    )
+    model.validators.append(v)
+    return v
+
+
+def test_a_broken_validator_is_reported_though_nothing_uses_it(model) -> None:
+    broken = _authored(model, "broken", "len(value) <=")
+    (finding,) = _findings(model, "EXP112")
+    assert finding.subject.item_uuid == broken.uuid
+    assert str(finding.subject).endswith(".expression")
+
+
+def test_a_broken_validator_is_reported_once_however_many_use_it(model) -> None:
+    unused = _authored(model, "too_many", "len(value) > 0", parameters=("spare",))
+    for type_name in ("ShortText", "CountryCode"):
+        by_name(model.types, type_name).validators.append(Binding(uuid=uuid4(), validator=unused.uuid))
+    found = _findings(model, "EXP404")
+    assert len(found) == 1 and found[0].subject.item_uuid == unused.uuid
+
+
+def test_a_composite_that_does_not_parse_is_reported(model) -> None:
+    leaf = by_name(model.validators, "is_order_number")
+    _authored(model, "dangling", f"{leaf.uuid} AND", kind="composite")
+    assert len(_findings(model, "EXP112")) == 1
+
+
+def test_an_unfinished_validator_says_nothing_yet(model) -> None:
+    _authored(model, "later", "")
+    assert not [f for f in check(model).findings if f.code.startswith("EXP")]

@@ -117,6 +117,14 @@ _ALL = [
         "the expression of {item} names {target}, which does not exist",
         blocks_export=True,
     ),
+    _d(
+        "MOD114",
+        Severity.ERROR,
+        Scope.ITEM,
+        "Unknown base type",
+        "{field} names the base type {name}, which does not exist \u2014 the base types are {known}",
+        blocks_export=True,
+    ),
     # --- MOD2xx  cycles -----------------------------------------------------
     _d(
         "MOD201",
@@ -294,6 +302,23 @@ _ALL = [
         Scope.ITEM,
         "Rule bound to a reference slot",
         "a rule in {item} binds {slot}, a reference slot with no value to test",
+        blocks_export=True,
+    ),
+    _d(
+        "MOD415",
+        Severity.ERROR,
+        Scope.ITEM,
+        "Default not admitted",
+        "slot {slot} defaults to {value}, which {reason}",
+        blocks_export=True,
+    ),
+    _d(
+        "MOD416",
+        Severity.ERROR,
+        Scope.ITEM,
+        "Reference retargeted",
+        "slot {slot} points at {chosen}, but the slot it overrides points at {inherited} \u2014 "
+        "a reference's target may not change in an override",
         blocks_export=True,
     ),
     # --- MOD5xx  schemas ----------------------------------------------------

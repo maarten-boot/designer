@@ -31,14 +31,17 @@ from .diagnostics import (
     TextSpan,
 )
 from .expressions import check_leaf
+from .expressions.composite import ParseError
+from .expressions.composite import parse as parse_composite
 from .expressions.evaluate import EvaluationError, evaluate_composite, evaluate_leaf
 from .expressions.sandbox import reads_clock
-from .expressions.tokens import unresolved_names
+from .expressions.tokens import UUID_PATTERN, unresolved_names
 from .expressions.types import UNKNOWN, ExprType, ListOf, Scalar
 from .ids import builtin_id
-from .literals import ListLiteral, ScalarLiteral
+from .literals import BASE_TYPES, ListLiteral, ScalarLiteral
 from .model import (
     AnyTypeRef,
+    BaseTypeRef,
     Binding,
     Context,
     Entity,
@@ -262,10 +265,44 @@ class Checker:
             return
         for leaf in self._leaf_expressions(validator):
             result = check_leaf(leaf.expression, value, tuple(leaf.parameters))
+            # what is wrong whatever the value is reported once, on the
+            # validator itself (_check_own_expression); a binding reports only
+            # what its own value adds
+            own = self._own_findings(leaf)
             for finding in result.findings:
+                if (finding.code, finding.message, finding.start, finding.end) in own:
+                    continue
                 span = TextSpan(finding.start, finding.end)
                 yield Diagnostic(finding.code, at, {"message": finding.message}, span=span)
             yield from self._check_arguments(binding, result, at)
+
+    def _own_findings(self, leaf) -> set[tuple[str, str, int, int]]:
+        """What an authored leaf expression gets wrong before anything is bound
+        to it. Built-ins are tested by their own examples and report nothing."""
+        if leaf.uuid in self.library or not leaf.expression.strip():
+            return set()
+        result = check_leaf(leaf.expression, UNKNOWN, tuple(leaf.parameters))
+        return {(f.code, f.message, f.start, f.end) for f in result.findings}
+
+    def _check_own_expression(self, v, at: Subject) -> Iterator[Diagnostic]:
+        """A rule's own expression, checked where it is written, whether or not
+        anything binds it yet — a broken validator used to go unreported until
+        something used it, and a composite that did not parse never was.
+
+        Checked with `value` unknown, so what is reported here is what is wrong
+        whatever the value turns out to be: syntax, forbidden constructs,
+        unknown functions, unused parameters. An empty expression is an item
+        not finished yet, and says nothing."""
+        if not v.expression.strip():
+            return
+        if v.is_composite:
+            try:
+                parse_composite(UUID_PATTERN.sub("operand", v.expression))
+            except ParseError as error:
+                yield Diagnostic("EXP112", at, {"message": f"cannot parse: {error.message}"})
+            return
+        for code, message, start, end in sorted(self._own_findings(v), key=lambda f: (f[2], f[0])):
+            yield Diagnostic(code, at, {"message": message}, span=TextSpan(start, end))
 
     def _check_arguments(self, binding: Binding, result, at: Subject):
         """A supplied literal must fit the type inference concluded for its
@@ -291,6 +328,8 @@ class Checker:
             at = self._subject(t)
             if t.parent is None:
                 yield Diagnostic("MOD101", at.then("parent"), {"item": ItemRef(t.uuid)})
+            elif isinstance(t.parent, BaseTypeRef):
+                yield from self._check_base_type(t.parent, at.then("parent"), "parent")
             elif isinstance(t.parent, TypeRef):
                 if not self._exists(t.parent.type_uuid):
                     yield Diagnostic(
@@ -308,6 +347,18 @@ class Checker:
                 yield Diagnostic("MOD102", at.then("type"), {"item": ItemRef(p.uuid)})
             elif isinstance(p.type, TypeRef) and not self._exists(p.type.type_uuid):
                 yield Diagnostic("MOD111", at.then("type"), {"field": "type", "target": ItemRef(p.type.type_uuid)})
+            elif isinstance(p.type, BaseTypeRef):
+                yield from self._check_base_type(p.type, at.then("type"), "type")
+
+    @staticmethod
+    def _check_base_type(ref: BaseTypeRef, at: Subject, field: str) -> Iterator[Diagnostic]:
+        """A base type is referred to by name (spec §4), and a name can be
+        misspelled — `integr` would otherwise make a chain that reaches
+        nothing, quietly."""
+        if ref.base_type not in BASE_TYPES:
+            yield Diagnostic(
+                "MOD114", at, {"field": field, "name": ref.base_type, "known": ", ".join(sorted(BASE_TYPES))}
+            )
 
     def _check_interfaces(self) -> Iterator[Diagnostic]:
         """A picture is checked when it is written, not when a form renders."""
@@ -420,6 +471,48 @@ class Checker:
                     found.append(literal.value)
         return min(found) if found else None
 
+    def _check_default(self, s: Slot, here: Subject) -> Iterator[Diagnostic]:
+        """A default must be a value of the slot's own type (spec §8.1): the
+        right base type, and passing the Type's rules. A rule that cannot
+        answer is not counted against it — that is reported where the rule is."""
+        literal = s.default
+        ref = self.d.slot_type(s)
+        base = self.d.base_type_of(ref)
+        if base is None or not isinstance(literal, ScalarLiteral):
+            return
+        shown = str(literal.value) if not isinstance(literal.value, str) else repr(literal.value)
+        args = {"slot": s.slot_name, "value": shown}
+        if literal.base_type != base:
+            yield Diagnostic("MOD415", here, {**args, "reason": f"is a {literal.base_type}, but the slot holds {base}"})
+            return
+        if isinstance(ref, TypeRef) and ref.type_uuid in self.d.types:
+            refused = self._refusals(self.d.types[ref.type_uuid], literal.value)
+            if refused:
+                yield Diagnostic("MOD415", here, {**args, "reason": f"the slot's type refuses ({', '.join(refused)})"})
+
+    def _refusals(self, item: Type, value) -> list[str]:
+        """The rules along the chain that answer no for `value`. Unlike
+        `_admits`, a rule that cannot answer is left out rather than counted:
+        here a refusal is reported as an error, so it has to be a real one."""
+        out: list[str] = []
+        for uuid in self.d.type_chain(item.uuid):
+            owner = self.d.types.get(uuid)
+            for b in owner.validators if owner else ():
+                validator = self._validator_of(b.validator) if b.validator else None
+                if validator is None:
+                    continue
+                arguments = {
+                    k: list(a.literal.values) if isinstance(a.literal, ListLiteral) else a.literal.value
+                    for k, a in b.arguments.items()
+                    if isinstance(a, LiteralArg)
+                }
+                try:
+                    if not self._verdict(validator, value, arguments, 0):
+                        out.append(validator.name)
+                except EvaluationError:
+                    continue
+        return out
+
     def _admits(self, item: Type, value) -> bool:
         """Whether every rule along the Type's chain passes for `value`.
 
@@ -465,6 +558,7 @@ class Checker:
             at = self._subject(v)
             if v.name and v.name in self.library.names:
                 yield Diagnostic("MOD304", at.then("name"), {"name": v.name})
+            yield from self._check_own_expression(v, at.then("expression"))
             if v.is_composite:
                 for operand in operand_uuids(v.expression):
                     if not self._exists(operand):
@@ -512,6 +606,8 @@ class Checker:
                     yield Diagnostic("MOD103", here, args)
                 elif not self._exists(s.property):
                     yield Diagnostic("MOD111", here, {"field": f"slots.{s.slot_name}", "target": ItemRef(s.property)})
+                elif s.default is not None:
+                    yield from self._check_default(s, here)
             else:
                 if s.target is None:
                     yield Diagnostic("MOD104", here, args)
@@ -543,6 +639,12 @@ class Checker:
             return
         if inherited.required and not s.required:
             yield Diagnostic("MOD412", here, args)
+        if s.is_reference and s.target is not None and inherited.target is not None and s.target != inherited.target:
+            # a narrower target would still be a different table: under flat
+            # materialization a foreign key cannot be narrowed (spec §8.1)
+            yield Diagnostic(
+                "MOD416", here, {**args, "chosen": ItemRef(s.target), "inherited": ItemRef(inherited.target)}
+            )
         if s.is_value:
             new, old = self.d.slot_type(s), self.d.slot_type(inherited)
             if new is not None and old is not None and new != old and not self._narrows_ref(new, old):

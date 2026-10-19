@@ -546,12 +546,13 @@ cost.
 - The slot kind may not change.
 - `type_override` must narrow the inherited Type (§6). Widening is rejected (`MOD413`), including over a base type: an inherited `integer` admits only a Type built on `integer`. A `type_override` on a slot that inherits nothing is `MOD408`.
 - `required` may go false → true, not true → false.
-- `default` may be replaced, and must satisfy the narrowed Type. `[NOT BUILT]` No
-  default is checked yet, overridden or not: a string default on an integer slot
-  is silent.
-- A **reference slot's target may not be narrowed**. `[NOT BUILT]` Not checked;
-  redeclaring a reference with another target is silent. Both need codes of
-  their own.
+- `default` may be replaced, and must satisfy the narrowed Type — every default
+  does, overridden or not: the slot's base type, and the Type's rules (`MOD415`,
+  naming the rules that refuse it). A rule that cannot answer is not counted
+  against a default; it is reported where the rule is.
+- A **reference slot's target may not be narrowed** (`MOD416`): an override
+  that points a reference anywhere else is an error, since under flat
+  materialization a foreign key to a narrower table is a different key.
 
 Because each concrete table is flat, a narrowed slot's constraints are the
 constraints on that table's own column — which is why narrowing works here and
@@ -925,8 +926,10 @@ bindings that leave an argument unset (`MOD108`; on an Entity or a Schema that
 includes `value`).
 
 **Errors** — dangling references; Type parent cycles, Entity extension cycles,
-Validator cycles; expression parse failures; unresolved or deleted composite
-operands; **a built-in referenced by UUID that this library version does not
+Validator cycles; expression parse failures — reported on the Validator itself,
+whether or not anything binds it, and once rather than at every use;
+unresolved or deleted composite operands; a base type named that does not exist
+(`MOD114`); **a built-in referenced by UUID that this library version does not
 have**, naming the required version (§5.7); binding type errors, including
 non-homogeneous or mistyped list literals (§5.6); a narrowing override whose
 inherited slot no longer exists; abstract Entity as a Schema member; Schema
@@ -934,8 +937,9 @@ member not visible from the Schema's Context; Schema validator anchor that is no
 a member; path entity that is not a member; unresolvable paths, paths ending on a
 reference slot, paths exceeding four segments; Entity validator bound to a
 reference slot; reference slot targeting an abstract Entity or one without
-identity; slot overrides that widen; `set_null` on a required slot; duplicate
-names.
+identity; slot overrides that widen, or retarget a reference (`MOD416`); a
+slot default its type does not admit (`MOD415`); `set_null` on a required slot;
+duplicate names.
 
 **Warnings** — Schema not closed, naming each outward reference; **a Type or
 Entity binding to a non-deterministic Validator**, which no CHECK constraint can
@@ -1348,7 +1352,6 @@ where it is specified:
 
 - the JSON tab and the Validator operand picker (§13.6);
 - refusing a Context move that would hide an item from what uses it (§10.1);
-- checking an overridden slot's `default` and a reference slot's target (§8.1);
 - fix hints for `MOD509` and `MOD413` (appendix *diagnostics* §7);
 - two dedicated diagnostic messages (appendix *signature table* §12; its three
   type-inference gaps were fixed on 19 October);
