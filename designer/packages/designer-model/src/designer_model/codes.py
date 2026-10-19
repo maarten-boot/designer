@@ -206,7 +206,7 @@ _ALL = [
     ),
     _d(
         "MOD403",
-        Severity.ERROR,
+        Severity.INCOMPLETE,  # make the reference first, give the target an identity after (spec §8.3)
         Scope.ITEM,
         "Target has no identity",
         "slot {slot} points at {target}, which has no identity to reference",
@@ -471,6 +471,15 @@ _ALL = [
         "a rule in {item} asks for database enforcement, which nothing generates yet",
     ),
     _d("MOD604", Severity.INFO, Scope.MODEL, "In no schema", "{item} is concrete but belongs to no schema"),
+    _d(
+        "MOD605",
+        Severity.ERROR,
+        Scope.ITEM,
+        "Clock rule marked for the database",
+        "a rule in {item} binds {validator}, which reads the clock, with enforcement database \u2014 "
+        "such a rule can only be the application's",
+        blocks_export=True,
+    ),
     # --- LIB1xx  the standard library ---------------------------------------
     _d(
         "LIB101",

@@ -212,6 +212,12 @@ class _Judge:
             passed = evaluate_composite(validator.expression, answer)
         except EvaluationError as error:
             return Verdict(validator.name, origin, UNANSWERED, str(error), tuple(operands))
+        if not passed and not (message or validator.message):
+            # no message of its own: report the operands that failed (spec
+            # §5.5), or — when a negation failed because an operand passed —
+            # the operands that should not have
+            failed = [o.detail or o.rule for o in operands if o.outcome == FAIL]
+            failure = "; ".join(failed) or "must not: " + ", ".join(o.rule for o in operands if o.outcome == PASS)
         return Verdict(validator.name, origin, PASS if passed else FAIL, "" if passed else failure, tuple(operands))
 
     def binding(self, b: Binding, value: Any, origin: str) -> Verdict:

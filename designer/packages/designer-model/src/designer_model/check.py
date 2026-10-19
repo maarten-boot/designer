@@ -196,7 +196,9 @@ class Checker:
         yield from self._check_argument_kinds(owner, binding, at)
         yield from self._check_patterns(binding, at)
         yield from self._check_expression(binding, self._binding_value(owner, binding), at)
-        if not self._deterministic(binding.validator):
+        # a cross-entity rule is the application's whatever it reads (spec
+        # §9.4), so "no check constraint can carry this" says nothing there
+        if not self._deterministic(binding.validator) and not isinstance(owner, Schema):
             yield Diagnostic("MOD602", at, {"item": ItemRef(owner.uuid), "validator": ItemRef(binding.validator)})
 
     def _deterministic(self, validator_uuid: UUID, depth: int = 0) -> bool:
@@ -837,7 +839,12 @@ class Checker:
         if b.anchor not in members:
             yield Diagnostic("MOD504", here, {"item": ItemRef(sc.uuid), "target": ItemRef(b.anchor)})
         if b.enforcement == "database":
-            yield Diagnostic("MOD603", here, {"item": ItemRef(sc.uuid)})
+            if b.validator is not None and not self._deterministic(b.validator):
+                # locked to the application (spec §5.7): no trigger can enforce
+                # a rule that reads the clock
+                yield Diagnostic("MOD605", here, {"item": ItemRef(sc.uuid), "validator": ItemRef(b.validator)})
+            else:
+                yield Diagnostic("MOD603", here, {"item": ItemRef(sc.uuid)})
         for param, arg in b.arguments.items():
             path = getattr(arg, "path", None)
             if path is None:

@@ -357,3 +357,12 @@ def test_the_broken_example_is_blocked_by_what_it_is_built_to_show():
     assert all(f.fix is not None for f in blockers)
     export_schema(m, named(m.schemas, "support_schema").uuid)  # untouched, still exports
     assert sorted(check(m).codes) == ["MOD101", "MOD413", "MOD503", "MOD509", "MOD601", "MOD601", "MOD602"]
+
+
+def test_a_composite_without_a_message_says_what_its_operands_say(model):
+    """Spec §5.5: no message of its own, so the export builds one — all of an
+    AND, any of an OR — from the operands' own."""
+    reference = named(model.validators, "order_reference")  # is_order_number OR is_uuid
+    reference.message = ""
+    rule = column(export(model), "Order", "order_number")["check"][0]
+    assert rule["message"] == "must look like ORD-000123, or must be a UUID"

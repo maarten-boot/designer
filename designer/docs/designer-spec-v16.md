@@ -300,7 +300,10 @@ checker already performs, with a rejection list attached. Both are v1.
 
 If a composite has its own `message`, report only that. Otherwise report the
 operands that contributed to the failure — for `AND`, the failing operands; for
-`OR`, all of them; for `NOT`, a negated form — each named per §5.3.
+`OR`, all of them; for `NOT`, a negated form — each named per §5.3. Built: the
+test bench reports the operands that failed for the value it was given; the
+export, which cannot know the value, writes the static form — all of an `AND`
+joined by `; `, any of an `OR` by `, or `, `not (…)` before a negation.
 
 A **binding may override the message** (§5.6), which takes precedence over the
 Validator's own.
@@ -437,8 +440,11 @@ A binding to a non-deterministic Validator **cannot be enforced by the database*
 PostgreSQL rejects non-immutable functions inside a CHECK constraint, so this is
 a real database rule rather than an invented one. Therefore:
 
-- A **Schema** binding has its `enforcement` locked to `application` (§9.4), with
-  the reason shown.
+- A **Schema** binding has its `enforcement` locked to `application` (§9.4). The
+  form never offers another; a file that says `database` for such a rule is an
+  error (`MOD605`). It gets no `MOD602`: a cross-entity rule is the
+  application's whatever it reads, so "no check constraint can carry this" says
+  nothing there.
 - A **Type or Entity** binding has no enforcement flag, so instead it is excluded
   from CHECK generation on export and reported as a warning (§11.6): the rule is
   real, but only application code can enforce it.
@@ -935,7 +941,8 @@ codes in each — the Interface checks (`INT`) among them.
 **Incomplete** — unset Type parent, unset Property type, unset slot Property or
 target, unset validator anchor, blank names, a binding that names no validator
 (`MOD107`) or leaves an argument unset (`MOD108`; on an Entity or a Schema that
-includes `value`), a concrete Entity with no identity (`MOD406`), an Interface
+includes `value`), a concrete Entity with no identity (`MOD406`) and a reference
+to one (`MOD403` — the reference can be made first, §8.3), an Interface
 with no base type or picture (`INT101`, `INT102`).
 
 **Errors** — dangling references; Type parent cycles, Entity extension cycles,
@@ -949,8 +956,8 @@ inherited slot no longer exists; abstract Entity as a Schema member; Schema
 member not visible from the Schema's Context; Schema validator anchor that is not
 a member; path entity that is not a member; unresolvable paths, paths ending on a
 reference slot, paths exceeding four segments; Entity validator bound to a
-reference slot; reference slot targeting an abstract Entity or one without
-identity; a rule argument of the wrong kind for its site (`MOD417`); a pattern
+reference slot; reference slot targeting an abstract Entity; a clock rule marked
+for the database (`MOD605`); a rule argument of the wrong kind for its site (`MOD417`); a pattern
 that does not compile (`EXP305`); slot overrides that widen, or retarget a
 reference (`MOD416`); a
 slot default its type does not admit (`MOD415`); `set_null` on a required slot;

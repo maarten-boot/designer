@@ -158,3 +158,12 @@ def test_a_pattern_that_never_finishes_is_stopped(model):
 def test_a_trial_survives_the_trip_between_processes(model):
     trial = bench.try_value(model, type_named(model, "ShortText"), " Ada")
     assert bench._from_wire(bench._to_wire(trial)) == trial
+
+
+def test_a_failing_composite_without_a_message_names_what_failed(model):
+    reference = next(v for v in model.validators if v.name == "order_reference")
+    reference.message = ""
+    trial = bench.try_value(model, type_named(model, "OrderNumber"), "nonsense")
+    (verdict,) = trial.verdicts
+    assert verdict.outcome == FAIL
+    assert verdict.detail == "must look like ORD-000123; must be a UUID"

@@ -1146,3 +1146,19 @@ new commit, for the tag to be moved onto it, as was done for 0.2.0.
 
 > commit it
 
+## 184.
+
+> i pushed it
+
+## 185.
+
+> any open items todo ?
+
+## 186.
+
+> do the small improvements
+
+## 187.
+
+> yes commit it
+

@@ -701,3 +701,30 @@ def test_a_pattern_argument_that_does_not_compile_is_reported(model) -> None:
     )
     (finding,) = _findings(model, "EXP305")
     assert "pattern" in finding.args["message"]
+
+
+# --- the small improvements of 20 October -----------------------------------------
+
+
+def test_a_cross_entity_rule_that_reads_the_clock_is_not_warned_about(model) -> None:
+    """MOD602 says no check constraint can carry a rule; a Schema rule is the
+    application's anyway (spec §9.4), so there it says nothing."""
+    sales = by_name(model.schemas, "sales_schema")
+    sales.validators[0].validator = builtin_id("in_past")
+    sales.validators[0].arguments = {"value": sales.validators[0].arguments["value"]}
+    assert [f.subject.item_kind.value for f in _findings(model, "MOD602")] == ["Entity"]  # Auditable's, as before
+
+
+def test_a_clock_rule_marked_for_the_database_is_refused(model) -> None:
+    sales = by_name(model.schemas, "sales_schema")
+    sales.validators[0].validator = builtin_id("in_past")
+    sales.validators[0].arguments = {"value": sales.validators[0].arguments["value"]}
+    sales.validators[0].enforcement = "database"
+    assert len(_findings(model, "MOD605")) == 1
+    assert _findings(model, "MOD603") == []
+    assert definition("MOD605").severity is Severity.ERROR and blocks_export("MOD605")
+
+
+def test_a_target_without_identity_is_unfinished_not_wrong() -> None:
+    assert definition("MOD403").severity is Severity.INCOMPLETE
+    assert blocks_export("MOD403")

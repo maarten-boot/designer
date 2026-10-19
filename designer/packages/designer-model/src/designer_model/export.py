@@ -437,7 +437,11 @@ class _Exporter:
         literals = {k: a.literal for k, a in b.arguments.items() if isinstance(a, LiteralArg)}
         substitutions = {**{k: _source(v) for k, v in literals.items()}, **names}
         expression = self._expand(validator, substitutions, 0)
-        message = (b.message or validator.message).format_map(_Keep({k: _plain(v) for k, v in literals.items()}))
+        plain = _Keep({k: _plain(v) for k, v in literals.items()})
+        if b.message or validator.message:
+            message = (b.message or validator.message).format_map(plain)
+        else:
+            message = self._composite_message(validator, plain, 0)
         return {
             "rule": validator.name,
             **({"arguments": {k: encode(v) for k, v in literals.items()}} if literals else {}),
@@ -448,6 +452,40 @@ class _Exporter:
 
     def _validator(self, uuid: UUID) -> Validator | None:
         return self.library.get(uuid) or self.validators.get(uuid)
+
+    def _composite_message(self, validator: Validator, plain: dict, depth: int) -> str:
+        """What a composite with no message of its own says, built from its
+        operands (spec §5.5): all of an `AND`, any of an `OR`, `not` before a
+        negation. A static form of what the bench reports for one failing
+        value: the export cannot know which operands will fail."""
+        if not validator.is_composite or depth > MAX_DEPTH:
+            return validator.message.format_map(plain) if validator.message else validator.name
+        if validator.message:
+            return validator.message.format_map(plain)
+        operands: dict[str, UUID] = {}
+
+        def placeholder(match: re.Match[str]) -> str:
+            name = f"_operand{len(operands)}"
+            operands[name] = UUID(match.group(0))
+            return name
+
+        def words(node: object, top: bool) -> str:
+            if isinstance(node, Operand):
+                uuid = operands.get(node.token)
+                operand = self._validator(uuid) if uuid else None
+                return self._composite_message(operand, plain, depth + 1) if operand else "?"
+            if isinstance(node, Not):
+                return f"not ({words(node.operand, False)})"
+            if isinstance(node, BinOp):
+                joint = {"AND": "; ", "OR": ", or ", "XOR": ", or else "}[node.op]
+                text = f"{words(node.left, False)}{joint}{words(node.right, False)}"
+                return text if top else f"({text})"
+            return validator.name
+
+        try:
+            return words(parse(UUID_PATTERN.sub(placeholder, validator.expression)), True)
+        except ParseError:
+            return validator.name
 
     def _expand(self, validator: Validator, substitutions: dict[str, str], depth: int) -> str:
         """A leaf is its expression with arguments substituted. A composite is
