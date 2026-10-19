@@ -215,8 +215,8 @@ Each release on GitHub carries a wheel of each package. Install both into a
 virtual environment — `designer-app` needs exactly its own `designer-model`:
 
     python3 -m venv ~/.venvs/designer
-    ~/.venvs/designer/bin/pip install designer_model-0.2.0-py3-none-any.whl \
-                                      designer_app-0.2.0-py3-none-any.whl
+    ~/.venvs/designer/bin/pip install designer_model-0.3.0-py3-none-any.whl \
+                                      designer_app-0.3.0-py3-none-any.whl
 
 That gives three commands: `designer` (the window), `designer-check` (the model
 check, as `make model` runs it) and `designer-export` (a Schema's export, as

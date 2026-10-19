@@ -1049,3 +1049,22 @@ release's files.
 
 > yes commit it
 
+## 162.
+
+> i pushed it
+
+## 163.
+
+> i pushed it
+
+## 164.
+
+> tag 0.3.0 is pushed
+
+The tag pointed at a commit whose packages still said 0.2.0; bumped to 0.3.0 in a
+new commit, for the tag to be moved onto it, as was done for 0.2.0.
+
+## 165.
+
+> yes commit it
+

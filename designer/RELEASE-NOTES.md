@@ -1,5 +1,39 @@
 # Release notes
 
+## 0.3.0
+
+Fixes to the model check and its type checker, and checks it was missing.
+
+**The type checker**
+
+- `abs(x) < value` no longer decides `x` is an integer before `value` has said
+  anything: overloads are tried without side effects, and an ambiguous call
+  waits for its context.
+- `min(value, 1)` on a decimal type-checks: a literal takes the type the other
+  arguments give it.
+- `x in [1, 2]` with `x` a parameter type-checks: `x` takes the list's type.
+- A rule is treated as reading the clock only when it calls `now`, `today` or
+  `current` — `"now()"` inside a string is text.
+
+**New checks**
+
+- `MOD114`: a Type or Property naming a base type that does not exist.
+- `MOD415`: a slot default of the wrong base type, or one its Type refuses,
+  naming the rules that refuse it.
+- `MOD416`: an override that points a reference slot at another entity.
+- A Validator's own expression is checked whether or not anything uses it, and
+  what is wrong with it is reported once, on the Validator, not at every use. A
+  composite that does not parse is now reported at all.
+
+Models that were clean stay clean; a model with any of the above now says so,
+and the new errors block an export of a Schema that reaches them.
+
+**Install** (Python 3.12+, tkinter — `python3-tk` on Debian and Ubuntu):
+
+    python3 -m venv ~/.venvs/designer
+    ~/.venvs/designer/bin/pip install designer_model-0.3.0-py3-none-any.whl \
+                                      designer_app-0.3.0-py3-none-any.whl
+
 ## 0.2.0
 
 The same application and model as 0.1.0; what changed is the release itself.

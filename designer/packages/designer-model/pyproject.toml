@@ -1,6 +1,6 @@
 [project]
 name = "designer-model"
-version = "0.2.0"
+version = "0.3.0"
 description = "The Designer data model: items, derivation, persistence, model check."
 requires-python = ">=3.12"
 dependencies = []
