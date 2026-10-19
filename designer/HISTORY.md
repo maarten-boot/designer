@@ -1068,3 +1068,15 @@ new commit, for the tag to be moved onto it, as was done for 0.2.0.
 
 > yes commit it
 
+## 166.
+
+> i pushed it and published 0.3.0
+
+## 167.
+
+> it was missing, published it now
+
+## 168.
+
+> commit it
+
