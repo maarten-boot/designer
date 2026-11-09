@@ -142,3 +142,37 @@ beside the target and swapped in by rename; a non-tree target is refused.
 > yes commit it
 
 Committed the tree export (turn 203) on main.
+
+## Turn 205
+
+> i pushed it
+
+`8d88b95` confirmed on GitHub. No workflow ran: ddl.yml is limited to
+designer-ddl paths.
+
+## Turn 206
+
+> When using github actions or other action steps,
+> pin them on the version hash and try to use the latest workable version.
+> Explain when that is not possible. and do a crosscheck, i will start the workflow
+
+- Pinned: checkout v7.0.1, setup-python v7.1.0, upload-artifact v7.0.2,
+  download-artifact v8.0.2 by commit hash; postgres 18.6 and mariadb 12.3.3
+  (newest LTS) by digest, after the examples and conformance passed against
+  both in podman; PyInstaller 6.22.3 and dependencies by file hash
+  (`tools/freeze-requirements.txt`, `tools/pin_freeze.py`), in CI and
+  `make freeze`. Runners named by version: ubuntu-22.04 kept on purpose
+  (glibc), windows-2025, macos-26, ubuntu-26.04.
+- Not pinnable by hash: runner images, apt packages, the Python interpreter,
+  pip. Explained in `docs/planning/Pinning.md`.
+- The user's frozen build run (42695925674, before the pinning) passed on all
+  three platforms, self-tests `ok`.
+- Crosscheck: all 68 named tests exist; FRZ-6 had no test (added); CON-5's
+  `"5.5 : 1"` read as AA (fixed); Plan.md's "Done, unreleased" was stale
+  (updated); docs naming PostgreSQL 16 / MariaDB 11.4 updated.
+
+## Turn 207
+
+> yes commit it
+
+Committed the pinning and the crosscheck fixes (turn 206) on main.

@@ -56,7 +56,7 @@ under `packages/designer-app/tests/`.
 | DDL-6 | `test_the_same_export_gives_the_same_bytes` | `designer-ddl/tests/test_ddl.py` |
 | DDL-7 | `test_the_conformance_cases_agree_on_sqlite` | `designer-ddl/tests/test_ddl.py` |
 | DDL-7 | `test_sqlite_refuses_what_the_rules_refuse` | `designer-ddl/tests/test_ddl.py` |
-| DDL-7 | `tools/ddl_conformance.py` against PostgreSQL 16 and MariaDB 11.4 | CI: `.github/workflows/ddl.yml` |
+| DDL-7 | `tools/ddl_conformance.py` against PostgreSQL 18.6 and MariaDB 12.3.3 | CI: `.github/workflows/ddl.yml` |
 | DDL-8 | `test_strict_fails_when_a_rule_is_not_enforced`, `test_a_file_that_is_not_an_export_is_refused_by_name`, `test_an_unknown_dialect_is_refused`, `test_only_an_export_file_is_read` | `designer-ddl/tests/test_ddl.py` |
 
 | TREE-1 | `test_the_committed_sample_is_what_the_export_writes`, `test_one_file_per_table_and_per_column`, `test_output_and_tree_cannot_both_be_given` | `designer-model/tests/test_tree.py` |
@@ -65,14 +65,27 @@ under `packages/designer-app/tests/`.
 | TREE-4 | `test_the_committed_sample_is_what_the_export_writes` (byte for byte) | `designer-model/tests/test_tree.py` |
 | TREE-5 | `test_writing_again_replaces_the_tree_and_leaves_nothing_stale`, `test_a_folder_that_is_not_a_tree_is_never_replaced`, `test_an_empty_folder_is_used`, `test_the_command_refuses_a_folder_it_would_not_replace` | `designer-model/tests/test_tree.py` |
 
+| PIN-1, PIN-4 | `test_every_action_is_pinned_by_hash_and_every_image_by_digest` | `designer-app/tests/test_frozen.py` |
+| PIN-3 | `test_freezing_installs_pyinstaller_by_hash` | `designer-app/tests/test_frozen.py` |
+| FRZ-6 | `test_freezing_writes_nothing_into_the_repository` | `designer-app/tests/test_frozen.py` |
+
 ## Not automated
 
 - The look of the window at AA and Max was checked by screenshot under Xvfb
   (9 November 2026), not by a test.
 - FRZ-1 to FRZ-4 on Linux: built and self-tested here (9 November 2026,
   PyInstaller 6.22, Python 3.14), including from the unpacked archive (0.7 s).
-  Windows and macOS are verified only by the workflow's first run.
+- FRZ-1 to FRZ-4 on Windows and macOS: the workflow's first run (run
+  42695925674, turn 206, by hand) built and self-tested all three: window
+  open, bench run by the frozen worker, `ok`. Images ubuntu-22.04,
+  windows-2025-vs2026, macos-26-arm64; PyInstaller 6.22.3; archives 24.8,
+  12.0 and 10.9 MB. That run was before the pinning; the next run checks it.
+- PIN-2: the versions were checked against GitHub and Docker Hub by hand on
+  9 November 2026, and the databases by podman. Nothing re-checks that they
+  are still the latest.
 - FRZ-5 has not run yet: it runs on the first tag pushed after this change.
+- DDL-7 against PostgreSQL 18.6 and MariaDB 12.3.3, pinned by digest, was run
+  here in podman (turn 206): all examples apply, no disagreement.
 - DDL-7 against PostgreSQL 16 and MariaDB 11.4 was run here in podman
   containers (9 November 2026): 48 and 46 rules, no disagreement. The
   workflow `ddl.yml` then ran on GitHub (run 42692181543, turn 201) with the

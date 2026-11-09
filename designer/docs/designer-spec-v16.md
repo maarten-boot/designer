@@ -1422,6 +1422,13 @@ the package versions, and attaches the three archives to that tag's release,
 or to a new draft for the user to publish. A build whose self-test fails is not
 packaged.
 
+`[CHANGED]` Pinned (turn 206): every action by commit hash and every container
+image by digest, at the latest version that works; PyInstaller and all it
+installs by version and file hash (`tools/freeze-requirements.txt`, written by
+`tools/pin_freeze.py`, used by CI and by `make freeze` alike). Runner images
+and apt packages cannot be pinned by hash; runners are named by explicit
+version instead of `-latest`. `docs/planning/Pinning.md` lists each choice.
+
 ---
 
 ## 15. Deferred `[V2]`

@@ -9,6 +9,11 @@
 # Run by hand from the Actions tab (workflow_dispatch) to build without a
 # release; the files are then kept as workflow artifacts for a week.
 
+# Pinning (turn 206): every action by its commit hash, with the release it
+# is in a comment; every container image by digest, with its tag. A tag can be
+# moved to other code, a hash cannot. Runner images and apt packages cannot be
+# pinned this way: see designer/docs/planning/Pinning.md.
+
 name: frozen build
 
 on:
@@ -28,21 +33,22 @@ jobs:
           # the oldest supported Ubuntu: the binary needs a glibc at least as
           # new as the one it was built against
           - os: ubuntu-22.04
-          - os: windows-latest
-          - os: macos-latest
+          - os: windows-2025
+          - os: macos-26
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: designer
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
       - name: Install PyInstaller
-        run: python -m pip install "pyinstaller>=6.10"
+        # PyInstaller and all it installs, each at one version and hash
+        run: python -m pip install --require-hashes -r tools/freeze-requirements.txt
 
       - name: Check the tag matches the packages
         if: startsWith(github.ref, 'refs/tags/v')
@@ -65,7 +71,7 @@ jobs:
         if: runner.os != 'Linux'
         run: python tools/freeze.py
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: frozen-${{ matrix.os }}
           path: designer/dist-frozen/*
@@ -75,13 +81,13 @@ jobs:
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: frozen
           merge-multiple: true

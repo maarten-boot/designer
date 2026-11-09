@@ -62,6 +62,15 @@ the test suite itself (1208 tests at the last run) and by `make docs`.
 | TREE-4 | The same export gives the same bytes on every system: UTF-8, `\n` line ends, no timestamp; the worked example's tree is committed and compared byte for byte. |
 | TREE-5 | A new tree replaces the old one whole (written beside it, swapped in by rename), leaving no stale file; a target that is neither empty nor a tree is refused (exit 2) and left untouched. |
 
+## PIN — what the workflows run (turn 206, `Pinning.md`)
+
+| ID | Requirement |
+|---|---|
+| PIN-1 | Every `uses:` names a commit hash, with its release in a comment; every container image a digest, with its tag. |
+| PIN-2 | Each pinned item is its latest workable release; where it is not the latest, `Pinning.md` says why. |
+| PIN-3 | PyInstaller and everything it installs are installed with `--require-hashes` from `tools/freeze-requirements.txt`, in CI and by `make freeze`. |
+| PIN-4 | What cannot be pinned by hash (runner images, apt packages, the Python interpreter) is listed with the reason; runners are named by explicit version, never `-latest`. |
+
 ## REV — reviews requested (not requirements)
 
 | ID | Subject | Document |

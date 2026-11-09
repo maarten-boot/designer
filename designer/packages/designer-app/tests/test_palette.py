@@ -96,13 +96,22 @@ def test_a_state_that_loses_its_colour_gets_another_cue() -> None:
 
 @pytest.mark.parametrize(
     ("text", "ratio"),
-    [("AA", 4.5), ("aaa", 7.0), (" max ", 21.0), ("10", 10.0), ("10:1", 10.0), (12.5, 12.5), (21, 21.0)],
+    [
+        ("AA", 4.5),
+        ("aaa", 7.0),
+        (" max ", 21.0),
+        ("10", 10.0),
+        ("10:1", 10.0),
+        ("5.5 : 1", 5.5),
+        (12.5, 12.5),
+        (21, 21.0),
+    ],
 )
 def test_a_level_is_a_preset_or_a_ratio(text, ratio) -> None:
     assert palette.parse(text) == ratio
 
 
-@pytest.mark.parametrize("text", ["", "A", "4.4", "22", "nan", "inf", None, True, [7]])
+@pytest.mark.parametrize("text", ["", "A", "4.4", "22", "nan", "inf", "7:2", ":1", None, True, [7]])
 def test_anything_else_is_not_a_level(text) -> None:
     assert palette.parse(text) is None
 

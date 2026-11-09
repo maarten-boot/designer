@@ -1230,3 +1230,17 @@ new commit, for the tag to be moved onto it, as was done for 0.2.0.
 ## 204.
 
 > yes commit it
+
+## 205.
+
+> i pushed it
+
+## 206.
+
+> When using github actions or other action steps,
+> pin them on the version hash and try to use the latest workable version.
+> Explain when that is not possible. and do a crosscheck, i will start the workflow
+
+## 207.
+
+> yes commit it

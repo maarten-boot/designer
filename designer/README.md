@@ -242,7 +242,7 @@ what the rule says. Where it cannot — SQLite has no regular expressions, Maria
 no Unicode case mapping — the rule is a comment marked `NOT ENFORCED HERE`, with
 the reason, and is listed on standard error: enforce it in the application.
 `--strict` fails instead. Every translation is checked against the designer's
-own evaluator in a real PostgreSQL 16, MariaDB 11.4 and SQLite
+own evaluator in a real PostgreSQL 18, MariaDB 12.3 and SQLite
 (`make conformance`). Appendix *ddl* (`docs/designer-ddl.md`) has every mapping.
 
 ## A tree of files for other programs

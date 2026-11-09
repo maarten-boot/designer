@@ -1,4 +1,9 @@
-# designer-ddl against real databases: PostgreSQL 16 and MariaDB 11.4.
+# designer-ddl against real databases: PostgreSQL 18 and MariaDB 12.3 (LTS).
+#
+# Pinning (turn 206): every action by its commit hash, with the release it
+# is in a comment; every container image by digest, with its tag. A tag can be
+# moved to other code, a hash cannot. Runner images and apt packages cannot be
+# pinned this way: see designer/docs/planning/Pinning.md.
 #
 # Two checks, on every push and pull request that touches designer-ddl, its
 # examples or its conformance cases:
@@ -30,17 +35,17 @@ permissions:
 
 jobs:
   databases:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
         env:
           POSTGRES_PASSWORD: x
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 30
       mariadb:
-        image: mariadb:11.4
+        image: mariadb:12.3.3@sha256:d46e102fa8b9b72bfcdeb56f9dd538742092119dc8b11f31fe662605cd234cd9
         env:
           MARIADB_ROOT_PASSWORD: x
           MARIADB_DATABASE: test
@@ -56,9 +61,9 @@ jobs:
       PSQL: psql -h 127.0.0.1 -U postgres
       MARIADB: mariadb -h 127.0.0.1 -P 3306 -u root -px test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 

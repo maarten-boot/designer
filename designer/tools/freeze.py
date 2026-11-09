@@ -50,7 +50,8 @@ from release import CACHE, ROOT, run, versions
 OUT = ROOT / "dist-frozen"
 ENTRY = ROOT / "tools" / "frozen_entry.py"
 EXAMPLE = ROOT / "examples" / "sales.json"
-PYINSTALLER = "pyinstaller>=6.10"
+# PyInstaller and all it installs, each at one version and hash, as in CI
+REQUIREMENTS = ROOT / "tools" / "freeze-requirements.txt"
 BUNDLE_ID = "io.github.maarten-boot.designer"
 
 
@@ -78,7 +79,16 @@ def ensure_pyinstaller() -> None:
     if not python.exists():
         print(f"making a build environment in {environment}")
         venv.create(environment, with_pip=True)
-    run(python, "-m", "pip", "install", "--quiet", "--upgrade", PYINSTALLER)
+    run(
+        python,
+        "-m",
+        "pip",
+        "install",
+        "--quiet",
+        "--require-hashes",
+        "-r",
+        str(REQUIREMENTS),
+    )
     env = {**os.environ, "DESIGNER_FREEZE_ENV": "1"}
     raise SystemExit(subprocess.call([str(python), __file__, *sys.argv[1:]], env=env))
 

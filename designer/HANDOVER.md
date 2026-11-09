@@ -237,6 +237,13 @@ temporary folder, never in the tree.
 mypy 2.3 and failed for the user on 1.9. The source now avoids syntax older
 tools cannot read.
 
+**What CI runs is pinned by hash** (turn 206, the user's rule): actions by
+commit hash with the release in a comment, images by digest, PyInstaller by
+`tools/freeze-requirements.txt` with `--require-hashes`, at the latest version
+that works. A test fails on a `uses:` without a hash or a `-latest` runner.
+`docs/planning/Pinning.md` has each choice, what cannot be pinned and why, and
+how to refresh.
+
 ---
 
 ## Documents

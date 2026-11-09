@@ -171,7 +171,10 @@ def parse(text: object) -> float | None:
         for name, value in PRESETS.items():
             if spelled.lower() == name.lower():
                 return value
-        spelled = spelled.removesuffix(":1").strip()
+        ratio, colon, one = spelled.partition(":")
+        if colon and one.strip() != "1":
+            return None
+        spelled = ratio.strip()  # "7:1", "7 : 1" and "7" alike
         try:
             number = float(spelled)
         except ValueError:

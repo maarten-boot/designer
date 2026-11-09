@@ -26,6 +26,12 @@
   table and per column, with every list pointing at its files by path, safe
   file names on Linux, Windows and macOS, and the whole tree replaced at once.
   Appendix *tree*.
+- **The workflows are pinned by hash**: each GitHub action by commit, the
+  database images by digest, PyInstaller and its dependencies by file hash,
+  at their latest working versions. The databases checked are now PostgreSQL
+  18 and MariaDB 12.3.
+- A contrast level written `"5.5 : 1"`, with spaces, is now read as 5.5:1
+  rather than falling back to AA.
 
 ## 0.6.0
 

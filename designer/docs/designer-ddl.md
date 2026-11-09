@@ -174,7 +174,8 @@ their spelling, so `0.00` stays `0.00`.
    type and collation, asks the database for each rule's verdict, and compares
    it with `designer_model`'s evaluator. A translated rule must agree on every
    value. SQLite runs in the test suite. PostgreSQL and MariaDB run from the
-   workflow `.github/workflows/ddl.yml`, against PostgreSQL 16 and MariaDB 11.4,
+   workflow `.github/workflows/ddl.yml`, against PostgreSQL 18.6 and MariaDB 12.3.3
+   (the newest long-term-support release; 16 and 11.4 until turn 206),
    which also applies every committed example.
 
 The first run of step 3 found four translations that were wrong, and each is
