@@ -26,6 +26,14 @@ has been deleted locally and remotely.
   dialects (DDL-1 to DDL-8, appendix *ddl*). Not built yet: migrations,
   triggers, MySQL, a native uuid type (appendix *ddl* §6).
 
+- **Serving the model to programs** (turns 202–203): the readers are
+  programs on Linux, Windows and macOS, and a snapshot is enough, so step one
+  is a tree of files, done as `designer-export --tree` (TREE-1 to TREE-5,
+  appendix *tree*). The aim is application generators, 4GL-like but more
+  flexible. A live server (9P or HTTP) is not started; it would serve the same
+  tree. Open: whether generators need Types and Validators as files too
+  (appendix *tree* §5).
+
 ## Open — the user's to decide
 
 1. Context move: refuse it (the spec) or allow it and report (the code)? Spec §10.1.

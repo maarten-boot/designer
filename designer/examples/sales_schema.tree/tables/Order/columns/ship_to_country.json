@@ -1,0 +1,19 @@
+{
+  "name": "ship_to_country",
+  "uuid": "a0000000-0000-4000-8000-000000000022",
+  "property": "country_code",
+  "type": "CountryCode",
+  "base": "string",
+  "nullable": false,
+  "default": null,
+  "check": [
+    {
+      "rule": "is_country_code",
+      "expression": "regex_full_match(value, \"[A-Z]{2}\")",
+      "message": "must be an ISO 3166-1 alpha-2 code",
+      "from": "CountryCode"
+    }
+  ],
+  "application": [],
+  "interface": null
+}

@@ -1214,3 +1214,19 @@ new commit, for the tag to be moved onto it, as was done for 0.2.0.
 ## 200.
 
 > yes commit it
+
+## 201.
+
+> i pushed it
+
+## 202.
+
+> there was an idea from another session that we could serve the data in the deigner app via the 9p protocoll for other users , that would allow them to readt the structure andefinition of components they need to do operations , what do you thingk ?
+
+## 203.
+
+> start with the directory tree export; the users are programs, mixed Lin/Win/Mac Snapshot is fine, no additional info written down yet it is a disighn idea we are brainstorming about to make application generators like 4gl but more flexible.
+
+## 204.
+
+> yes commit it

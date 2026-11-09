@@ -64,6 +64,8 @@ answer in the specification.
                                 exporter must reproduce byte for byte.
     examples/*.<dialect>.sql    the same three as SQL for postgresql, mariadb
                                 and sqlite, which designer-ddl must reproduce.
+    examples/sales_schema.tree/ the sales_schema export as a tree of files,
+                                which --tree must reproduce.
 
 ## The columns
 
@@ -242,6 +244,22 @@ the reason, and is listed on standard error: enforce it in the application.
 `--strict` fails instead. Every translation is checked against the designer's
 own evaluator in a real PostgreSQL 16, MariaDB 11.4 and SQLite
 (`make conformance`). Appendix *ddl* (`docs/designer-ddl.md`) has every mapping.
+
+## A tree of files for other programs
+
+A program that generates an application from the model can read the export as
+one small JSON file per table and per column instead of one large document:
+
+    designer-export model.json sales_schema --tree out/sales_schema
+
+    out/sales_schema/schema.json                    the Schema, its warnings, its tables
+    out/sales_schema/tables/Order/table.json        one table, its keys and rules
+    out/sales_schema/tables/Order/columns/total.json  one column, its type and rules
+
+Lists keep their order and point at files by `path`; follow it rather than
+building it from a name, since a name Windows reserves (`con`) or one differing
+only in case from a sibling gets its UUID added. The tree is replaced whole on
+each export. Appendix *tree* (`docs/designer-tree.md`).
 
 ## Installing a release
 

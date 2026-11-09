@@ -59,6 +59,12 @@ under `packages/designer-app/tests/`.
 | DDL-7 | `tools/ddl_conformance.py` against PostgreSQL 16 and MariaDB 11.4 | CI: `.github/workflows/ddl.yml` |
 | DDL-8 | `test_strict_fails_when_a_rule_is_not_enforced`, `test_a_file_that_is_not_an_export_is_refused_by_name`, `test_an_unknown_dialect_is_refused`, `test_only_an_export_file_is_read` | `designer-ddl/tests/test_ddl.py` |
 
+| TREE-1 | `test_the_committed_sample_is_what_the_export_writes`, `test_one_file_per_table_and_per_column`, `test_output_and_tree_cannot_both_be_given` | `designer-model/tests/test_tree.py` |
+| TREE-2 | `test_the_tree_holds_the_whole_export` (3 exports), `test_every_path_named_in_a_file_exists_and_uses_forward_slashes`, `test_a_tree_from_something_else_is_refused` | `designer-model/tests/test_tree.py` |
+| TREE-3 | `test_names_windows_reserves_or_that_differ_only_in_case_get_the_uuid` | `designer-model/tests/test_tree.py` |
+| TREE-4 | `test_the_committed_sample_is_what_the_export_writes` (byte for byte) | `designer-model/tests/test_tree.py` |
+| TREE-5 | `test_writing_again_replaces_the_tree_and_leaves_nothing_stale`, `test_a_folder_that_is_not_a_tree_is_never_replaced`, `test_an_empty_folder_is_used`, `test_the_command_refuses_a_folder_it_would_not_replace` | `designer-model/tests/test_tree.py` |
+
 ## Not automated
 
 - The look of the window at AA and Max was checked by screenshot under Xvfb
@@ -69,6 +75,9 @@ under `packages/designer-app/tests/`.
 - FRZ-5 has not run yet: it runs on the first tag pushed after this change.
 - DDL-7 against PostgreSQL 16 and MariaDB 11.4 was run here in podman
   containers (9 November 2026): 48 and 46 rules, no disagreement. The
-  workflow `ddl.yml` has not run yet; it runs on the next push touching it.
+  workflow `ddl.yml` then ran on GitHub (run 42692181543, turn 201) with the
+  same result.
+- TREE-3 and TREE-4 on Windows and macOS: the names and bytes are reasoned
+  from those systems' rules and tested on Linux only.
 - That a selected row is drawn in the selection's colours rather than its tag's
   was checked by pixel sampling on Tk 8.6.17; older Tk is not covered.

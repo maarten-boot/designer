@@ -21,6 +21,11 @@
   rule it cannot write exactly is left as a comment and reported, never
   approximated. Every translation is checked against the designer's own
   evaluator in all three databases. Appendix *ddl*.
+- **The export as a tree of files**, for programs that generate applications:
+  `designer-export model.json sales_schema --tree DIR` writes one JSON file per
+  table and per column, with every list pointing at its files by path, safe
+  file names on Linux, Windows and macOS, and the whole tree replaced at once.
+  Appendix *tree*.
 
 ## 0.6.0
 

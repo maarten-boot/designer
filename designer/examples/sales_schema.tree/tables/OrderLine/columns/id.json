@@ -1,0 +1,20 @@
+{
+  "name": "id",
+  "uuid": "a0000000-0000-4000-8000-000000000030",
+  "declared_on": "LineItem",
+  "property": "id",
+  "type": "Uuid",
+  "base": "string",
+  "nullable": false,
+  "default": null,
+  "check": [
+    {
+      "rule": "is_uuid",
+      "expression": "regex_full_match(value, \"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\")",
+      "message": "must be a UUID",
+      "from": "Uuid"
+    }
+  ],
+  "application": [],
+  "interface": null
+}

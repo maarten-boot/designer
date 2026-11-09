@@ -1,0 +1,25 @@
+{
+  "name": "total",
+  "uuid": "a0000000-0000-4000-8000-000000000023",
+  "property": "amount",
+  "type": "Money",
+  "base": "decimal",
+  "numeric": {
+    "precision": 12,
+    "scale": 2
+  },
+  "nullable": false,
+  "default": {
+    "decimal": "0.00"
+  },
+  "check": [
+    {
+      "rule": "non_negative",
+      "expression": "value >= 0",
+      "message": "must not be negative",
+      "from": "Money"
+    }
+  ],
+  "application": [],
+  "interface": null
+}

@@ -1,0 +1,13 @@
+{
+  "name": "created_at",
+  "uuid": "a0000000-0000-4000-8000-000000000001",
+  "declared_on": "Auditable",
+  "property": "created_at",
+  "type": null,
+  "base": "datetime",
+  "nullable": false,
+  "default": null,
+  "check": [],
+  "application": [],
+  "interface": null
+}

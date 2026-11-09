@@ -780,6 +780,10 @@ The shape was settled against a hand-written sample,
   file and writes PostgreSQL, MariaDB or SQLite table definitions; a rule it
   cannot write exactly is left to the application and reported, never
   approximated.
+- **A tree of files.** `[CHANGED]` `designer-export --tree DIR` (appendix
+  *tree*, turn 203) writes the same document as one file per table and per
+  column, for programs that generate applications; it holds exactly what the
+  export holds.
 
 Building it (`designer_model/export.py`, turn 108) changed details of the
 sample, which is now generated rather than hand-written and is what the
@@ -1442,6 +1446,8 @@ packaged.
 - Export: ~~DDL~~ `[BUILT]` — `designer-ddl`, PostgreSQL, MariaDB and SQLite
   (appendix *ddl*, turn 199); SQLAlchemy declarative classes or Pydantic models
   are still deferred.
+- Serving the model to other programs (9P, HTTP): the file tree is built
+  (appendix *tree*, turn 203); a live server is not.
 - A sample model file (§14.4).
 - Multi-model library import.
 

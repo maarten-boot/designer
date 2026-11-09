@@ -1,4 +1,5 @@
-"""The command-line tools, installed as `designer-check` and `designer-export`.
+"""The command-line tools, installed as `designer-check` and `designer-export`
+(which also writes the tree of appendix *tree*).
 
 They live in the package rather than only in `tools/` so an installed copy can
 check and export a model without the source tree. `tools/check_model.py` and
@@ -24,6 +25,8 @@ from .export import ExportError, export_schema
 from .export import dumps as dump_export
 from .persistence import DocumentError, dumps, load
 from .stdlib import standard_library
+from .tree import TreeError
+from .tree import write as write_tree
 
 MARKERS = {
     Severity.ERROR: "error",
@@ -174,7 +177,14 @@ def export_main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="designer-export", description="Export one Schema of a Designer model file.")
     parser.add_argument("model", type=pathlib.Path)
     parser.add_argument("schema", help="the Schema's name")
-    parser.add_argument("-o", "--output", type=pathlib.Path, help="write here instead of standard output")
+    where = parser.add_mutually_exclusive_group()
+    where.add_argument("-o", "--output", type=pathlib.Path, help="write here instead of standard output")
+    where.add_argument(
+        "--tree",
+        type=pathlib.Path,
+        metavar="DIR",
+        help="write a tree of files here instead: one per table and per column (appendix tree)",
+    )
     parser.add_argument("--version", action="version", version=f"%(prog)s {version()}")
     arguments = parser.parse_args(argv)
 
@@ -200,6 +210,13 @@ def export_main(argv: list[str] | None = None) -> int:
             print(f"  {finding.code:8} {describe(finding, known)}", file=sys.stderr)
         return 1
 
+    if arguments.tree is not None:
+        try:
+            write_tree(exported, arguments.tree)
+        except (TreeError, OSError) as error:
+            print(f"{arguments.tree}: {error}", file=sys.stderr)
+            return 2
+        return 0
     text = dump_export(exported)
     if arguments.output is None:
         sys.stdout.write(text)

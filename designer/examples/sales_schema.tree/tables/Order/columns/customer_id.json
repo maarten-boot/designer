@@ -1,0 +1,13 @@
+{
+  "name": "customer_id",
+  "uuid": "a0000000-0000-4000-8000-000000000021",
+  "relationship": "customer",
+  "references": "Customer",
+  "type": "Uuid",
+  "base": "string",
+  "nullable": false,
+  "default": null,
+  "check": [],
+  "application": [],
+  "interface": null
+}

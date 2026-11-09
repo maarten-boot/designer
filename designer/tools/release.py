@@ -5,7 +5,7 @@
 Builds a wheel and an sdist of each package into `dist/`, then installs them
 from `dist/` alone — no index, no source tree — into a fresh virtual environment
 and runs what a user would run: `designer-check` on the worked example,
-`designer-export` compared byte for byte with the committed export,
+`designer-export` compared byte for byte with the committed export and tree,
 `designer-ddl` likewise with the committed SQL in each dialect, and an import
 of the application. A package that has only been built has not been
 verified; one that has been installed somewhere clean and run has.
@@ -114,6 +114,14 @@ def builder() -> pathlib.Path:
     return python
 
 
+def _listing(root: pathlib.Path) -> dict[str, bytes]:
+    return {
+        p.relative_to(root).as_posix(): p.read_bytes()
+        for p in sorted(root.rglob("*"))
+        if p.is_file()
+    }
+
+
 def verify_install(verify: pathlib.Path) -> int:
     """Install from `dist/` alone into `verify` and run what a user runs."""
     venv.create(verify, with_pip=True)
@@ -154,6 +162,20 @@ def verify_install(verify: pathlib.Path) -> int:
     if exported != (examples / "sales_schema.export.json").read_text():
         print(
             "the installed exporter does not reproduce examples/sales_schema.export.json",
+            file=sys.stderr,
+        )
+        return 1
+    run(
+        bin_dir / "designer-export",
+        examples / "sales.json",
+        "sales_schema",
+        "--tree",
+        verify / "tree",
+        **elsewhere,
+    )
+    if _listing(verify / "tree") != _listing(examples / "sales_schema.tree"):
+        print(
+            "the installed exporter does not reproduce examples/sales_schema.tree",
             file=sys.stderr,
         )
         return 1

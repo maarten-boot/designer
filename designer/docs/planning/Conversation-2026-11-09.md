@@ -104,3 +104,41 @@ Committed the frozen build (`5f2fcb2`).
 > yes commit it
 
 Committed designer-ddl (turn 199) on main.
+
+## Turn 201
+
+> i pushed it
+
+`ddl.yml` ran on GitHub and passed: PostgreSQL 48 rules on 1290 values,
+MariaDB 46 on 1208, SQLite 37 on 872, no disagreement. GitHub warns that
+`actions/checkout@v4` and `actions/setup-python@v5` use Node.js 20; offered to
+move to v5/v6. The frozen build has still not been started.
+
+## Turn 202
+
+> there was an idea from another session that we could serve the data in the deigner app via the 9p protocoll for other users , that would allow them to readt the structure andefinition of components they need to do operations , what do you thingk ?
+
+Read as: serve the Designer model over 9P so other users can read component
+definitions. Advice: a good idea, 9P the least important part. Only Linux
+mounts 9P without extra software, it has no security of its own, there is no
+maintained Python library, and the editor is the wrong place for a server.
+Proposed step 1, a directory-tree export; step 2, a read-only server only if
+live data is needed.
+
+## Turn 203
+
+> start with the directory tree export; the users are programs, mixed Lin/Win/Mac Snapshot is fine, no additional info written down yet it is a disighn idea we are brainstorming about to make application generators like 4gl but more flexible.
+
+("disighn" read as "design".) Built `designer-export --tree DIR` in
+`designer_model/tree.py`: `schema.json`, `tables/<t>/table.json`,
+`tables/<t>/columns/<c>.json`; lists become `{name, uuid, path}` entries; names
+Windows reserves or that collide when case is ignored get `~<uuid>`; written
+beside the target and swapped in by rename; a non-tree target is refused.
+`examples/sales_schema.tree/` committed as the sample. Appendix
+`docs/designer-tree.md`; Spec TREE-1..5 with tests in `test_tree.py`.
+
+## Turn 204
+
+> yes commit it
+
+Committed the tree export (turn 203) on main.

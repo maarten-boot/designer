@@ -1,0 +1,78 @@
+{
+  "name": "OrderLine",
+  "uuid": "e0000000-0000-4000-8000-000000000005",
+  "description": "One line of an order. Narrows the inherited line_total.",
+  "context": "common/sales",
+  "inherits": [
+    "LineItem",
+    "Auditable"
+  ],
+  "columns": [
+    {
+      "name": "created_at",
+      "uuid": "a0000000-0000-4000-8000-000000000001",
+      "path": "tables/OrderLine/columns/created_at.json"
+    },
+    {
+      "name": "id",
+      "uuid": "a0000000-0000-4000-8000-000000000030",
+      "path": "tables/OrderLine/columns/id.json"
+    },
+    {
+      "name": "line_total",
+      "uuid": "a0000000-0000-4000-8000-000000000040",
+      "path": "tables/OrderLine/columns/line_total.json"
+    },
+    {
+      "name": "order_order_number",
+      "uuid": "a0000000-0000-4000-8000-000000000041",
+      "path": "tables/OrderLine/columns/order_order_number.json"
+    },
+    {
+      "name": "quantity",
+      "uuid": "a0000000-0000-4000-8000-000000000042",
+      "path": "tables/OrderLine/columns/quantity.json"
+    }
+  ],
+  "primary_key": [
+    "id"
+  ],
+  "foreign_keys": [
+    {
+      "relationship": "order",
+      "columns": [
+        "order_order_number"
+      ],
+      "table": "Order",
+      "target_columns": [
+        "order_number"
+      ],
+      "on_delete": "cascade",
+      "inverse_name": "lines"
+    }
+  ],
+  "indexes": [],
+  "default_order": [],
+  "check": [
+    {
+      "rule": "min_value",
+      "arguments": {
+        "min": {
+          "integer": 1
+        }
+      },
+      "expression": "quantity >= 1",
+      "message": "must be at least 1",
+      "from": "OrderLine"
+    }
+  ],
+  "application": [
+    {
+      "rule": "in_past",
+      "expression": "created_at < current()",
+      "message": "must be in the past",
+      "from": "Auditable",
+      "reason": "not deterministic"
+    }
+  ]
+}

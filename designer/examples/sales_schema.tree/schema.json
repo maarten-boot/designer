@@ -1,0 +1,54 @@
+{
+  "format": "designer-schema-tree",
+  "format_version": 1,
+  "export_format": "designer-schema-export",
+  "export_format_version": 1,
+  "source": {
+    "schema_version": 1,
+    "library_version": 1,
+    "expression_language": "designer-1"
+  },
+  "schema": {
+    "uuid": "5c000000-0000-4000-8000-000000000001",
+    "name": "sales_schema",
+    "description": "What ships as the sales database.",
+    "context": "common/sales"
+  },
+  "warnings": [
+    {
+      "code": "MOD602",
+      "item": "Auditable",
+      "message": "Auditable (e0000000) binds in_past (2754a6b3), which is not deterministic; no check constraint can enforce it"
+    }
+  ],
+  "tables": [
+    {
+      "name": "Customer",
+      "uuid": "e0000000-0000-4000-8000-000000000002",
+      "path": "tables/Customer/table.json"
+    },
+    {
+      "name": "Order",
+      "uuid": "e0000000-0000-4000-8000-000000000003",
+      "path": "tables/Order/table.json"
+    },
+    {
+      "name": "OrderLine",
+      "uuid": "e0000000-0000-4000-8000-000000000005",
+      "path": "tables/OrderLine/table.json"
+    }
+  ],
+  "application": [
+    {
+      "rule": "equals",
+      "anchor": "OrderLine",
+      "paths": {
+        "value": "order.ship_to_country",
+        "other": "order.customer.country_code"
+      },
+      "expression": "order.ship_to_country == order.customer.country_code",
+      "message": "an order line must ship to the customer's own country",
+      "reason": "spans tables"
+    }
+  ]
+}

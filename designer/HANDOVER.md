@@ -252,6 +252,7 @@ All in `docs/`, all checked by `make docs`.
 | `designer-example-notes.md` | what the worked example exercises |
 | `designer-interfaces.md` | presentation and parsing |
 | `designer-ddl.md` | `designer-ddl`: the export as SQL, every mapping, how it is checked |
+| `designer-tree.md` | `designer-export --tree`: the export as one file per table and column |
 
 Revision 16 was the first made *while building*, and every change in it came
 from using the tool rather than reading the document. Changes are marked

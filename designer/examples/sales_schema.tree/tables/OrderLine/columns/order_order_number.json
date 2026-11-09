@@ -1,0 +1,13 @@
+{
+  "name": "order_order_number",
+  "uuid": "a0000000-0000-4000-8000-000000000041",
+  "relationship": "order",
+  "references": "Order",
+  "type": "OrderNumber",
+  "base": "string",
+  "nullable": false,
+  "default": null,
+  "check": [],
+  "application": [],
+  "interface": null
+}

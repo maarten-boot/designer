@@ -1,0 +1,59 @@
+{
+  "name": "Customer",
+  "uuid": "e0000000-0000-4000-8000-000000000002",
+  "description": "Someone who places orders. Lives in common so several schemas can use it.",
+  "context": "common",
+  "inherits": [
+    "Auditable"
+  ],
+  "columns": [
+    {
+      "name": "created_at",
+      "uuid": "a0000000-0000-4000-8000-000000000001",
+      "path": "tables/Customer/columns/created_at.json"
+    },
+    {
+      "name": "id",
+      "uuid": "a0000000-0000-4000-8000-000000000010",
+      "path": "tables/Customer/columns/id.json"
+    },
+    {
+      "name": "name",
+      "uuid": "a0000000-0000-4000-8000-000000000011",
+      "path": "tables/Customer/columns/name.json"
+    },
+    {
+      "name": "country_code",
+      "uuid": "a0000000-0000-4000-8000-000000000012",
+      "path": "tables/Customer/columns/country_code.json"
+    }
+  ],
+  "primary_key": [
+    "id"
+  ],
+  "foreign_keys": [],
+  "indexes": [
+    {
+      "columns": [
+        "name"
+      ],
+      "unique": false
+    }
+  ],
+  "default_order": [
+    {
+      "column": "name",
+      "ascending": true
+    }
+  ],
+  "check": [],
+  "application": [
+    {
+      "rule": "in_past",
+      "expression": "created_at < current()",
+      "message": "must be in the past",
+      "from": "Auditable",
+      "reason": "not deterministic"
+    }
+  ]
+}

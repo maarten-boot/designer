@@ -52,6 +52,16 @@ the test suite itself (1208 tests at the last run) and by `make docs`.
 | DDL-7 | Every translated rule agrees with the designer's evaluator on every sample value, in a real PostgreSQL, MariaDB and SQLite. |
 | DDL-8 | `--strict` exits 1 when any rule is not enforced; a file that is not an export exits 2 and says so. |
 
+## TREE — the export as a tree of files (appendix *tree*)
+
+| ID | Requirement |
+|---|---|
+| TREE-1 | `designer-export MODEL SCHEMA --tree DIR` writes the Schema's export as `schema.json`, one `table.json` per table and one file per column; `--tree` and `-o` exclude each other; the export's gate applies. |
+| TREE-2 | Each file holds the export's object unchanged, except that lists of tables and columns become `{name, uuid, path}` entries in the export's order; putting the files back gives the export exactly, key order included. |
+| TREE-3 | File names are safe on Linux, Windows and macOS: a name Windows reserves, or one equal to a sibling's when case is ignored, is written `<name>~<uuid>`. Paths are relative to the root and use `/`. |
+| TREE-4 | The same export gives the same bytes on every system: UTF-8, `\n` line ends, no timestamp; the worked example's tree is committed and compared byte for byte. |
+| TREE-5 | A new tree replaces the old one whole (written beside it, swapped in by rename), leaving no stale file; a target that is neither empty nor a tree is refused (exit 2) and left untouched. |
+
 ## REV — reviews requested (not requirements)
 
 | ID | Subject | Document |

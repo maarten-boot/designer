@@ -1,0 +1,77 @@
+{
+  "name": "Order",
+  "uuid": "e0000000-0000-4000-8000-000000000003",
+  "description": "A customer order.",
+  "context": "common/sales",
+  "inherits": [
+    "Auditable"
+  ],
+  "columns": [
+    {
+      "name": "created_at",
+      "uuid": "a0000000-0000-4000-8000-000000000001",
+      "path": "tables/Order/columns/created_at.json"
+    },
+    {
+      "name": "order_number",
+      "uuid": "a0000000-0000-4000-8000-000000000020",
+      "path": "tables/Order/columns/order_number.json"
+    },
+    {
+      "name": "customer_id",
+      "uuid": "a0000000-0000-4000-8000-000000000021",
+      "path": "tables/Order/columns/customer_id.json"
+    },
+    {
+      "name": "ship_to_country",
+      "uuid": "a0000000-0000-4000-8000-000000000022",
+      "path": "tables/Order/columns/ship_to_country.json"
+    },
+    {
+      "name": "total",
+      "uuid": "a0000000-0000-4000-8000-000000000023",
+      "path": "tables/Order/columns/total.json"
+    }
+  ],
+  "primary_key": [
+    "order_number"
+  ],
+  "foreign_keys": [
+    {
+      "relationship": "customer",
+      "columns": [
+        "customer_id"
+      ],
+      "table": "Customer",
+      "target_columns": [
+        "id"
+      ],
+      "on_delete": "restrict",
+      "inverse_name": "orders"
+    }
+  ],
+  "indexes": [
+    {
+      "columns": [
+        "order_number"
+      ],
+      "unique": true
+    }
+  ],
+  "default_order": [
+    {
+      "column": "order_number",
+      "ascending": false
+    }
+  ],
+  "check": [],
+  "application": [
+    {
+      "rule": "in_past",
+      "expression": "created_at < current()",
+      "message": "must be in the past",
+      "from": "Auditable",
+      "reason": "not deterministic"
+    }
+  ]
+}

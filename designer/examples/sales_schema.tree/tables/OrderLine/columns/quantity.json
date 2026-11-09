@@ -1,0 +1,14 @@
+{
+  "name": "quantity",
+  "uuid": "a0000000-0000-4000-8000-000000000042",
+  "property": "quantity",
+  "type": null,
+  "base": "integer",
+  "nullable": false,
+  "default": {
+    "integer": 1
+  },
+  "check": [],
+  "application": [],
+  "interface": null
+}

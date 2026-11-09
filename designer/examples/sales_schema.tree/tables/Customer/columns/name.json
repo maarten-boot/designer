@@ -1,0 +1,31 @@
+{
+  "name": "name",
+  "uuid": "a0000000-0000-4000-8000-000000000011",
+  "property": "name",
+  "type": "ShortText",
+  "base": "string",
+  "length": 80,
+  "nullable": false,
+  "default": null,
+  "check": [
+    {
+      "rule": "max_length",
+      "arguments": {
+        "max": {
+          "integer": 80
+        }
+      },
+      "expression": "len(value) <= 80",
+      "message": "must be 80 characters or fewer",
+      "from": "ShortText"
+    },
+    {
+      "rule": "non_blank",
+      "expression": "(len(value) > 0) and (value == strip(value))",
+      "message": "must not be blank",
+      "from": "ShortText"
+    }
+  ],
+  "application": [],
+  "interface": null
+}

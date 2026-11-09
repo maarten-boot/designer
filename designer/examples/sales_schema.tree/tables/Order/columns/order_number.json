@@ -1,0 +1,19 @@
+{
+  "name": "order_number",
+  "uuid": "a0000000-0000-4000-8000-000000000020",
+  "property": "order_number",
+  "type": "OrderNumber",
+  "base": "string",
+  "nullable": false,
+  "default": null,
+  "check": [
+    {
+      "rule": "order_reference",
+      "expression": "(regex_full_match(value, \"ORD-[0-9]{6}\")) or (regex_full_match(value, \"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\"))",
+      "message": "must be an order number or a UUID",
+      "from": "OrderNumber"
+    }
+  ],
+  "application": [],
+  "interface": null
+}
