@@ -72,7 +72,9 @@ def ensure_pyinstaller() -> None:
         raise SystemExit("PyInstaller is still missing in the build environment")
     environment = CACHE / f"freeze-py{sys.version_info.major}.{sys.version_info.minor}"
     bindir = "Scripts" if sys.platform == "win32" else "bin"
-    python = environment / bindir / ("python.exe" if sys.platform == "win32" else "python")
+    python = (
+        environment / bindir / ("python.exe" if sys.platform == "win32" else "python")
+    )
     if not python.exists():
         print(f"making a build environment in {environment}")
         venv.create(environment, with_pip=True)
@@ -126,14 +128,22 @@ def self_test(built: pathlib.Path, work: pathlib.Path) -> int:
     except subprocess.TimeoutExpired:
         status = -1
         print("self-test: no answer within 180 s", file=sys.stderr)
-    print(report.read_text(encoding="utf-8") if report.exists() else "self-test: no report was written")
+    print(
+        report.read_text(encoding="utf-8")
+        if report.exists()
+        else "self-test: no report was written"
+    )
     return status
 
 
 def package(built: pathlib.Path, version: str) -> pathlib.Path:
     name = f"designer-{version}-{system()}-{machine()}"
     OUT.mkdir(exist_ok=True)
-    licence = ROOT.parent / "LICENSE" if (ROOT.parent / "LICENSE").exists() else ROOT / "LICENSE"
+    licence = (
+        ROOT.parent / "LICENSE"
+        if (ROOT.parent / "LICENSE").exists()
+        else ROOT / "LICENSE"
+    )
     if system() == "linux":
         target = OUT / f"{name}.tar.gz"
         with tarfile.open(target, "w:gz") as archive:
@@ -155,7 +165,9 @@ def package(built: pathlib.Path, version: str) -> pathlib.Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--no-self-test", action="store_true", help="build without running the result")
+    parser.add_argument(
+        "--no-self-test", action="store_true", help="build without running the result"
+    )
     arguments = parser.parse_args()
 
     found = versions()
@@ -164,7 +176,9 @@ def main() -> int:
         return 1
     version = found["designer-model"]
     ensure_pyinstaller()
-    print(f"designer {version}, frozen for {system()}-{machine()} on Python {platform.python_version()}")
+    print(
+        f"designer {version}, frozen for {system()}-{machine()} on Python {platform.python_version()}"
+    )
 
     work = pathlib.Path(tempfile.mkdtemp(prefix="designer-freeze-"))
     try:

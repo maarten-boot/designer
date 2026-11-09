@@ -68,3 +68,39 @@ converting the export to PostgreSQL, SQLite and MariaDB; a design was proposed.
   on a tag, the archives are attached to the release or to a new draft.
 - 1215 tests are green. Spec §14.5, README, HANDOVER, RELEASE-NOTES and the
   planning files are updated.
+
+## Turn 198: commit
+
+Committed the frozen build (`5f2fcb2`).
+
+## Turn 199: "i pushed it" — designer-ddl
+
+- No frozen-build run in Actions yet; the user can start it by hand.
+- Built `packages/designer-ddl`: `dialects.py` (PostgreSQL, MariaDB, SQLite),
+  `translate.py` (the rule language to SQL, untranslatable by default),
+  `generate.py` (tables, keys, indexes, checks, comments, report), `cli.py`
+  (`designer-ddl`). Standard library only; reads the export, not the model.
+- Verified against real databases in podman (postgres:16 already on the
+  machine; mariadb:11.4 pulled): all nine example files apply; probe rows are
+  accepted and refused as the rules say.
+- `tools/ddl_conformance.py` compares each translated rule with the evaluator
+  on sample values. Its first run found four wrong translations, all fixed:
+  `strip` missing non-ASCII whitespace; PostgreSQL `upper('ß')` (now ICU);
+  SQLite integer division of decimals; MariaDB's decimal `-0.0 <> 0`. It also
+  showed MariaDB's UPPER is simple case mapping (now untranslatable).
+- MariaDB needed `utf8mb4_nopad_bin` (case and trailing spaces), and the key
+  length shared between unbounded text columns (3072-byte key limit).
+- `make release` failed on this machine: Debian's python3-tqdm leaves an
+  empty `build/` in dist-packages, which looks like the `build` module.
+  `release.py` now checks for `build.__main__`.
+- `.github/workflows/ddl.yml`: PostgreSQL and MariaDB service containers, the
+  examples applied and the conformance run.
+- 1260 tests green; `make release` verified with three packages. Appendix
+  `docs/designer-ddl.md`; spec §9.6, §14.1, §15; README, HANDOVER,
+  RELEASE-NOTES and the planning files updated.
+
+## Turn 200
+
+> yes commit it
+
+Committed designer-ddl (turn 199) on main.

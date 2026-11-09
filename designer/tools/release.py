@@ -5,8 +5,9 @@
 Builds a wheel and an sdist of each package into `dist/`, then installs them
 from `dist/` alone — no index, no source tree — into a fresh virtual environment
 and runs what a user would run: `designer-check` on the worked example,
-`designer-export` compared byte for byte with the committed export, and an
-import of the application. A package that has only been built has not been
+`designer-export` compared byte for byte with the committed export,
+`designer-ddl` likewise with the committed SQL in each dialect, and an import
+of the application. A package that has only been built has not been
 verified; one that has been installed somewhere clean and run has.
 
 Uses `build` from the running Python if it has it. If not — Debian's and
@@ -42,7 +43,7 @@ CACHE = (
     pathlib.Path(os.environ.get("XDG_CACHE_HOME") or pathlib.Path.home() / ".cache")
     / "designer-release"
 )
-PACKAGES = ("designer-model", "designer-app")
+PACKAGES = ("designer-model", "designer-app", "designer-ddl")
 
 
 def run(*command: str | pathlib.Path, **kwargs) -> subprocess.CompletedProcess:
@@ -90,7 +91,10 @@ def builder() -> pathlib.Path:
     """A Python that can run `python -m build`: this one if it has the module,
     otherwise a cached environment of this machine's own, for this exact
     Python, made the first time and checked every time."""
-    if importlib.util.find_spec("build") is not None:
+    # build.__main__, not build: a stray empty `build/` folder in
+    # site-packages (Debian's python3-tqdm leaves one) imports as a namespace
+    # package, and `python -m build` then fails
+    if importlib.util.find_spec("build") is not None and importlib.util.find_spec("build.__main__") is not None:
         return pathlib.Path(sys.executable)
     tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     environment = CACHE / tag
@@ -98,7 +102,7 @@ def builder() -> pathlib.Path:
     works = (
         python.exists()
         and subprocess.run(
-            [str(python), "-c", "import build"], capture_output=True, check=False
+            [str(python), "-c", "import build.__main__"], capture_output=True, check=False
         ).returncode
         == 0
     )
@@ -124,6 +128,7 @@ def verify_install(verify: pathlib.Path) -> int:
         "--find-links",
         DIST,
         "designer-app",
+        "designer-ddl",
     )
 
     # run from somewhere that is not the source tree, so nothing can be
@@ -152,6 +157,23 @@ def verify_install(verify: pathlib.Path) -> int:
             file=sys.stderr,
         )
         return 1
+    for dialect in ("postgresql", "mariadb", "sqlite"):
+        sql = run(
+            bin_dir / "designer-ddl",
+            examples / "sales_schema.export.json",
+            "--dialect",
+            dialect,
+            "--quiet",
+            capture_output=True,
+            text=True,
+            **elsewhere,
+        ).stdout
+        if sql != (examples / f"sales_schema.{dialect}.sql").read_text():
+            print(
+                f"the installed designer-ddl does not reproduce examples/sales_schema.{dialect}.sql",
+                file=sys.stderr,
+            )
+            return 1
     run(
         bin_dir / "python",
         "-c",

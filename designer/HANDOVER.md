@@ -22,7 +22,9 @@ ships:
 
     Context · Validator · Interface · Type · Property · Entity · Schema
 
-Two packages. `designer-model` is the domain: items, derivation, persistence,
+Three packages. `designer-ddl` (turn 199) turns an export file into SQL for
+PostgreSQL, MariaDB or SQLite; it reads the export only, never the model, and
+is standard library only (appendix *ddl*). `designer-model` is the domain: items, derivation, persistence,
 diagnostics, the model check, the expression checker, pictures, commands, undo,
 session. Standard library only, and it never imports tkinter. `designer-app` is
 the interface, with `rows.py`, `selection.py`, `state.py`, `slots.py`,
@@ -143,14 +145,14 @@ message has twice shown that the message itself was the defect, not the model.
 
 **Releasing** (decided in turn 146: GitHub releases, MIT, semver from 0.1.0):
 
-1. Bump `version` in both `packages/*/pyproject.toml` and the
-   `designer-model==` pin in designer-app's; a test fails if the three disagree.
+1. Bump `version` in all three `packages/*/pyproject.toml` and the
+   `designer-model==` pin in designer-app's; a test fails if they disagree.
 2. `xvfb-run -a make check`, then `make release` — it builds into `dist/` and
    verifies the wheels in a clean environment. It runs on a bare system Python:
    without `build` it makes an environment for it in
    `~/.cache/designer-release/<python version>` (turns 148 and 151).
 3. The user tags and publishes: `git tag -a vX.Y.Z -m "Designer X.Y.Z"`,
-   `git push origin vX.Y.Z`, then a GitHub release from the tag with the four
+   `git push origin vX.Y.Z`, then a GitHub release from the tag with the six
    files in `dist/` attached and `RELEASE-NOTES.md`'s section as its text.
    The tag also starts `.github/workflows/frozen.yml` (spec §14.5), which
    builds the frozen app on Linux, Windows and macOS, self-tests each, and
@@ -249,6 +251,7 @@ All in `docs/`, all checked by `make docs`.
 | `designer-diagnostics.md` | diagnostic and consequence records |
 | `designer-example-notes.md` | what the worked example exercises |
 | `designer-interfaces.md` | presentation and parsing |
+| `designer-ddl.md` | `designer-ddl`: the export as SQL, every mapping, how it is checked |
 
 Revision 16 was the first made *while building*, and every change in it came
 from using the tool rather than reading the document. Changes are marked

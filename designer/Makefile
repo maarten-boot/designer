@@ -15,13 +15,13 @@
 # tkinter every widget test skips and the suite still reports success, so `make
 # types` is not optional there.
 
-PACKAGES := packages/designer-model/src:packages/designer-app/src
+PACKAGES := packages/designer-model/src:packages/designer-app/src:packages/designer-ddl/src
 PY       := PYTHONPATH=$(PACKAGES) python3
 EXAMPLE  := examples/sales.json
 SCHEMA   := sales_schema
 
 .DEFAULT_GOAL := help
-.PHONY: help deps versions format lint types sync test gui model export docs check run clean dist release freeze
+.PHONY: help deps versions format lint types sync test gui model export docs check run clean dist release freeze sql conformance
 
 help:  ## show this list
 	@grep -E '^[a-z]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -61,6 +61,13 @@ model:  ## load, round trip and check the worked example
 export:  ## export SCHEMA of EXAMPLE (sales_schema of the example) to standard output
 	$(PY) tools/export_schema.py $(EXAMPLE) $(SCHEMA)
 
+DIALECT := postgresql
+sql:  ## SQL for DIALECT (postgresql, mariadb, sqlite) from the sales_schema export
+	$(PY) -m designer_ddl.cli examples/sales_schema.export.json --dialect $(DIALECT)
+
+conformance:  ## translated rules against the evaluator: SQLite, plus PSQL= / MARIADB= client commands if given
+	$(PY) tools/ddl_conformance.py $(if $(PSQL),--psql "$(PSQL)") $(if $(MARIADB),--mariadb "$(MARIADB)")
+
 docs:  ## the documents against each other and against the code
 	$(PY) tools/check_docs.py
 
@@ -76,7 +83,7 @@ sync:  ## are the tests still calling the code the way it is written?
 		--disable-error-code=operator --disable-error-code=index \
 		--disable-error-code=union-attr --disable-error-code=var-annotated \
 		--disable-error-code=misc \
-		packages/designer-app/tests packages/designer-model/tests
+		packages/designer-app/tests packages/designer-model/tests packages/designer-ddl/tests
 
 check: lint types sync test model docs  ## everything above, in the order that fails fastest
 

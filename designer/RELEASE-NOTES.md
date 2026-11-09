@@ -14,6 +14,13 @@
   with Python and tkinter inside. Unpack it and run `Designer`. Built and
   self-tested on each platform by a GitHub workflow when a version is tagged.
   Spec §14.5.
+- **SQL for a database: `designer-ddl`**, a third package and command. It
+  turns a Schema's export into PostgreSQL, MariaDB or SQLite table
+  definitions: columns, keys, indexes, foreign keys, and each rule as a named
+  CHECK constraint where the database can say exactly what the rule says. A
+  rule it cannot write exactly is left as a comment and reported, never
+  approximated. Every translation is checked against the designer's own
+  evaluator in all three databases. Appendix *ddl*.
 
 ## 0.6.0
 

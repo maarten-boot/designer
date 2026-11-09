@@ -1,0 +1,84 @@
+# designer-ddl against real databases: PostgreSQL 16 and MariaDB 11.4.
+#
+# Two checks, on every push and pull request that touches designer-ddl, its
+# examples or its conformance cases:
+#   1. every committed examples/*.{postgresql,mariadb}.sql applies cleanly;
+#   2. tools/ddl_conformance.py: each translated rule gives the same verdict
+#      as the designer's own evaluator on every sample value.
+# SQLite needs no service: `make check` already does both for it.
+
+name: ddl against databases
+
+on:
+  push:
+    paths:
+      - "designer/packages/designer-ddl/**"
+      - "designer/tools/ddl_conformance.py"
+      - "designer/examples/*.sql"
+      - "designer/examples/*.export.json"
+      - ".github/workflows/ddl.yml"
+  pull_request:
+    paths:
+      - "designer/packages/designer-ddl/**"
+      - "designer/tools/ddl_conformance.py"
+      - "designer/examples/*.sql"
+      - "designer/examples/*.export.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  databases:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: x
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 30
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: x
+          MARIADB_DATABASE: test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 2s
+          --health-timeout 5s --health-retries 30
+    defaults:
+      run:
+        working-directory: designer
+    env:
+      PGPASSWORD: x
+      PSQL: psql -h 127.0.0.1 -U postgres
+      MARIADB: mariadb -h 127.0.0.1 -P 3306 -u root -px test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the database clients
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-client mariadb-client
+
+      - name: Apply each committed example
+        run: |
+          for sql in examples/*.postgresql.sql; do
+            echo "== $sql"
+            $PSQL -q -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+            $PSQL -q -v ON_ERROR_STOP=1 < "$sql"
+          done
+          for sql in examples/*.mariadb.sql; do
+            echo "== $sql"
+            $MARIADB -e "DROP DATABASE test; CREATE DATABASE test;"
+            $MARIADB < "$sql"
+          done
+
+      - name: Conformance with the evaluator
+        run: python tools/ddl_conformance.py --psql "$PSQL" --mariadb "$MARIADB"

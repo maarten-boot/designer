@@ -776,6 +776,10 @@ The shape was settled against a hand-written sample,
 - **Gating is per Schema.** Only findings about items the Schema reaches block
   its export; an unfinished Type nothing in it uses does not.
 - **No timestamp.** The same model exports to the same bytes.
+- **SQL is a consumer.** `[CHANGED]` `designer-ddl` (appendix *ddl*) reads this
+  file and writes PostgreSQL, MariaDB or SQLite table definitions; a rule it
+  cannot write exactly is left to the application and reported, never
+  approximated.
 
 Building it (`designer_model/export.py`, turn 108) changed details of the
 sample, which is now generated rather than hand-written and is what the
@@ -1296,24 +1300,25 @@ in any application module but `palette.py`.
 
 ## 14. Packaging and runtime `[DECIDED]`
 
-### 14.1 Two distributions, one repository
+### 14.1 Three distributions, one repository
 
 | Package | Contents | Dependencies |
 |---|---|---|
 | `designer-model` | Domain items, expressions module, path resolver, model check, JSON persistence, repository interface, **the standard library JSON fragment as package data** | **Standard library only** |
 | `designer-app` | tkinter UI, application state, layout | `designer-model` |
+| `designer-ddl` | `[CHANGED]` SQL table definitions from an export file: PostgreSQL, MariaDB, SQLite (appendix *ddl*) | **Standard library only**; reads the export, not the model |
 
-`[CHANGED]` Both packages are released as wheels on GitHub (decided in turn 146),
+`[CHANGED]` The packages are released as wheels on GitHub (decided in turn 146),
 MIT licensed, `designer-app` pinning exactly its own `designer-model` version;
 `make release` (`tools/release.py`) builds them and verifies them in a clean
-environment. Installed, they give three commands: `designer`, `designer-check`
-and `designer-export`. The domain model is a package of its own so later tools
+environment. Installed, they give four commands: `designer`, `designer-check`,
+`designer-export` and `designer-ddl`, all at one version. The domain model is a package of its own so later tools
 depend on it without a GUI, and it carries the validator library with it — a generator or CLI needs the same
 built-ins the UI does. **`designer-model` must never import tkinter**, and a test
 asserts it.
 
-Layout: `packages/designer-model/` and `packages/designer-app/`, each `src/`
-layout with its own `pyproject.toml`.
+Layout: `packages/designer-model/`, `packages/designer-app/` and
+`packages/designer-ddl/`, each `src/` layout with its own `pyproject.toml`.
 
 Three version numbers, deliberately uncoupled: the package version (semver), the
 model file `schema_version`, and `library_version`.
@@ -1434,8 +1439,9 @@ packaged.
 - Collections (§8.4).
 - Editable JSON tab (§13.6).
 - SQLAlchemy-backed model store (§12).
-- Export: DDL, SQLAlchemy declarative classes, or Pydantic models, one Schema at
-  a time.
+- Export: ~~DDL~~ `[BUILT]` — `designer-ddl`, PostgreSQL, MariaDB and SQLite
+  (appendix *ddl*, turn 199); SQLAlchemy declarative classes or Pydantic models
+  are still deferred.
 - A sample model file (§14.4).
 - Multi-model library import.
 

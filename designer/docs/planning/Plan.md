@@ -22,9 +22,9 @@ has been deleted locally and remotely.
 - **Model catalogue in a database** (REV-2, B1): not pursued.
 - **Frozen build**: done (turn 197), Linux verified here; Windows and macOS
   are verified by the workflow's first run (FRZ-1 to FRZ-6).
-- **Schema to DDL** (REV-2, B2): wanted as a separate app targeting
-  PostgreSQL, SQLite and MariaDB. Design proposed in turn 196. Next, after
-  the frozen build (turn 197), starting with PostgreSQL.
+- **Schema to DDL** (REV-2, B2): done in turn 199 as `designer-ddl`, all three
+  dialects (DDL-1 to DDL-8, appendix *ddl*). Not built yet: migrations,
+  triggers, MySQL, a native uuid type (appendix *ddl* §6).
 
 ## Open — the user's to decide
 

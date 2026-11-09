@@ -38,6 +38,9 @@ answer in the specification.
                                 palette.py are deliberately tkinter-free and
                                 carry the logic worth testing; the widget
                                 modules are thin adapters over them.
+    packages/designer-ddl/      SQL table definitions from an export file:
+                                PostgreSQL, MariaDB, SQLite. Standard library
+                                only; reads the export, never the model.
     examples/sales.json         the worked example, and the main test fixture.
     examples/sales_broken.json  the same model, broken on purpose: a schema
                                 that will not export, with a Fix for each cause.
@@ -54,9 +57,13 @@ answer in the specification.
     tools/release.py            builds the release and verifies it installs.
     tools/freeze.py             builds the frozen app for this platform and
                                 runs its self-test (`make freeze`).
+    tools/ddl_conformance.py    checks designer-ddl's SQL against the evaluator
+                                in a real database (`make conformance`).
     examples/*.export.json      the exports of sales_schema and support_schema,
                                 and of sales_schema with Interfaces, which the
                                 exporter must reproduce byte for byte.
+    examples/*.<dialect>.sql    the same three as SQL for postgresql, mariadb
+                                and sqlite, which designer-ddl must reproduce.
 
 ## The columns
 
@@ -220,6 +227,22 @@ tests pin the codes that a prototype checker, written against the specification
 documents rather than against this code, produced for four deliberately broken
 variants.
 
+## SQL for a database
+
+`designer-ddl` turns a Schema's export into the SQL that creates it, for
+PostgreSQL, MariaDB or SQLite:
+
+    designer-export model.json sales_schema -o sales_schema.export.json
+    designer-ddl sales_schema.export.json --dialect postgresql -o sales_schema.sql
+
+Each rule becomes a named CHECK constraint where the database can say exactly
+what the rule says. Where it cannot — SQLite has no regular expressions, MariaDB
+no Unicode case mapping — the rule is a comment marked `NOT ENFORCED HERE`, with
+the reason, and is listed on standard error: enforce it in the application.
+`--strict` fails instead. Every translation is checked against the designer's
+own evaluator in a real PostgreSQL 16, MariaDB 11.4 and SQLite
+(`make conformance`). Appendix *ddl* (`docs/designer-ddl.md`) has every mapping.
+
 ## Installing a release
 
 **The easy way: the frozen app.** Each release after 0.6.0 carries one
@@ -240,16 +263,18 @@ right-click the app and choose Open), or run
 (`designer-check`, `designer-export`) are not in the frozen app; install the
 wheels for those.
 
-**With Python: the wheels.** Each release on GitHub carries a wheel of each package. Install both into a
-virtual environment — `designer-app` needs exactly its own `designer-model`:
+**With Python: the wheels.** Each release on GitHub carries a wheel of each
+package. Install them into a virtual environment — `designer-app` needs exactly
+its own `designer-model`, and `designer-ddl` needs neither:
 
     python3 -m venv ~/.venvs/designer
     ~/.venvs/designer/bin/pip install designer_model-0.6.0-py3-none-any.whl \
-                                      designer_app-0.6.0-py3-none-any.whl
+                                      designer_app-0.6.0-py3-none-any.whl \
+                                      designer_ddl-0.6.0-py3-none-any.whl
 
-That gives three commands: `designer` (the window), `designer-check` (the model
-check, as `make model` runs it) and `designer-export` (a Schema's export, as
-`make export` runs it). Python 3.12 or later; tkinter as below. MIT licensed.
+That gives four commands: `designer` (the window), `designer-check` (the model
+check, as `make model` runs it), `designer-export` (a Schema's export, as
+`make export` runs it) and `designer-ddl` (that export as SQL, see below). Python 3.12 or later; tkinter as below. MIT licensed.
 
 `make release` builds the wheels and sdists into `dist/` and installs them into
 a fresh environment from `dist/` alone — it needs nothing installed beyond

@@ -37,6 +37,27 @@ under `packages/designer-app/tests/`.
 | FRZ-4 | `test_the_frozen_self_test_opens_a_window_and_runs_the_bench` | `test_widgets.py` |
 | FRZ-1, 2, 3, 4 | the self-test of each real build, in `tools/freeze.py` | CI, each platform |
 | FRZ-5 | the tag check and release steps in `.github/workflows/frozen.yml` | CI |
+| DDL-1 | `test_the_packages_are_released_together` | `designer-app/tests/test_startup.py` |
+| DDL-1, 6 | `make release`: the installed `designer-ddl` reproduces `examples/sales_schema.<dialect>.sql` | `tools/release.py` |
+| DDL-2 | `test_names_are_quoted_so_reserved_words_work` | `designer-ddl/tests/test_ddl.py` |
+| DDL-2 | `test_foreign_keys_come_after_the_tables_except_in_sqlite` | `designer-ddl/tests/test_ddl.py` |
+| DDL-2 | `test_long_constraint_names_are_cut_without_colliding` | `designer-ddl/tests/test_ddl.py` |
+| DDL-2 | `test_the_sqlite_sql_runs_and_its_constraints_hold` (3 examples) | `designer-ddl/tests/test_ddl.py` |
+| DDL-3 | `test_a_rule_sqlite_cannot_check_is_a_comment_and_in_the_report` | `designer-ddl/tests/test_ddl.py` |
+| DDL-3 | `test_what_does_not_translate_says_why` (8 cases) | `designer-ddl/tests/test_ddl.py` |
+| DDL-3 | `test_case_mapping_is_the_full_unicode_one_or_not_at_all` | `designer-ddl/tests/test_ddl.py` |
+| DDL-3 | `test_strip_removes_what_python_removes` | `designer-ddl/tests/test_ddl.py` |
+| DDL-3 | `test_a_pattern_is_anchored_to_the_whole_value` | `designer-ddl/tests/test_ddl.py` |
+| DDL-3 | `test_strings_are_escaped_for_each_dialect`, `test_chained_comparisons_become_and`, `test_numbers_keep_their_spelling` | `designer-ddl/tests/test_ddl.py` |
+| DDL-3 | `test_mariadb_compares_text_exactly` | `designer-ddl/tests/test_ddl.py` |
+| DDL-4 | `test_application_rules_are_listed_not_checked`, `test_the_export_warnings_are_carried` | `designer-ddl/tests/test_ddl.py` |
+| DDL-5 | `test_mariadb_shares_the_key_length_between_text_columns` | `designer-ddl/tests/test_ddl.py` |
+| DDL-6 | `test_each_example_gives_its_committed_sql` (9 files) | `designer-ddl/tests/test_ddl.py` |
+| DDL-6 | `test_the_same_export_gives_the_same_bytes` | `designer-ddl/tests/test_ddl.py` |
+| DDL-7 | `test_the_conformance_cases_agree_on_sqlite` | `designer-ddl/tests/test_ddl.py` |
+| DDL-7 | `test_sqlite_refuses_what_the_rules_refuse` | `designer-ddl/tests/test_ddl.py` |
+| DDL-7 | `tools/ddl_conformance.py` against PostgreSQL 16 and MariaDB 11.4 | CI: `.github/workflows/ddl.yml` |
+| DDL-8 | `test_strict_fails_when_a_rule_is_not_enforced`, `test_a_file_that_is_not_an_export_is_refused_by_name`, `test_an_unknown_dialect_is_refused`, `test_only_an_export_file_is_read` | `designer-ddl/tests/test_ddl.py` |
 
 ## Not automated
 
@@ -46,5 +67,8 @@ under `packages/designer-app/tests/`.
   PyInstaller 6.22, Python 3.14), including from the unpacked archive (0.7 s).
   Windows and macOS are verified only by the workflow's first run.
 - FRZ-5 has not run yet: it runs on the first tag pushed after this change.
+- DDL-7 against PostgreSQL 16 and MariaDB 11.4 was run here in podman
+  containers (9 November 2026): 48 and 46 rules, no disagreement. The
+  workflow `ddl.yml` has not run yet; it runs on the next push touching it.
 - That a selected row is drawn in the selection's colours rather than its tag's
   was checked by pixel sampling on Tk 8.6.17; older Tk is not covered.

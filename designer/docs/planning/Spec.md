@@ -39,6 +39,19 @@ the test suite itself (1208 tests at the last run) and by `make docs`.
 | FRZ-5 | A tag `vX.Y.Z` builds all three in GitHub Actions, refuses a tag that disagrees with the package versions, and attaches the archives to the release, or to a draft. |
 | FRZ-6 | Building never writes an environment or build folder into the repository (the NFS-share rule); output goes to `dist-frozen/`, which is ignored by git. |
 
+## DDL — SQL from an export (appendix *ddl*)
+
+| ID | Requirement |
+|---|---|
+| DDL-1 | A separate command, `designer-ddl`, reads an export file (never the model) and writes SQL for PostgreSQL, MariaDB or SQLite; standard library only; released with the other packages at one version. |
+| DDL-2 | Each table: columns with type, NOT NULL and DEFAULT, primary key, indexes, foreign keys with their ON DELETE; names quoted as designed, so reserved words work. |
+| DDL-3 | Each rule becomes a named CHECK constraint only when the dialect says exactly what the rule says; otherwise a `NOT ENFORCED HERE` comment with the reason, listed in the report. Never an approximation. |
+| DDL-4 | Rules the export gives to the application (across tables, reading the clock) are listed as comments, not checked. |
+| DDL-5 | Where storage keeps less than the model (rounding to a scale, no time zone, bounded key text), the column carries a note and the report lists it. |
+| DDL-6 | Output is deterministic: the same export gives the same bytes; the examples are committed and compared byte for byte. |
+| DDL-7 | Every translated rule agrees with the designer's evaluator on every sample value, in a real PostgreSQL, MariaDB and SQLite. |
+| DDL-8 | `--strict` exits 1 when any rule is not enforced; a file that is not an export exits 2 and says so. |
+
 ## REV — reviews requested (not requirements)
 
 | ID | Subject | Document |
