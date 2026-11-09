@@ -1182,3 +1182,19 @@ new commit, for the tag to be moved onto it, as was done for 0.2.0.
 
 > commit it
 
+## 193.
+
+> pushed and tagged
+
+## 194.
+
+> status?
+
+
+## 195.
+
+> no need for a new branch as this is originally my own project so all stayes in the current branch. yes fix the contrast items. And prepare a review of the code impact if we would A) switch to golang and B) store our schema in a database.
+
+## 196.
+
+> yes commit it; Ok skip the Go part i understand the impact; yes a frozen build easy to install and use would be a great asset. B Database (i understand the impact of B1 so skip it), Regarding B2 could that be a separate app converting to Postgres, Sqlite, Mariadb ?

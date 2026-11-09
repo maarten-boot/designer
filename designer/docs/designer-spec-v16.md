@@ -1244,7 +1244,7 @@ named in the editor's title and the Context path in the breadcrumb.
 |---|---|---|
 | File | Open…, Open Recent, Save, Save As…, Export Schema…, Quit | Ctrl+O, Ctrl+S |
 | Edit | Undo, Redo, Preferences… | Ctrl+Z, Ctrl+Y |
-| View | a checkbutton per column, Show built-in validators, Findings shown, Reset layout | |
+| View | a checkbutton per column, Show built-in validators, Findings shown, Contrast, Reset layout | |
 | Model | Check model and list findings…, Try a value… | F5, Ctrl+T |
 
 The **findings window** lists every finding at the level View ▸ Findings shown
@@ -1253,6 +1253,44 @@ context included. A finding with a one-step remedy offers it on a **Fix** button
 named for what it does (appendix *diagnostics* §7). The list follows the model:
 after an edit the item and context rules re-run, and the model-scope findings of
 the last full check are kept, less any about an item that is gone.
+
+### 13.12 Colour and contrast `[DECIDED]`
+
+`[CHANGED]` Black text on a white background, everywhere — the theme's grey
+included. Before, five text colours were below WCAG AA on white: the greys of
+deprecated built-ins and context-only rows (2.3:1), unnamed items (2.9:1), the
+breadcrumb's "(no context)" and the tooltip border (3.5:1), and built-in
+validators (4.48:1).
+
+Every foreground/background pair the application draws reaches a **minimum
+contrast ratio** (WCAG 2 relative luminance). The colours in
+`designer_app/palette.py` are intent; `palette.resolve` darkens each foreground,
+keeping its hue, until it reaches the minimum on the plain background and on
+every tint it can be drawn on, and lightens each tint until black text on it
+does. A colour that already passes is left as it is.
+
+| Level | Minimum | |
+|---|---|---|
+| `AA` | 4.5:1 | the default |
+| `AAA` | 7:1 | |
+| `Max` | 21:1 | pure black and white only |
+| custom | 4.5 to 21 | any ratio; below AA is not offered |
+
+Chosen in **View ▸ Contrast** (the three presets, and Custom ratio…), in
+**Edit ▸ Preferences…**, or in the settings file as `contrast` (§14.3): a
+preset name in any case, or a number such as `10` or `"10:1"`. Anything else
+reads as `AA`. A change applies at once to what is open and is saved at once.
+
+At high levels the greys and tints converge on black and white, and a state
+carried only by colour would vanish. When a row state's colour comes within
+1.5:1 of plain text it is shown **italic** as well; when a relationship tint
+can no longer be told from a plain row, the row is **bold**. A selection that
+would have to be white to carry black text is shown **inverted**, white on
+black — so at Max the active and idle selections look alike. A selected row is
+drawn in the selection's colours, not its tag's (Tk 8.6.10 and later).
+
+A test walks every pair at a dozen levels, and another refuses a colour literal
+in any application module but `palette.py`.
 
 ---
 
@@ -1323,6 +1361,7 @@ it is the only thing that would otherwise pull one in.
 | `undo_limit` | 100 | Preferences |
 | `autosave_delay_ms` | 250 | Preferences |
 | `recent_files_limit` | 10 | Preferences |
+| `contrast` | `AA` | View ▸ Contrast, Preferences (§13.12) |
 
 A corrupt settings file is replaced with defaults, never fatal.
 
@@ -1360,8 +1399,8 @@ and marked unavailable** rather than dropped.
   why, evaluated off the UI thread so a pathological regex cannot hang the
   window. Worth pulling into v1 if anything else can be dropped.
 - ~~**Preferences dialog**~~ `[BUILT]` — **Edit ▸ Preferences…**, exposing
-  `undo_limit`, `autosave_delay_ms` and `recent_files_limit`, applied and saved
-  at once.
+  `undo_limit`, `autosave_delay_ms` and `recent_files_limit`, and the contrast
+  level (§13.12), applied and saved at once.
 - **Automatic column collapse** (§13.3), which would reintroduce pinning.
 - **Schema composition** — a Schema including another (§9.5).
 - Command journal replacing snapshot autosave, giving persistent undo (§12.1).

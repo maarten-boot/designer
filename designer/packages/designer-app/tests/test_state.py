@@ -160,3 +160,14 @@ def test_settings_of_the_wrong_shape_are_replaced_with_defaults(tmp_path, text) 
     (tmp_path / SETTINGS_NAME).write_text(text)
     loaded = Settings.load(tmp_path)
     assert loaded.undo_limit == Settings().undo_limit
+
+
+@pytest.mark.parametrize(
+    ("written", "read"),
+    [("AAA", "AAA"), ("aaa", "AAA"), (10, "10"), (7, "AAA"), ("21:1", "Max"), ("3", "AA"), (None, "AA"), (True, "AA")],
+)
+def test_the_contrast_level_in_a_hand_edited_file(tmp_path, written, read) -> None:
+    """The settings file is the config file for contrast: a preset in any case
+    or a number is understood, and anything else is the default, not a crash."""
+    (tmp_path / "settings.json").write_text(json.dumps({"contrast": written}))
+    assert Settings.load(tmp_path).contrast == read

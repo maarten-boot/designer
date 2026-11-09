@@ -1,5 +1,16 @@
 # Release notes
 
+## Unreleased
+
+- **Black on white, and every colour readable.** Five text colours were below
+  WCAG AA (4.5:1) on white — deprecated and context-only rows, unnamed items,
+  "(no context)", built-in validators. All colours now come from one palette
+  that holds each pair to a minimum ratio.
+- **View ▸ Contrast** raises the minimum to AAA (7:1), Max (pure black and
+  white) or a custom ratio, at once; Preferences and the settings file
+  (`"contrast": "AAA"`) do the same. Where colour runs out, rows turn italic or
+  bold and selections invert. Spec §13.12.
+
 ## 0.6.0
 
 Small improvements to what the model check and the test bench say.

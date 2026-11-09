@@ -19,18 +19,10 @@ from dataclasses import dataclass, field
 from tkinter import ttk
 from uuid import UUID
 
-from .columns import TAG_STYLES
+from . import palette as pal
+from . import theme
 from .forms import NONE_CHOICE, Action, Field, FormSpec
 from .rows import next_sort, sorted_rows
-
-# The form sits on its own near-white panel rather than the theme's grey. Notes
-# and findings are secondary text, and secondary text on a grey background is
-# the first thing to become unreadable — this gives it something to sit on.
-PANEL = "#fcfcfc"
-FINDING_COLOUR = "#a01b0b"
-ATTENTION_COLOUR = "#a35a00"
-NOTE_COLOUR = "#4f4f4f"
-READONLY_COLOUR = "#3c3c3c"
 
 FRAME_STYLE = "Form.TFrame"
 LABEL_STYLE = "Form.TLabel"
@@ -46,31 +38,33 @@ TITLE_STYLE = "FormTitle.TLabel"
 def install_styles(widget: tk.Misc) -> None:
     """Define the form's styles once, on the widget's own style object."""
     style = ttk.Style(widget)
-    style.configure(FRAME_STYLE, background=PANEL)
-    style.configure(LABEL_STYLE, background=PANEL)
-    style.configure(TITLE_STYLE, background=PANEL, font=("TkDefaultFont", 10, "bold"))
-    style.configure(NOTE_STYLE, background=PANEL, foreground=NOTE_COLOUR)
-    style.configure(FINDING_STYLE, background=PANEL, foreground=FINDING_COLOUR)
-    style.configure(READONLY_STYLE, background=PANEL, foreground=READONLY_COLOUR)
+    palette = pal.current()
+    panel = palette.background
+    style.configure(FRAME_STYLE, background=panel)
+    style.configure(LABEL_STYLE, background=panel, foreground=palette.text)
+    style.configure(TITLE_STYLE, background=panel, foreground=palette.text, font=("TkDefaultFont", 10, "bold"))
+    style.configure(NOTE_STYLE, background=panel, foreground=palette.note)
+    style.configure(FINDING_STYLE, background=panel, foreground=palette.finding)
+    style.configure(READONLY_STYLE, background=panel, foreground=palette.readonly)
     # amber, not red: true and worth noticing, but not a fault
     style.configure(
         ATTENTION_STYLE,
-        background=PANEL,
-        foreground=ATTENTION_COLOUR,
+        background=panel,
+        foreground=palette.attention,
         font=("TkDefaultFont", 9, "bold"),
     )
     # entries rather than labels for read-only values, so the text can be
     # selected and copied; flat and unbordered so they still read as values
-    for name, colour in ((READONLY_ENTRY, READONLY_COLOUR), (ATTENTION_ENTRY, ATTENTION_COLOUR)):
+    for name, colour in ((READONLY_ENTRY, palette.readonly), (ATTENTION_ENTRY, palette.attention)):
         style.configure(
             name,
             foreground=colour,
-            fieldbackground=PANEL,
-            background=PANEL,
+            fieldbackground=panel,
+            background=panel,
             borderwidth=0,
             relief="flat",
         )
-        style.map(name, fieldbackground=[("readonly", PANEL)], foreground=[("readonly", colour)])
+        style.map(name, fieldbackground=[("readonly", panel)], foreground=[("readonly", colour)])
 
 
 @dataclass
@@ -171,10 +165,10 @@ class FormView(ttk.Frame):
         # quoted back in feedback — a label cannot be selected, so these are
         # read-only text rather than labels
         for message in entry.findings:
-            self._prose(message, FINDING_COLOUR, row)
+            self._prose(message, pal.current().finding, row)
             row += 1
         if entry.note:
-            self._prose(entry.note, NOTE_COLOUR, row)
+            self._prose(entry.note, pal.current().note, row)
             row += 1
         return row
 
@@ -187,7 +181,7 @@ class FormView(ttk.Frame):
             height=max(1, (len(message) // 78) + 1),
             wrap="word",
             width=78,
-            background=PANEL,
+            background=pal.current().background,
             foreground=colour,
             relief="flat",
             borderwidth=0,
@@ -226,11 +220,11 @@ class FormView(ttk.Frame):
             self,
             height=min(10, max(1, len(lines))),
             wrap="none",
-            background=PANEL,
+            background=pal.current().background,
             relief="flat",
             borderwidth=0,
             highlightthickness=0,
-            foreground=ATTENTION_COLOUR if entry.emphasis == "attention" else "#000000",
+            foreground=pal.current().attention if entry.emphasis == "attention" else pal.current().text,
             width=max(20, min(70, max((len(line) for line in lines), default=20) + 2)),
         )
         widget.insert("1.0", "\n".join(lines))
@@ -264,8 +258,7 @@ class FormView(ttk.Frame):
         tags_of = {r.id: r.tags for r in entry.rows}
         for table_row in entry.rows:
             tree.insert("", "end", iid=table_row.id, values=table_row.cells, tags=table_row.tags)
-        for tag, style in TAG_STYLES.items():
-            tree.tag_configure(tag, **style)
+        theme.tag_rows(tree)
         tree.pack(side="top", fill="x")
         self.tables[entry.key] = tree
 
@@ -347,7 +340,8 @@ class FormView(ttk.Frame):
             height=4,
             wrap="word",
             undo=False,
-            background="#ffffff",
+            background=pal.current().background,
+            foreground=pal.current().text,
             relief="solid",
             borderwidth=1,
             highlightthickness=0,

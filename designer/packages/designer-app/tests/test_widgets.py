@@ -816,14 +816,17 @@ def test_clearing_the_context_falls_back_to_the_root(app: DesignerApp) -> None:
     assert app.selection.context is not None
 
 
-def test_the_form_panel_is_lighter_than_the_theme(app: DesignerApp) -> None:
+def test_the_form_panel_is_white(app: DesignerApp) -> None:
     """Secondary text on the theme's grey was the first thing to become
-    unreadable; the form sits on its own near-white panel."""
+    unreadable; the form, and everything else, sits on white."""
     from tkinter import ttk
 
-    from designer_app.formview import FRAME_STYLE, PANEL
+    from designer_app.formview import FRAME_STYLE
 
-    assert ttk.Style(app).lookup(FRAME_STYLE, "background") == PANEL
+    style = ttk.Style(app)
+    assert style.lookup(FRAME_STYLE, "background") == "#ffffff"
+    assert style.lookup(".", "background") == "#ffffff"
+    assert style.lookup(".", "foreground") == "#000000"
 
 
 def test_selecting_a_property_leaves_the_type_column_whole(app: DesignerApp) -> None:
@@ -2671,3 +2674,95 @@ def test_a_finding_without_a_remedy_offers_nothing(app: DesignerApp, quiet: dict
     window.tree.selection_set(row)
     settle(app)
     assert window.fix_button.instate(["disabled"])
+
+
+# --- contrast ---------------------------------------------------------------------
+
+
+def test_view_contrast_applies_to_what_is_open(app: DesignerApp, quiet: dict) -> None:
+    """View ▸ Contrast ▸ Max: the rows, the selections and the form are black
+    and white at once, without reopening anything, and the choice is saved."""
+    from tkinter import ttk
+
+    from designer_app.columns import ACTIVE_STYLE
+    from designer_app.formview import NOTE_STYLE
+    from designer_app.state import Settings
+
+    tree = app.columns["validator"].tree
+    assert str(tree.tag_configure("deprecated", "foreground")) == "#6d6d6d"
+    app.set_contrast("Max")
+    settle(app)
+    style = ttk.Style(app)
+    assert str(tree.tag_configure("deprecated", "foreground")) == "#000000"
+    assert str(tree.tag_configure("uses", "background")) == "#ffffff"
+    assert tree.tag_configure("uses", "font")  # bold stands in for the tint
+    assert style.lookup(NOTE_STYLE, "foreground") == "#000000"
+    assert style.lookup(ACTIVE_STYLE, "background", ["selected"]) == "#000000"
+    assert style.lookup(ACTIVE_STYLE, "foreground", ["selected"]) == "#ffffff"
+    assert Settings.load().contrast == "Max"
+
+    app.set_contrast("AA")
+    settle(app)
+    assert str(tree.tag_configure("deprecated", "foreground")) == "#6d6d6d"
+    assert not str(tree.tag_configure("uses", "font"))
+
+
+def test_a_custom_contrast_is_asked_until_it_is_a_ratio(app: DesignerApp, quiet: dict) -> None:
+    quiet["contrast"] = ["3", "12:1"]
+    app._ask_contrast()
+    settle(app)
+    assert app.settings.contrast == "12"
+    assert "'3' is not a ratio" in quiet["contrast_prompts"][1]
+    quiet["contrast"] = []  # cancelled
+    app._ask_contrast()
+    assert app.settings.contrast == "12"
+
+
+def test_contrast_chosen_in_preferences_applies_at_once(app: DesignerApp, quiet: dict) -> None:
+    from tkinter import ttk
+
+    from designer_app.formview import FINDING_STYLE
+
+    quiet["preferences"] = {"undo_limit": 100, "autosave_delay_ms": 250, "recent_files_limit": 10, "contrast": "AAA"}
+    app.edit_preferences()
+    settle(app)
+    assert quiet["preferences_dialogs"][-1]["contrast"] == "AA"
+    assert app.settings.contrast == "AAA"
+    assert app._contrast.get() == "AAA"
+    assert ttk.Style(app).lookup(FINDING_STYLE, "foreground") == "#9e1a0a"
+
+
+def test_the_preferences_dialog_offers_contrast(app: DesignerApp) -> None:
+    from designer_app import preferences
+    from designer_app.dialogs import PreferencesDialog
+
+    dialog = PreferencesDialog(app, preferences.current(app.settings), preferences.PREFERENCES, preferences.check)
+    settle(app)
+    dialog.set("contrast", "2")
+    dialog.accept()
+    settle(app)
+    assert "Minimum contrast must be" in str(dialog.problem.cget("text"))
+    dialog.set("contrast", "aaa")
+    dialog.accept()
+    settle(app)
+    assert dialog.result is not None and dialog.result["contrast"] == "AAA"
+
+
+def test_a_saved_contrast_is_used_from_the_start(config, quiet) -> None:
+    from tkinter import ttk
+
+    from designer_model import Session
+
+    from designer_app import palette
+    from designer_app.formview import NOTE_STYLE
+    from designer_app.state import Settings
+
+    example = pathlib.Path(__file__).resolve().parents[3] / "examples" / "sales.json"
+    window = DesignerApp(Session.open(example), Settings(contrast="Max"))
+    try:
+        window.update()
+        assert ttk.Style(window).lookup(NOTE_STYLE, "foreground") == "#000000"
+        assert str(window.columns["validator"].tree.tag_configure("builtin", "foreground")) == "#000000"
+    finally:
+        palette.use(palette.DEFAULT)
+        window.destroy()

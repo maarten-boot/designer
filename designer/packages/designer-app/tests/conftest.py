@@ -176,6 +176,19 @@ def quiet(monkeypatch):
         return calls["preferences"]
 
     monkeypatch.setattr(app_module, "edit_preferences", edit_preferences)
+
+    # View ▸ Contrast ▸ Custom ratio…: a list of answers, one per asking
+    calls["contrast"] = []
+    calls["contrast_prompts"] = []
+
+    class Ask:
+        @staticmethod
+        def askstring(title, prompt, **_kw):
+            calls["contrast_prompts"].append(prompt)
+            answers = calls["contrast"]
+            return answers.pop(0) if answers else None
+
+    monkeypatch.setattr(app_module, "simpledialog", Ask)
     return calls
 
 
@@ -192,6 +205,9 @@ def app(config, quiet):
     window = DesignerApp(Session.open(EXAMPLE), Settings())
     window.update()  # a full update, so any startup events are delivered
     yield window
+    from designer_app import palette
+
+    palette.use(palette.DEFAULT)  # module state: the next test starts at AA
     pending = getattr(window, "_autosave_job", None)
     if pending is not None:
         try:

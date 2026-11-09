@@ -1,0 +1,50 @@
+# Conversation — 9 November 2026
+
+`HISTORY.md` keeps every prompt verbatim; this log keeps what was done about
+them, one day per file.
+
+## Turns 193–194: "pushed and tagged", "status?"
+
+- Verified: `main` = `origin/main` at `acd2c1e`; releases v0.4.0–v0.6.0 on
+  GitHub; the stray `v0.7.0` tag gone locally and remotely.
+- New global working rules noticed: planning files (this folder), WCAG
+  contrast. Measured the app's colours on white: five text colours failed AA
+  (`#aaaaaa` 2.3, `#999999` 2.9, `#888888` and `#8a8a6a` 3.5, `#777777` 4.48).
+- Proposed: (a) planning files, (b) fix contrast and add presets.
+
+## Turn 195: no branch; fix contrast; review Go and a database
+
+The user: planning files stay on the current branch (their own project); fix
+the contrast; review the impact of A) Go and B) a database.
+
+Input review: "store our schema in a database" can mean the model catalogue
+in a database, or the exported schema created as DDL. The review covers both
+and asks which was meant.
+
+Done:
+
+- `designer_app/palette.py` (tkinter-free): every colour as intent, resolved
+  to a minimum WCAG ratio; presets AA/AAA/Max plus custom 4.5–21; font cues
+  and inverted selections where colour runs out.
+- `designer_app/theme.py`: applies a palette to ttk styles, the option
+  database, existing classic widgets and Treeview tags, live.
+- Settings `contrast` (hand-editable), View ▸ Contrast (presets, Custom
+  ratio…), Preferences field. Every hard-coded colour removed from the widget
+  modules, with a test that keeps it that way.
+- Checked on Tk 8.6.17 by pixel sampling: a selected row is drawn in the
+  selection's colours, not its tag's.
+- Screenshots at AA and Max under Xvfb looked right.
+- `xvfb-run -a make check` green: 1208 tests (was 1154).
+- Spec §13.12 added; §13.11, §14.3, §15, README, HANDOVER and RELEASE-NOTES
+  (Unreleased) updated.
+- `docs/planning/`: Plan.md, Spec.md (CON-1…8, REV-1/2), Tests.md (traced),
+  Review-Go-and-Database.md, this log.
+
+Suggested next: a crosscheck of Spec.md, Plan.md and the code before the next
+release.
+
+## Turn 196: commit; Go and B1 skipped; frozen build and B2 wanted
+
+Committed the contrast work and planning files. Go and the model-in-a-database
+option are dropped. A frozen build is wanted. B2 is to be a separate app
+converting the export to PostgreSQL, SQLite and MariaDB; a design was proposed.

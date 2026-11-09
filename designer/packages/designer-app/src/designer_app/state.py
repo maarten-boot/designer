@@ -17,6 +17,8 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from . import palette
+
 APP_NAME = "Designer"
 SETTINGS_NAME = "settings.json"
 
@@ -74,6 +76,10 @@ class Settings:
     undo_limit: int = 100
     autosave_delay_ms: int = 250
     recent_files_limit: int = 10
+    contrast: str = "AA"
+    """The minimum contrast ratio every colour pair reaches: "AA" (4.5:1),
+    "AAA" (7:1), "Max" (21:1, black and white only), or a ratio from 4.5 to 21
+    — a number or text such as "10" or "10:1". See `palette`."""
 
     # --- recent files -------------------------------------------------------
 
@@ -117,6 +123,9 @@ class Settings:
             settings.sort_descending = [c for c in settings.sort_descending if c in COLUMNS]
             settings.column_widths = {k: v for k, v in settings.column_widths.items() if k in COLUMNS}
             settings.recent_files = [str(p) for p in settings.recent_files]
+            # a hand-edited file may say 10 or "aaa": either is understood,
+            # and anything else falls back to the default rather than failing
+            settings.contrast = palette.name_of(settings.contrast)
             for name in ("undo_limit", "autosave_delay_ms", "recent_files_limit"):
                 if not isinstance(getattr(settings, name), int) or isinstance(getattr(settings, name), bool):
                     setattr(settings, name, getattr(cls(), name))

@@ -12,12 +12,15 @@ import sys
 import tkinter as tk
 from tkinter import ttk
 
+from . import palette as pal
+
 
 class ScrollingArea(ttk.Frame):
     """A frame whose `interior` can be taller than the space it is given."""
 
-    def __init__(self, parent: tk.Misc, background: str = "#ffffff", style: str = "") -> None:
+    def __init__(self, parent: tk.Misc, background: str = "", style: str = "") -> None:
         super().__init__(parent)
+        background = background or pal.current().background
         self.canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0, background=background)
         self.bar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self._on_scroll)

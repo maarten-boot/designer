@@ -10,6 +10,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
+from . import palette as pal
+
 
 class Chooser(tk.Toplevel):
     """Pick one thing from a list."""
@@ -71,7 +73,7 @@ class FindingsWindow(tk.Toplevel):
         top.pack(fill="x")
         self._summary = ttk.Label(top, text="")
         self._summary.pack(side="left")
-        ttk.Label(top, text="double-click a finding to go to it", foreground="#4f4f4f").pack(side="right")
+        ttk.Label(top, text="double-click a finding to go to it", foreground=pal.current().note).pack(side="right")
 
         holder = ttk.Frame(self, padding=(10, 0, 10, 10))
         holder.pack(fill="both", expand=True)
@@ -111,10 +113,10 @@ class FindingsWindow(tk.Toplevel):
             side="right", padx=(0, 6)
         )
 
-        self.tree.tag_configure("error", foreground="#a01b0b")
-        self.tree.tag_configure("warning", foreground="#a35a00")
-        self.tree.tag_configure("unfinished", foreground="#4f4f4f")
-        self.tree.tag_configure("note", foreground="#4f4f4f")
+        self.tree.tag_configure("error", foreground=pal.current().finding)
+        self.tree.tag_configure("warning", foreground=pal.current().attention)
+        self.tree.tag_configure("unfinished", foreground=pal.current().note)
+        self.tree.tag_configure("note", foreground=pal.current().note)
 
         self.tree.bind("<Double-1>", self._open)
         self.tree.bind("<Return>", self._open)
@@ -214,9 +216,9 @@ class TestBenchWindow(tk.Toplevel):
         self.tree.configure(yscrollcommand=bar.set)
         bar.pack(side="right", fill="y")
         self.tree.pack(side="left", fill="both", expand=True)
-        self.tree.tag_configure("pass", foreground="#2d6a1f")
-        self.tree.tag_configure("fail", foreground="#a01b0b")
-        self.tree.tag_configure("unanswered", foreground="#4f4f4f")
+        self.tree.tag_configure("pass", foreground=pal.current().passed)
+        self.tree.tag_configure("fail", foreground=pal.current().finding)
+        self.tree.tag_configure("unanswered", foreground=pal.current().note)
 
         self.bind("<Escape>", lambda _e: self.destroy())
         self.bind("<Destroy>", self._on_destroy, add="+")
@@ -284,7 +286,7 @@ class PreferencesDialog(tk.Toplevel):
         self.title("Preferences")
         self.transient(parent)
         self.resizable(False, False)
-        self.result: dict[str, int] | None = None
+        self.result: dict[str, int | str] | None = None
         self._check = check
         self._vars: dict[str, tk.StringVar] = {}
 
@@ -299,11 +301,24 @@ class PreferencesDialog(tk.Toplevel):
             if row == 0:
                 entry.focus_set()
             hint = f"{field.minimum:,} to {field.maximum:,} \u2014 {field.hint}"
-            ttk.Label(grid, text=hint, foreground="#4f4f4f").grid(
+            ttk.Label(grid, text=hint, foreground=pal.current().note).grid(
                 row=row * 2 + 1, column=0, columnspan=2, sticky="w", pady=(0, 8)
             )
 
-        self.problem = ttk.Label(self, text="", foreground="#a01b0b", padding=(12, 0))
+        if "contrast" in values:
+            # an editable list: the three presets to pick, or a ratio to type
+            from .preferences import CONTRAST_CHOICES, CONTRAST_HINT, CONTRAST_LABEL
+
+            row = len(fields) * 2
+            ttk.Label(grid, text=CONTRAST_LABEL).grid(row=row, column=0, sticky="w", padx=(0, 10))
+            var = tk.StringVar(master=self, value=values["contrast"])
+            self._vars["contrast"] = var
+            ttk.Combobox(grid, textvariable=var, values=CONTRAST_CHOICES, width=8).grid(row=row, column=1, sticky="w")
+            ttk.Label(grid, text=CONTRAST_HINT, foreground=pal.current().note).grid(
+                row=row + 1, column=0, columnspan=2, sticky="w", pady=(0, 8)
+            )
+
+        self.problem = ttk.Label(self, text="", foreground=pal.current().finding, padding=(12, 0))
         self.problem.pack(fill="x")
         buttons = ttk.Frame(self, padding=(12, 4, 12, 12))
         buttons.pack(fill="x")
@@ -323,13 +338,13 @@ class PreferencesDialog(tk.Toplevel):
         self.result = values
         self.destroy()
 
-    def ask(self) -> dict[str, int] | None:
+    def ask(self) -> dict[str, int | str] | None:
         self.grab_set()
         self.wait_window(self)
         return self.result
 
 
-def edit_preferences(parent: tk.Misc, values: dict[str, str], fields, check) -> dict[str, int] | None:
+def edit_preferences(parent: tk.Misc, values: dict[str, str], fields, check) -> dict[str, int | str] | None:
     return PreferencesDialog(parent, values, fields, check).ask()
 
 
@@ -350,7 +365,7 @@ class PathPicker(ttk.Frame):
         self._on_change = on_change
 
         ttk.Label(self, text=label).grid(row=0, column=0, sticky="w")
-        self._route = ttk.Label(self, text="", foreground="#3c3c3c")
+        self._route = ttk.Label(self, text="", foreground=pal.current().readonly)
         self._route.grid(row=0, column=1, sticky="w", padx=(8, 0))
 
         controls = ttk.Frame(self)
@@ -444,13 +459,13 @@ class SchemaRuleDialog(tk.Toplevel):
         ttk.Label(
             body,
             text="Enforced in the application: a rule spanning two tables is not a check constraint.",
-            foreground="#4f4f4f",
+            foreground=pal.current().note,
             wraplength=420,
             justify="left",
         ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         self._error = tk.StringVar(value=self._problem)
-        ttk.Label(body, textvariable=self._error, foreground="#a01b0b", wraplength=420).grid(
+        ttk.Label(body, textvariable=self._error, foreground=pal.current().finding, wraplength=420).grid(
             row=5, column=0, columnspan=2, sticky="w", pady=(6, 0)
         )
 
@@ -576,7 +591,7 @@ class RuleDialog(tk.Toplevel):
         row += 1
 
         self._error = tk.StringVar(value=problem)
-        ttk.Label(body, textvariable=self._error, foreground="#a01b0b", wraplength=380).grid(
+        ttk.Label(body, textvariable=self._error, foreground=pal.current().finding, wraplength=380).grid(
             row=row, column=0, columnspan=2, sticky="w", pady=(6, 0)
         )
 
@@ -731,7 +746,7 @@ class SlotDialog(tk.Toplevel):
             ).grid(row=row, column=1, sticky="ew", pady=2)
             row += 1
 
-        ttk.Label(body, textvariable=self._error, foreground="#a01b0b", wraplength=340).grid(
+        ttk.Label(body, textvariable=self._error, foreground=pal.current().finding, wraplength=340).grid(
             row=row, column=0, columnspan=2, sticky="w", pady=(6, 0)
         )
 
@@ -803,7 +818,7 @@ class DeleteConfirmation(tk.Toplevel):
                     "This changes the shape of other entities, not just their "
                     "references: they lose every slot they inherit."
                 ),
-                foreground="#a01b0b",
+                foreground=pal.current().finding,
                 wraplength=520,
                 justify="left",
             ).pack(anchor="w", pady=(6, 0))
@@ -816,7 +831,7 @@ class DeleteConfirmation(tk.Toplevel):
                 height=min(14, 2 + impact.affected + len(impact.groups)),
                 width=72,
                 wrap="none",
-                background="#ffffff",
+                background=pal.current().background,
                 relief="solid",
                 borderwidth=1,
             )
@@ -838,7 +853,13 @@ class DeleteConfirmation(tk.Toplevel):
                 justify="left",
             ).pack(anchor="w", pady=(0, 4))
             box = tk.Text(
-                preview, height=10, width=72, wrap="none", background="#ffffff", relief="solid", borderwidth=1
+                preview,
+                height=10,
+                width=72,
+                wrap="none",
+                background=pal.current().background,
+                relief="solid",
+                borderwidth=1,
             )
             box.insert("1.0", impact.subtree)
             box.configure(state="disabled")
@@ -849,7 +870,7 @@ class DeleteConfirmation(tk.Toplevel):
 
         buttons = ttk.Frame(self, padding=(12, 0, 12, 12))
         buttons.pack(fill="x")
-        ttk.Label(buttons, text="One undo step.", foreground="#4f4f4f").pack(side="left")
+        ttk.Label(buttons, text="One undo step.", foreground=pal.current().note).pack(side="left")
         ttk.Button(buttons, text="Cancel", command=self.destroy).pack(side="right")
         ttk.Button(buttons, text="Delete", command=self._accept).pack(side="right", padx=(0, 6))
 

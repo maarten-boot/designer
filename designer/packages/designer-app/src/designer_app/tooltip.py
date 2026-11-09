@@ -10,9 +10,9 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
+from . import palette as pal
+
 DELAY_MS = 450
-BACKGROUND = "#ffffe0"
-BORDER = "#8a8a6a"
 
 
 class Tooltip:
@@ -61,7 +61,8 @@ class Tooltip:
         ttk.Label(
             window,
             text=self.text,
-            background=BACKGROUND,
+            background=pal.current().tints["tooltip"],
+            foreground=pal.current().text,
             relief="solid",
             borderwidth=1,
             padding=(6, 3),

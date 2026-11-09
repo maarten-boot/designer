@@ -13,7 +13,7 @@ from __future__ import annotations
 import sys
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from uuid import UUID, uuid4
 
 from designer_model import Deriver, Session, bench, membership
@@ -38,8 +38,9 @@ from designer_model.model import (
 from designer_model.stdlib import standard_library
 
 from . import bindings as bindingedit
-from . import exporting, forms, preferences, testbench
+from . import exporting, forms, preferences, testbench, theme
 from . import findings as findingview
+from . import palette as pal
 from . import paths as pathedit
 from . import rows as rowbuild
 from . import slots as slotedit
@@ -56,7 +57,7 @@ from .dialogs import (
     edit_slot,
 )
 from .factory import duplicate, new_item
-from .formview import FRAME_STYLE, PANEL, FormView
+from .formview import FRAME_STYLE, FormView, install_styles
 from .impact import summarise
 from .layout import CollapseManager
 from .scrolling import ScrollingArea
@@ -77,6 +78,9 @@ class DesignerApp(tk.Tk):
         self._autosave_job: str | None = None
 
         self.title("Designer")
+        # before anything is built, so every widget is made in these colours
+        pal.use(settings.contrast)
+        theme.apply(self)
         self._size_window()
         self._build_menu()
         self._build_layout()
@@ -160,6 +164,18 @@ class DesignerApp(tk.Tk):
                 command=self._set_finding_level,
             )
         view_menu.add_cascade(label="Findings shown", menu=findings_menu)
+        contrast_menu = tk.Menu(view_menu, tearoff=False)
+        self._contrast = tk.StringVar(value=pal.name_of(self.settings.contrast))
+        for name in pal.PRESETS:
+            contrast_menu.add_radiobutton(
+                label=pal.describe(name),
+                value=name,
+                variable=self._contrast,
+                command=lambda: self.set_contrast(self._contrast.get()),
+            )
+        contrast_menu.add_separator()
+        contrast_menu.add_command(label="Custom ratio\u2026", command=self._ask_contrast)
+        view_menu.add_cascade(label="Contrast", menu=contrast_menu)
         view_menu.add_separator()
         view_menu.add_command(label="Reset layout", command=self._reset_layout)
         menubar.add_cascade(label="View", menu=view_menu)
@@ -225,7 +241,7 @@ class DesignerApp(tk.Tk):
         self.breadcrumb = Breadcrumb(lower)
         self.breadcrumb.pack(fill="x", padx=6, pady=(6, 2))
         ttk.Separator(lower, orient="horizontal").pack(fill="x", padx=6)
-        self._editor_area = ScrollingArea(lower, background=PANEL, style=FRAME_STYLE)
+        self._editor_area = ScrollingArea(lower, style=FRAME_STYLE)
         self._editor_area.pack(fill="both", expand=True, padx=6, pady=6)
         self.editor = FormView(
             self._editor_area.interior,
@@ -263,6 +279,48 @@ class DesignerApp(tk.Tk):
         self._update_status()
         if self._findings_window is not None and self._findings_window.winfo_exists():
             self.show_findings()
+
+    # --- contrast -------------------------------------------------------------
+
+    def set_contrast(self, level: object) -> None:
+        """Every colour at the new minimum, at once and in what is already
+        open: the styles, the menus, each column's rows, and the form, which is
+        rebuilt. Saved at once, like the other preferences."""
+        self.settings.contrast = pal.name_of(level)
+        self._contrast.set(self.settings.contrast)
+        self._apply_contrast()
+        try:
+            self.settings.save()
+        except OSError as error:
+            messagebox.showwarning("Contrast not saved", f"It applies until you quit.\n\n{error}")
+
+    def _apply_contrast(self) -> None:
+        pal.use(self.settings.contrast)
+        theme.apply(self)
+        install_styles(self)
+        for view in self.columns.values():
+            view.restyle()
+        self.refresh()
+        self._update_status()
+
+    def _ask_contrast(self) -> None:
+        """View ▸ Contrast ▸ Custom ratio…: any minimum from AA to black and
+        white. Asked again until it is one, or cancelled."""
+        problem = ""
+        while True:
+            answer = simpledialog.askstring(
+                "Minimum contrast",
+                f"{problem}A ratio from {pal.LOWEST:g} to {pal.HIGHEST:g}, such as 10 or 10:1\n"
+                f"(now {pal.describe(self.settings.contrast)})",
+                initialvalue=pal.name_of(self.settings.contrast),
+                parent=self,
+            )
+            if answer is None:
+                return
+            if pal.parse(answer) is not None:
+                self.set_contrast(answer)
+                return
+            problem = f"{answer.strip()!r} is not a ratio from {pal.LOWEST:g} to {pal.HIGHEST:g}.\n\n"
 
     def _toggle_sort(self, title: str) -> None:
         column = next(key for key, value in TITLES.items() if value == title)
@@ -1287,7 +1345,11 @@ class DesignerApp(tk.Tk):
         chosen = edit_preferences(self, preferences.current(self.settings), preferences.PREFERENCES, preferences.check)
         if chosen is None:
             return
+        before = pal.name_of(self.settings.contrast)
         preferences.apply(chosen, self.settings, self.session.stack)
+        if pal.name_of(self.settings.contrast) != before:
+            self._contrast.set(pal.name_of(self.settings.contrast))
+            self._apply_contrast()
         try:
             self.settings.save()
         except OSError as error:

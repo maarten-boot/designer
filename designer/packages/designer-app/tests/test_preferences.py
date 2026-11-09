@@ -18,7 +18,28 @@ def test_the_dialog_opens_with_the_current_values():
         "undo_limit": "7",
         "autosave_delay_ms": "250",
         "recent_files_limit": "10",
+        "contrast": "AA",
     }
+
+
+def test_the_contrast_level_is_read_as_a_preset_or_a_ratio():
+    base = {"undo_limit": "50", "autosave_delay_ms": "250", "recent_files_limit": "5"}
+    for typed, kept in (("aaa", "AAA"), (" Max ", "Max"), ("10:1", "10"), ("7", "AAA"), ("12.5", "12.5")):
+        values, problem = preferences.check({**base, "contrast": typed})
+        assert problem == "" and values["contrast"] == kept, typed
+
+
+def test_a_contrast_below_aa_is_refused():
+    base = {"undo_limit": "50", "autosave_delay_ms": "250", "recent_files_limit": "5"}
+    for typed in ("3", "A", "", "22", "nan"):
+        values, problem = preferences.check({**base, "contrast": typed})
+        assert values == {} and problem.startswith("Minimum contrast must be"), typed
+
+
+def test_applying_a_contrast_level_stores_its_name():
+    settings = Settings()
+    preferences.apply({"contrast": "Max"}, settings, Session.open(EXAMPLE).stack)
+    assert settings.contrast == "Max"
 
 
 def test_good_values_come_back_as_numbers():

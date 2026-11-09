@@ -34,10 +34,10 @@ answer in the specification.
     packages/designer-app/      the interface. rows.py, selection.py,
                                 state.py, slots.py, bindings.py, paths.py,
                                 forms.py, impact.py, findings.py, factory.py,
-                                exporting.py, testbench.py and preferences.py
-                                are deliberately tkinter-free and carry the
-                                logic worth testing; the widget modules are
-                                thin adapters over them.
+                                exporting.py, testbench.py, preferences.py and
+                                palette.py are deliberately tkinter-free and
+                                carry the logic worth testing; the widget
+                                modules are thin adapters over them.
     examples/sales.json         the worked example, and the main test fixture.
     examples/sales_broken.json  the same model, broken on purpose: a schema
                                 that will not export, with a Fix for each cause.
@@ -90,6 +90,11 @@ on a Type's or a Property's form. See *The test bench* below.
 **Edit ▸ Preferences…** sets the undo limit, the autosave delay and how many
 recent files are listed, each with its range. A change applies at once — a lower
 undo limit forgets the oldest steps immediately — and is saved at once.
+
+**Contrast.** Black on white, with every colour pair at WCAG AA (4.5:1) or
+better. **View ▸ Contrast** raises it to AAA (7:1), Max (21:1, black and white
+only) or a custom ratio; so does Preferences, or `"contrast"` in the settings
+file (`~/.config/designer/settings.json` on Linux). Spec §13.12.
 
 **Deprecated built-ins** (spec §5.7) are listed beside the library in
 `designer_model/data/deprecations.json`, written by `tools/build_stdlib.py` from

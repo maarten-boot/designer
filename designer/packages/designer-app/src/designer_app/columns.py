@@ -12,33 +12,17 @@ import tkinter as tk
 from collections.abc import Callable
 from tkinter import ttk
 
+from . import theme
 from .rows import ColumnData, Row, preferred_width
 from .state import COLUMNS
 from .tooltip import attach
 
-# Row styling. Kept here rather than scattered through the code so the palette
-# is one thing to change, and so the relationship colours stay distinguishable
-# from the state ones.
-TAG_STYLES: dict[str, dict[str, str]] = {
-    "abstract": {"foreground": "#555555"},
-    "builtin": {"foreground": "#777777"},
-    "deprecated": {"foreground": "#aaaaaa"},
-    "unnamed": {"foreground": "#999999"},
-    "incomplete": {"foreground": "#8a6d00"},
-    "context-only": {"foreground": "#aaaaaa"},
-    "uses": {"background": "#e8f0fe"},
-    "references": {"background": "#e6f4ea"},
-    "contains": {"background": "#fdf1e3"},
-}
-
+# Row styling — the state colours, the relationship tints and the two
+# selections — lives in `palette`, where each is held to the contrast level.
 # Several columns hold a selection at once, and only one of them is what the
 # editor is showing. The active one is marked in amber; the others keep a muted
 # grey, so a stale selection still reads as "chosen earlier" without competing
 # with the current one.
-ACTIVE_SELECTION = "#ffcf5c"
-IDLE_SELECTION = "#d8d8d8"
-SELECTED_TEXT = "#111111"
-
 ACTIVE_STYLE = "Active.Treeview"
 IDLE_STYLE = "Idle.Treeview"
 
@@ -52,13 +36,7 @@ the application has already dropped.
 
 
 def install_tree_styles(widget: tk.Misc) -> None:
-    style = ttk.Style(widget)
-    for name, colour in ((ACTIVE_STYLE, ACTIVE_SELECTION), (IDLE_STYLE, IDLE_SELECTION)):
-        style.map(
-            name,
-            background=[("selected", colour)],
-            foreground=[("selected", SELECTED_TEXT)],
-        )
+    theme.install_selections(widget, ACTIVE_STYLE, IDLE_STYLE)
 
 
 class ColumnView(ttk.Frame):
@@ -125,8 +103,7 @@ class ColumnView(ttk.Frame):
         scroll.pack(side="right", fill="y", pady=(0, 2))
         self.tree.pack(side="left", fill="both", expand=True, padx=(2, 0), pady=(0, 2))
 
-        for tag, style in TAG_STYLES.items():
-            self.tree.tag_configure(tag, **style)
+        theme.tag_rows(self.tree)
 
         self.tree.bind("<<TreeviewSelect>>", self._selected)
         # A click on the row that is already selected changes nothing in the
@@ -192,6 +169,11 @@ class ColumnView(ttk.Frame):
         """Show which way the column runs."""
         arrow = "\u25be" if descending else "\u25b4"
         self._heading.configure(text=f"{self.title} {arrow}")
+
+    def restyle(self) -> None:
+        """The contrast level changed: the selections and the row tags again."""
+        install_tree_styles(self)
+        theme.tag_rows(self.tree)
 
     def set_active(self, active: bool) -> None:
         """Mark this column as the one the editor is showing."""

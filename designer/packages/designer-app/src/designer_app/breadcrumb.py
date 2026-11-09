@@ -15,6 +15,7 @@ from uuid import UUID
 
 from designer_model import Model
 
+from . import palette as pal
 from .rows import context_label
 
 SEPARATOR = "\u203a"  # a right-pointing angle quote
@@ -30,7 +31,7 @@ class Breadcrumb(ttk.Frame):
         path = context_label(model, context, f" {SEPARATOR} ")
         self._label.configure(
             text="(no context)" if path == "(none)" else f"Context:  {path}",
-            foreground="#888888" if path == "(none)" else "",
+            foreground=pal.current().muted if path == "(none)" else "",
         )
 
     @property

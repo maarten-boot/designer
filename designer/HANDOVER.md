@@ -27,16 +27,19 @@ diagnostics, the model check, the expression checker, pictures, commands, undo,
 session. Standard library only, and it never imports tkinter. `designer-app` is
 the interface, with `rows.py`, `selection.py`, `state.py`, `slots.py`,
 `bindings.py`, `paths.py`, `forms.py`, `impact.py`, `findings.py`, `factory.py`,
-`exporting.py`, `testbench.py` and `preferences.py` deliberately tkinter-free so
-the logic worth testing can be tested without a display.
+`exporting.py`, `testbench.py`, `preferences.py` and `palette.py` deliberately
+tkinter-free so the logic worth testing can be tested without a display. Every
+colour is in `palette.py`, held to a minimum contrast (spec §13.12); a test
+refuses a colour literal anywhere else.
 
 ---
 
 ## Where things stand
 
-`xvfb-run -a make check` green on 20 October: 1149 tests, none skipped, after
-the second crosscheck (turn 177). Released as 0.6.0; the release steps are below. Re-run it rather than trusting
-the number. The machine has pip, tkinter and Xvfb but no system-wide ruff, mypy
+`xvfb-run -a make check` green on 9 November: 1208 tests, none skipped, after
+the contrast work (turn 195). Released as 0.6.0; the release steps are below.
+Re-run it rather than trusting the number. Plans, traced requirements and test
+lists are in `docs/planning/` (the user's global rules, from turn 195). The machine has pip, tkinter and Xvfb but no system-wide ruff, mypy
 or pytest, so put them in a virtual environment and its `bin` first on `PATH`.
 Without `xvfb-run` the widget suite skips and `make check` still says green.
 
