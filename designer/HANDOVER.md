@@ -152,6 +152,11 @@ message has twice shown that the message itself was the defect, not the model.
 3. The user tags and publishes: `git tag -a vX.Y.Z -m "Designer X.Y.Z"`,
    `git push origin vX.Y.Z`, then a GitHub release from the tag with the four
    files in `dist/` attached and `RELEASE-NOTES.md`'s section as its text.
+   The tag also starts `.github/workflows/frozen.yml` (spec §14.5), which
+   builds the frozen app on Linux, Windows and macOS, self-tests each, and
+   attaches the three archives to the release, or to a draft if there is no
+   release yet. Wait for it before publishing, or publish and let it attach.
+   `make freeze` builds this platform's alone.
    **Check the file names in `dist/` carry the tag's version** before
    publishing: v0.2.0 first went out with packages still numbered 0.1.0,
    because the tag moved and the pyproject versions did not (turn 153).

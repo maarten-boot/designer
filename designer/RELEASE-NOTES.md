@@ -10,6 +10,10 @@
   white) or a custom ratio, at once; Preferences and the settings file
   (`"contrast": "AAA"`) do the same. Where colour runs out, rows turn italic or
   bold and selections invert. Spec §13.12.
+- **A frozen app for Linux, Windows and macOS**: one download per platform,
+  with Python and tkinter inside. Unpack it and run `Designer`. Built and
+  self-tested on each platform by a GitHub workflow when a version is tagged.
+  Spec §14.5.
 
 ## 0.6.0
 

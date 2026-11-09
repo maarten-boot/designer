@@ -1198,3 +1198,11 @@ new commit, for the tag to be moved onto it, as was done for 0.2.0.
 ## 196.
 
 > yes commit it; Ok skip the Go part i understand the impact; yes a frozen build easy to install and use would be a great asset. B Database (i understand the impact of B1 so skip it), Regarding B2 could that be a separate app converting to Postgres, Sqlite, Mariadb ?
+
+## 197.
+
+> i pushed it; linux + win + mac via gh actions, frozen build first.
+
+## 198.
+
+> yes commit it

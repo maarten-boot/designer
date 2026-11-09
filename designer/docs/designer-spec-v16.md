@@ -1389,6 +1389,30 @@ and marked unavailable** rather than dropped.
 
 `[V2]` A sample model, shipped as a file to open.
 
+### 14.5 Frozen build `[DECIDED]`
+
+`[CHANGED]` Besides the wheels, each release carries the application frozen
+with PyInstaller, one download per platform, with Python and tkinter inside:
+Linux x86-64, Windows x86-64 and macOS on Apple silicon. Each is a folder
+(`Designer.app` on macOS), not a single file: a one-file build unpacks itself
+at every start, and the test bench starts a new worker per trial within its
+two-second limit (§15).
+
+The frozen executable is its own interpreter, so it cannot be started as
+`python -m designer_model.bench`. Its entry point, `designer_app/frozen.py`,
+takes the jobs as flags instead: `--bench-worker` runs the test bench's worker,
+which `bench.worker_command` asks for when `sys.frozen` is set, and
+`--self-test MODEL REPORT` opens a window over a model, runs one trial through
+the worker and writes a report to a file — a file, since a windowed build on
+Windows has no console. The command-line tools are not frozen.
+
+`tools/freeze.py` builds and self-tests for the platform it runs on, into
+`dist-frozen/`. It cannot cross-build, so `.github/workflows/frozen.yml` runs it
+on all three platforms: on a tag `vX.Y.Z` it refuses a tag that disagrees with
+the package versions, and attaches the three archives to that tag's release,
+or to a new draft for the user to publish. A build whose self-test fails is not
+packaged.
+
 ---
 
 ## 15. Deferred `[V2]`

@@ -167,3 +167,19 @@ def test_a_failing_composite_without_a_message_names_what_failed(model):
     (verdict,) = trial.verdicts
     assert verdict.outcome == FAIL
     assert verdict.detail == "must look like ORD-000123; must be a UUID"
+
+
+def test_the_worker_is_this_module_under_the_running_python(monkeypatch) -> None:
+    import sys
+
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    assert bench.worker_command() == [sys.executable, "-m", "designer_model.bench"]
+
+
+def test_a_frozen_build_starts_itself_as_the_worker(monkeypatch) -> None:
+    """A frozen executable has no `python -m`; it is started with a flag its
+    entry point looks for first (designer_app/frozen.py)."""
+    import sys
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    assert bench.worker_command() == [sys.executable, bench.WORKER_FLAG]

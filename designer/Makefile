@@ -21,7 +21,7 @@ EXAMPLE  := examples/sales.json
 SCHEMA   := sales_schema
 
 .DEFAULT_GOAL := help
-.PHONY: help deps versions format lint types sync test gui model export docs check run clean dist release
+.PHONY: help deps versions format lint types sync test gui model export docs check run clean dist release freeze
 
 help:  ## show this list
 	@grep -E '^[a-z]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -92,6 +92,9 @@ dist:  ## regenerate the built-in library and the operator matrix
 
 release:  ## build wheels and sdists into dist/ and verify them in a clean environment
 	python3 tools/release.py
+
+freeze:  ## build the frozen app for this platform into dist-frozen/ and self-test it
+	python3 tools/freeze.py
 
 clean:  ## remove caches
 	find . -type d \( -name __pycache__ -o -name .pytest_cache -o -name .ruff_cache \

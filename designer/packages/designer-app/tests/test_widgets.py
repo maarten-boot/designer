@@ -2766,3 +2766,13 @@ def test_a_saved_contrast_is_used_from_the_start(config, quiet) -> None:
     finally:
         palette.use(palette.DEFAULT)
         window.destroy()
+
+
+def test_the_frozen_self_test_opens_a_window_and_runs_the_bench(tmp_path) -> None:
+    """What the release workflow runs on each platform, run here unfrozen."""
+    from designer_app import frozen
+
+    report = tmp_path / "report.txt"
+    example = pathlib.Path(__file__).resolve().parents[3] / "examples" / "sales.json"
+    assert frozen.self_test(str(example), str(report)) == 0, report.read_text()
+    assert report.read_text().strip().endswith("ok")

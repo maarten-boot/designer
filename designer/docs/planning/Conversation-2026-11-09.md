@@ -48,3 +48,23 @@ release.
 Committed the contrast work and planning files. Go and the model-in-a-database
 option are dropped. A frozen build is wanted. B2 is to be a separate app
 converting the export to PostgreSQL, SQLite and MariaDB; a design was proposed.
+
+## Turn 197: frozen build first; Linux, Windows and macOS via GitHub Actions
+
+- `tools/freeze.py` (PyInstaller; `make freeze`) builds this platform's app
+  into `dist-frozen/`, runs its self-test and packages it. Its environment is
+  kept in `~/.cache/designer-release/freeze-pyX.Y`; temporary build folders
+  are removed afterwards.
+- `designer_app/frozen.py` is the frozen entry point: `--bench-worker`,
+  `--self-test MODEL REPORT`, or the app. `bench.worker_command()` starts the
+  frozen executable as the worker when `sys.frozen` is set.
+- The first local build failed its self-test: the library's data files were
+  not bundled (`--collect-data` needs the package installed; switched to
+  `--add-data`). That is what the self-test is for.
+- Folder builds rather than one-file builds, because a one-file build unpacks
+  itself at each start and the bench's worker must start within 2 s.
+- `.github/workflows/frozen.yml` at the repository root: a matrix build on
+  ubuntu-22.04, windows-latest and macos-latest, with a tag/version check;
+  on a tag, the archives are attached to the release or to a new draft.
+- 1215 tests are green. Spec §14.5, README, HANDOVER, RELEASE-NOTES and the
+  planning files are updated.

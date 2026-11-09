@@ -40,6 +40,11 @@ from .pictures import ParseError, PictureError, compile_picture, parse, readable
 from .stdlib import Library, standard_library
 
 TIMEOUT = 2.0
+
+WORKER_FLAG = "--bench-worker"
+"""What a frozen build is started with to be the worker rather than the window.
+A frozen executable has no `python -m`: it is the interpreter, and it runs only
+its own entry point, which looks for this flag first."""
 """Seconds before a trial is stopped. Every built-in answers in microseconds;
 anything near this is a pattern that will not finish."""
 
@@ -267,7 +272,15 @@ def _from_wire(raw: dict[str, Any]) -> Trial:
     )
 
 
-def _main() -> None:
+def worker_command() -> list[str]:
+    """How to start the worker: this module under the running interpreter, or
+    the frozen executable itself with `WORKER_FLAG`."""
+    if getattr(sys, "frozen", False):
+        return [sys.executable, WORKER_FLAG]
+    return [sys.executable, "-m", "designer_model.bench"]
+
+
+def worker_main() -> None:
     """The worker: a request on standard input, a Trial on standard output.
 
     Its own module run with `-m`, not a `multiprocessing` child, which would
@@ -291,8 +304,9 @@ class Job:
         self._deadline = time.monotonic() + timeout
         source = str(pathlib.Path(__file__).resolve().parents[1])
         path = os.pathsep.join(filter(None, [source, os.environ.get("PYTHONPATH")]))
-        self._process = subprocess.Popen(
-            [sys.executable, "-m", "designer_model.bench"],
+        # S603: the command is this interpreter or this executable, never input
+        self._process = subprocess.Popen(  # noqa: S603
+            worker_command(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -356,4 +370,4 @@ def run(model: Model, type_uuid: UUID, text: str, timeout: float = TIMEOUT) -> T
 
 
 if __name__ == "__main__":
-    _main()
+    worker_main()

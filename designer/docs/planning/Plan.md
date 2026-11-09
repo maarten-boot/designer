@@ -20,9 +20,11 @@ has been deleted locally and remotely.
 
 - **Go** (REV-1): not pursued; the user understands the impact.
 - **Model catalogue in a database** (REV-2, B1): not pursued.
-- **Frozen build** (single-file app, easy to install): wanted. Not started.
+- **Frozen build**: done (turn 197), Linux verified here; Windows and macOS
+  are verified by the workflow's first run (FRZ-1 to FRZ-6).
 - **Schema to DDL** (REV-2, B2): wanted as a separate app targeting
-  PostgreSQL, SQLite and MariaDB. Design proposed in turn 196; not started.
+  PostgreSQL, SQLite and MariaDB. Design proposed in turn 196. Next, after
+  the frozen build (turn 197), starting with PostgreSQL.
 
 ## Open — the user's to decide
 

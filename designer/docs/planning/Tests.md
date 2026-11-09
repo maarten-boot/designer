@@ -28,10 +28,23 @@ under `packages/designer-app/tests/`.
 | CON-7 | `test_a_state_that_loses_its_colour_gets_another_cue` | `test_palette.py` |
 | CON-7 | `test_a_selection_that_cannot_be_tinted_is_inverted` | `test_palette.py` |
 | CON-8 | `test_no_colour_is_written_anywhere_but_the_palette` | `test_palette.py` |
+| FRZ-2 | `test_a_frozen_build_starts_itself_as_the_worker` | `designer-model/tests/test_bench.py` |
+| FRZ-2 | `test_the_worker_is_this_module_under_the_running_python` | `designer-model/tests/test_bench.py` |
+| FRZ-2 | `test_the_worker_flag_runs_the_bench_worker` | `test_frozen.py` |
+| FRZ-2 | `test_no_flag_starts_the_application` | `test_frozen.py` |
+| FRZ-4 | `test_a_self_test_needs_a_model_and_a_report` | `test_frozen.py` |
+| FRZ-4 | `test_a_failed_self_test_says_why_in_its_report` | `test_frozen.py` |
+| FRZ-4 | `test_the_frozen_self_test_opens_a_window_and_runs_the_bench` | `test_widgets.py` |
+| FRZ-1, 2, 3, 4 | the self-test of each real build, in `tools/freeze.py` | CI, each platform |
+| FRZ-5 | the tag check and release steps in `.github/workflows/frozen.yml` | CI |
 
 ## Not automated
 
 - The look of the window at AA and Max was checked by screenshot under Xvfb
   (9 November 2026), not by a test.
+- FRZ-1 to FRZ-4 on Linux: built and self-tested here (9 November 2026,
+  PyInstaller 6.22, Python 3.14), including from the unpacked archive (0.7 s).
+  Windows and macOS are verified only by the workflow's first run.
+- FRZ-5 has not run yet: it runs on the first tag pushed after this change.
 - That a selected row is drawn in the selection's colours rather than its tag's
   was checked by pixel sampling on Tk 8.6.17; older Tk is not covered.

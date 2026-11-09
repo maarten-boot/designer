@@ -28,6 +28,17 @@ the test suite itself (1208 tests at the last run) and by `make docs`.
 | CON-7 | Where colour can no longer distinguish a row state or relationship, another cue stands in: italic for a state, bold for a relationship; a selection that cannot be tinted is inverted. |
 | CON-8 | No colour literal appears in any application module except `palette.py`, so every colour is covered by CON-2. |
 
+## FRZ — frozen build (spec §14.5)
+
+| ID | Requirement |
+|---|---|
+| FRZ-1 | Each release carries the application frozen for Linux x86-64, Windows x86-64 and macOS arm64, with Python and tkinter inside; nothing else to install. |
+| FRZ-2 | The frozen app opens a window, finds its bundled library (`stdlib.json` and the rest), and runs the test bench, whose worker is the frozen executable itself started with `--bench-worker`. |
+| FRZ-3 | A worker starts fast enough for the bench's two-second limit: a folder build, not a one-file build that unpacks at each start. |
+| FRZ-4 | Every build is self-tested on its own platform (`--self-test`) before it is packaged; a failing build is not packaged. |
+| FRZ-5 | A tag `vX.Y.Z` builds all three in GitHub Actions, refuses a tag that disagrees with the package versions, and attaches the archives to the release, or to a draft. |
+| FRZ-6 | Building never writes an environment or build folder into the repository (the NFS-share rule); output goes to `dist-frozen/`, which is ignored by git. |
+
 ## REV — reviews requested (not requirements)
 
 | ID | Subject | Document |

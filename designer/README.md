@@ -52,6 +52,8 @@ answer in the specification.
                                 (both thin wrappers over designer_model/cli.py,
                                 installed as designer-check and designer-export)
     tools/release.py            builds the release and verifies it installs.
+    tools/freeze.py             builds the frozen app for this platform and
+                                runs its self-test (`make freeze`).
     examples/*.export.json      the exports of sales_schema and support_schema,
                                 and of sales_schema with Interfaces, which the
                                 exporter must reproduce byte for byte.
@@ -220,7 +222,25 @@ variants.
 
 ## Installing a release
 
-Each release on GitHub carries a wheel of each package. Install both into a
+**The easy way: the frozen app.** Each release after 0.6.0 carries one
+download per platform, with Python and tkinter inside — nothing else to
+install:
+
+| Platform | File | Then |
+|---|---|---|
+| Linux (x86-64, glibc 2.35 or later — Ubuntu 22.04, Debian 12) | `designer-X.Y.Z-linux-x86_64.tar.gz` | `tar -xzf` it and run `Designer` in the folder |
+| Windows (x86-64) | `designer-X.Y.Z-windows-x86_64.zip` | unzip it and run `Designer.exe` in the folder |
+| macOS (Apple silicon) | `designer-X.Y.Z-macos-arm64.zip` | unzip it and move `Designer.app` to Applications |
+
+The builds aren't signed. Windows SmartScreen will warn the first time ("More
+info", then "Run anyway"). macOS refuses a downloaded unsigned app at first:
+choose Open Anyway in System Settings ▸ Privacy & Security (on older macOS,
+right-click the app and choose Open), or run
+`xattr -dr com.apple.quarantine Designer.app` once. The command-line tools
+(`designer-check`, `designer-export`) are not in the frozen app; install the
+wheels for those.
+
+**With Python: the wheels.** Each release on GitHub carries a wheel of each package. Install both into a
 virtual environment — `designer-app` needs exactly its own `designer-model`:
 
     python3 -m venv ~/.venvs/designer
